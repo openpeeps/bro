@@ -1,27 +1,115 @@
-<p align="center"><img src=".github/logo.png" width="140px"><br>OpenPeep's repository template for developing libraries,<br>projects and other cool things</p>
+<p align="center">
+  <img src="https://github.com/openpeep/bro/blob/main/.github/logo.png" width="170px"><br>
+  😋 Bro aka NimSass - A super fast stylesheet language for cool kids<br>👑 Written in Nim language
+</p>
+
+<p align="center">
+  <code>nimble install bro</code>
+</p>
+
+<p align="center">
+  <a href="https://openpeep.github.io/bro">API reference</a><br>
+  <img src="https://github.com/openpeep/bro/workflows/test/badge.svg" alt="Github Actions">  <img src="https://github.com/openpeep/bro/workflows/docs/badge.svg" alt="Github Actions">
+</p>
 
 ## 😍 Key Features
-- [x] Made with Love
-- [x] ...
-- [x] Open Source
+- [x] Extremly fast, Small executable **Only 340 kB**
+- [x] Dependency free / No Virtual Machine
+- [x] Works on Linux/UNIX, macOS, Windows
+- [x] `Warnings` - Unused **Variables**
+- [x] `Warnings` - Unused **Mixins**
+- [ ] Available as a **dynlib**
+- [ ] Available for **Bun JS**
+- [ ] Available as a **Native NodeJS addon**
+- [x] Open Source | `MIT` License
+- [x] Written in 👑 Nim language
 
-## Installing
-_installation description_
+## Why BRO?
+todo
 
-## Examples
-_to add working examples_
+## Bro 💖 Bun.js
+todo
 
-## Roadmap
-_to add roadmap_
+## BRO vs Sass
 
-### ❤ Contributions
-If you like this project you can contribute to {PROJECT_NAME} by opening new issues, fixing bugs, contribute with code, ideas and you can even [donate via PayPal address](https://www.paypal.com/donate/?hosted_button_id=RJK3ZTDWPL55C) 🥰
+### Benchmark 1
+<details>
+  <summary>Running on a file containing <strong>393K+ lines</strong>. 2^17 instances of</summary>
 
-### 👑 Discover Nim language
-<strong>What's Nim?</strong> Nim is a statically typed compiled systems programming language. It combines successful concepts from mature languages like Python, Ada and Modula. [Find out more about Nim language](https://nim-lang.org/)
+```sass
+button_0
+  background: yellow
+  
+button_1
+  background: yellow
 
-<strong>Why Nim?</strong> Performance, fast compilation and C-like freedom. We want to keep code clean, readable, concise, and close to our intention. Also a very good language to learn in 2022.
+button_2
+  background: yellow
+
+```
+
+#### Bro (NimSass)
+
+```bash
+Benchmark 1: bro build big.sass --noMap
+  Time (mean ± σ):     305.4 ms ±   1.6 ms    [User: 202.1 ms, System: 102.7 ms]
+  Range (min … max):   302.9 ms … 306.9 ms    5 runs
+```
+
+#### SassC
+
+```bash
+Benchmark 1: sassc big.sass big.css --style=compressed
+  Time (mean ± σ):      1.653 s ±  0.014 s    [User: 1.514 s, System: 0.136 s]
+  Range (min … max):    1.639 s …  1.675 s    5 runs
+```
+
+#### DartSass
+
+```bash
+Benchmark 1: ./dart sass.snapshot big.sass:big.css --no-source-map --style=compressed
+  Time (mean ± σ):      1.526 s ±  0.012 s    [User: 1.890 s, System: 0.107 s]
+  Range (min … max):    1.512 s …  1.541 s    5 runs
+```
+
+</details>
+
+<details>
+  <summary><strong>393K * 3</strong> = <strong>1M+ lines</strong></summary>
+
+#### Bro (NimSass)
+```bash
+Benchmark 1: bro build big.sass
+  Time (abs ≡):        874.0 ms               [User: 650.1 ms, System: 220.7 ms]
+```
+
+#### SassC
+```bash
+Benchmark 1: sassc big.sass big.css
+  Time (abs ≡):         5.058 s               [User: 4.698 s, System: 0.356 s]
+```
+
+#### DartSass
+```bash
+Benchmark 1: ./dart sass.snapshot big.sass:big.css --no-source-map
+  Time (abs ≡):         4.148 s               [User: 5.203 s, System: 0.223 s]
+```
+
+</details>
+
+- **Ubuntu 22.04 LTS**: Ryzen 5 5600g 3.9GHz × 12 / RAM 32 GB 3200MHz / SSD M.2
+- **MacBook Pro mid 2015**: 2.5GHz Quad-Core i7 / RAM 16 GB 1600MHz / PCIe-based SSD
+- **MacBook Air 2017**: 1.8GHz Dual-Core i5 / RAM 8 GB 1600MHz / PCIe-based SSD
+- **Windows:** Need your help!
+
+Benchmarks made with [hyperfine](https://github.com/sharkdp/hyperfine)
+
+### ❤ Contributions & Support
+- 🐛 Found a bug? [Create a new Issue](https://github.com/openpeep/bro/issues)
+- 👋 Wanna help? [Fork it!](https://github.com/openpeep/bro/fork)
+- 😎 [Get €20 in cloud credits from Hetzner](https://hetzner.cloud/?ref=Hm0mYGM9NxZ4)
+- 🥰 [Donate via PayPal address](https://www.paypal.com/donate/?hosted_button_id=RJK3ZTDWPL55C)
 
 ### 🎩 License
-{PROJECT_NAME} is an Open Source Software released under `{LICENSE}` license. [Developed by Humans from OpenPeep](https://github.com/openpeep).<br>
-Copyright &copy; 2022 OpenPeep & Contributors &mdash; All rights reserved.
+BRO aka NimSass | MIT license. [Made by Humans from OpenPeep](https://github.com/openpeep).<br>
+Copyright &copy; 2023 OpenPeep & Contributors &mdash; All rights reserved.

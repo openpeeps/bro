@@ -1,0 +1,12 @@
+.DS_Store
+nimcache/
+nimblecache/
+htmldocs/
+testresults/
+/tests/*
+!/tests/*.nim
+!/tests/*.nims
+/bin
+/bench
+/cli.md
+/.cache
