@@ -4,7 +4,7 @@
 </p>
 
 <p align="center">
-  <code>nimble install bro</code>
+  <code>nimble install bro</code> or <a href="#">Download</a> the latest version 
 </p>
 
 <p align="center">
@@ -27,23 +27,20 @@
 ## Why BRO?
 todo
 
-## Bro 💖 Bun.js
+### Bro 💛 Nim
+todo
+
+### Bro 💖 Bun.js
 todo
 
 ## BRO vs Sass
 
 ### Benchmark 1
 <details>
-  <summary>Running on a file containing <strong>393K+ lines</strong>. 2^17 instances of</summary>
+  <summary><strong>393K+ lines</strong>. 2^17 instances of</summary>
 
 ```sass
 button_0
-  background: yellow
-  
-button_1
-  background: yellow
-
-button_2
   background: yellow
 
 ```
@@ -75,7 +72,7 @@ Benchmark 1: ./dart sass.snapshot big.sass:big.css --no-source-map --style=compr
 </details>
 
 <details>
-  <summary><strong>393K * 3</strong> = <strong>1M+ lines</strong></summary>
+  <summary>Want more? <strong>393K * 3</strong> = <strong>1M+ lines</strong></summary>
 
 #### Bro (NimSass)
 ```bash
@@ -98,11 +95,12 @@ Benchmark 1: ./dart sass.snapshot big.sass:big.css --no-source-map
 </details>
 
 - **Ubuntu 22.04 LTS**: Ryzen 5 5600g 3.9GHz × 12 / RAM 32 GB 3200MHz / SSD M.2
-- **MacBook Pro mid 2015**: 2.5GHz Quad-Core i7 / RAM 16 GB 1600MHz / PCIe-based SSD
-- **MacBook Air 2017**: 1.8GHz Dual-Core i5 / RAM 8 GB 1600MHz / PCIe-based SSD
-- **Windows:** Need your help!
 
 Benchmarks made with [hyperfine](https://github.com/sharkdp/hyperfine)
+
+
+## TODO
+todo
 
 ### ❤ Contributions & Support
 - 🐛 Found a bug? [Create a new Issue](https://github.com/openpeep/bro/issues)
