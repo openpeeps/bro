@@ -22,15 +22,16 @@ elif compileOption("app", "console"):
       "😋 Bro aka NimSass - A super fast stylesheet language for cool kids!"
       "   https://github.com/openpeep/bro"
     commands:
-      $ "build" `style`:
+      $ "build" `style` "--minify":
         ? "Transpiles the given stylesheet to CSS"
+      
       --- "Development"
       $ "watch" `style` `delay`:
-        ? "Watch for changes and transpile the given stylesheet to CSS"
+        ? "Watch for changes and transpile the given stylesheet into CSS"
       $ "map" `style`:
         ? "Generates a source map for the given stylesheet"
       $ "ast" `style`:
-        ? "Generates AST for the given stylesheet"
+        ? "Generates Abstract Syntax Tree"
 else:
   import bro/[parser, compiler]
   export parser, compiler
