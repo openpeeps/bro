@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://github.com/openpeep/bro/blob/main/.github/logo.png" width="170px"><br>
+  <img src="https://github.com/openpeep/bro/blob/main/.github/bro.png" alt="Bro aka NimSass" width="170px"><br>
   😋 Bro aka NimSass - A super fast stylesheet language for cool kids<br>👑 Written in Nim language
 </p>
 
