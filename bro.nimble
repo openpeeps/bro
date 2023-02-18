@@ -19,11 +19,11 @@ requires "jsony"
 let label = "\n✨ Compiling..." & "\n"
 task dev, "development build":
   echo label
-  exec "nimble build --threads:on -d:useMalloc --gc:arc"
+  exec "nimble build --threads:on -d:useMalloc --gc:arc --deepcopy:on"
 
 task dll, "dynamic library build":
   exec "nim c -f -d:release --app:lib --tlsEmulation:off --opt:speed --gc:arc -d:danger --noMain --out:./bin/libbro.so src/bro.nim"
 
 task prod, "production build":
   echo label
-  exec "nimble build --threads:on -d:release -d:useMalloc --opt:speed -d:danger --gc:arc"
+  exec "nimble build --threads:on -d:release -d:useMalloc --opt:speed -d:danger --gc:arc --deepcopy:on"

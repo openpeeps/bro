@@ -21,7 +21,7 @@ type
     program: Program
     memtable: Memtable
     error: string
-    warnings: seq[Warning]
+    warnings*: seq[Warning]
 
   PrefixFunction = proc(p: Parser): Node
 
@@ -46,12 +46,9 @@ proc getError*(p: Parser): string =
 proc hasWarnings*(p: Parser): bool =
   result = p.warnings.len != 0
 
-iterator warnings*(p: Parser): Warning =
-  for w in p.warnings:
-    yield w
-
 when not defined release:
   proc `$`(node: Node): string =
+    # print nodes while in dev mode
     result = pretty(node.toJson(), 2)
 
 macro definePseudoClasses() =
@@ -140,11 +137,10 @@ proc parseProperty(p: Parser): Node =
       elif p.curr.kind == TKVariableCall:
         let callNode = p.parseCall()
         if callNode != nil:
-          result.pVal.add callNode
+          result.pVal.add(deepCopy(callNode))
         else: return
       else:
         break # TODO error
-
     if p.curr.kind == TKImportant:
       result.pRule = propRuleImportant
       walk p
@@ -159,10 +155,7 @@ proc whileChild(p: Parser, this: TokenTuple, parentNode: Node) =
     let tk = p.curr
     let propNode = p.parseProperty()
     if propNode != nil:
-      # if not parentNode.props.hasKey(propNode.pName):
       parentNode.props[propNode.pName] = propNode
-      # else:
-        # err "Duplicate property", tk, tk.value
     else: return
     if p.curr.pos == this.pos: break
 
@@ -176,10 +169,7 @@ proc whileChild(p: Parser, this: TokenTuple, parentNode: Node) =
         parentNode.props[node.ident] = node
       else:
         for k, v in node.props.pairs():
-          # if not parentNode.props[node.ident].props.hasKey(k):
           parentNode.props[node.ident].props[k] = v
-          # else:
-            # err "Duplicate property", tk, k
     else: break
     if p.curr.pos == this.pos: break
 
@@ -237,17 +227,31 @@ proc parseVariable(p: Parser): Node =
   let tk = p.curr
   walk p # :
   if likely(p.memtable.hasKey(tk.value) == false):
-    if p.next.kind in {TKIdentifier, TKColor, TKString, TKFloat, TKInteger}: 
+    if p.next.kind in {TKIdentifier, TKColor, TKString, TKFloat, TKInteger, TKVariableCall}:
       walk p
-      var varValue: string
-      while p.curr.line == tk.line:
-        add varValue, p.curr.value
-        add varValue, spaces(1)
-        walk p
-      let node = newValue(newString(varValue.strip()))
-      let varDecl = newVariable(tk.value, node, tk)
-      p.memtable[tk.value] = varDecl
-      return varDecl
+      var varNode: Node
+      if p.curr.kind != TKVariableCall:
+        var varValue: string
+        while p.curr.line == tk.line:
+          if p.curr.kind == TKComment: break
+          if p.curr.kind == TKVariableCall:
+            if p.memtable.hasKey(p.curr.value):
+              discard
+            else:
+              err "Undeclared variable", p.curr, "$" & p.curr.value
+              return
+          add varValue, p.curr.value
+          add varValue, spaces(1)
+          walk p
+        let node = newValue(newString(varValue.strip()))
+        varNode = newVariable(tk.value, node, tk)
+      else:
+        if p.memtable.hasKey(p.curr.value):
+          varNode = deepCopy p.memtable[p.curr.value]
+        else:
+          err "Assigned an undeclared variable", p.curr, "$" & p.curr.value
+      p.memtable[tk.value] = varNode
+      return varNode
     err "Undefined value for variable", tk, tk.value
   else:
     if p.next.kind in {TKIdentifier, TKColor, TKString, TKFloat, TKInteger}: 
