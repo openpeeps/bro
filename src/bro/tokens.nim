@@ -190,6 +190,9 @@ tokens:
     Comment   > '/' .. EOL
   AtRule      > '@':
     Import    > "import"
+    Extend    > "extend"
+    Use       > "use"
+    Mixin     > "mixin"
   Root > "root"
   Body > "body"
   ID
