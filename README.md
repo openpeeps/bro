@@ -94,10 +94,8 @@ Benchmark 1: ./dart sass.snapshot big.sass:big.css --no-source-map
 
 </details>
 
-- **Ubuntu 22.04 LTS**: Ryzen 5 5600g 3.9GHz × 12 / RAM 32 GB 3200MHz / SSD M.2
-
-Benchmarks made with [hyperfine](https://github.com/sharkdp/hyperfine)
-
+Benchmarks made with [hyperfine](https://github.com/sharkdp/hyperfine) on
+**Ubuntu 22.04 LTS**: Ryzen 5 5600g 3.9GHz × 12 / RAM 32 GB 3200MHz / SSD M.2
 
 ## TODO
 todo
