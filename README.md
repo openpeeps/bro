@@ -94,7 +94,7 @@ Benchmark 1: ./dart sass.snapshot big.sass:big.css --no-source-map
 
 </details>
 
-Benchmarks made with [hyperfine](https://github.com/sharkdp/hyperfine) on
+Benchmarks made with [hyperfine](https://github.com/sharkdp/hyperfine) on<br>
 **Ubuntu 22.04 LTS**: Ryzen 5 5600g 3.9GHz × 12 / RAM 32 GB 3200MHz / SSD M.2
 
 ## TODO
