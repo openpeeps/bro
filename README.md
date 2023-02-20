@@ -4,7 +4,7 @@
 </p>
 
 <p align="center">
-  <a href="https://openpeep.github.io/bro">API reference</a> | <a href="#">Download</a><br> (not available)
+  <a href="https://openpeep.github.io/bro">API reference</a> | <a href="#">Download</a> (not yet)<br>
   <img src="https://github.com/openpeep/bro/workflows/test/badge.svg" alt="Github Actions">  <img src="https://github.com/openpeep/bro/workflows/docs/badge.svg" alt="Github Actions">
   <br><br><br>
   <strong>Bro, this is the fastest stylesheet preprocessor I've ever seen!</strong> [🐦 tweet this]
