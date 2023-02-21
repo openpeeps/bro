@@ -24,7 +24,8 @@ proc runCommand*(v: Values) =
     t = cpuTime()
     p = parser.parseProgram(stylesheetPath)
   if p.hasError:
-    display(p.getError, indent=3)
+    for row in p.getError.rows:
+      display(row)
   else:
     if p.hasWarnings:
       for warning in p.warnings:
@@ -36,7 +37,7 @@ proc runCommand*(v: Values) =
           span("($1:$2)\n" % [$warning.line, $warning.col]),
         )
     try:
-      writeFile(astPath, toJson(p.getProgram))
+      # writeFile(astPath, toJson(p.getProgram))
       display "Done in " & $(cpuTime() - t)
       QuitSuccess.quit
     except IOError:

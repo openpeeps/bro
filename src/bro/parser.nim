@@ -186,7 +186,8 @@ proc parseProperty(p: var Parser): Node =
       result = newProperty(pName.value)
       while p.curr.line == pName.line:
         if p.curr.kind in {TKIdentifier, TKColor, TKString, TKCenter}:
-          let checkValue = Properties[pName.value].hasStrictValue(p.curr.value)
+          let property = Properties[pName.value]
+          let checkValue = property.hasStrictValue(p.curr.value)
           if checkValue.exists:
             if checkValue.status in {Unimplemented, Deprecated, Obsolete, NonStandard}:
               warn("Using $ ➭ value is $", p.curr, true,
@@ -195,7 +196,12 @@ proc parseProperty(p: var Parser): Node =
             walk p
           else:
             walk p
-            err "Invalid value $1 for $2 property" % [p.prev.value, pName.value], p.prev
+            error("Invalid value $",
+              p.prev, true,
+              extraLines = property.getValues(),
+              extraLabel = "Available values:",
+              pName.value & ": " & p.prev.value
+            )
         elif p.curr.kind == TKInteger:
           result.pVal.add newInt(p.curr.value)
           walk p
@@ -310,7 +316,8 @@ proc parsePseudoNest(p: var Parser): Node =
     let tk = p.curr
     result = p.parseSelector(tk.newPseudoClass, tk)
   else:
-    err "Unknown pseudo-class", p.curr, p.next.value
+    walk p
+    error("Unknown pseudo-class", p.prev, p.curr.value)
 
 proc parseVariableCall(p: var Parser): Node = 
   if likely(p.memtable.hasKey(p.curr.value)):
@@ -478,7 +485,7 @@ template initParser(fpath: string) =
   result.lex.close()
   for k, v in result.memtable.pairs():
     if unlikely(v.varValue.used == false):
-      add result.warnings, ("$" & k, v.varMeta.line, v.varMeta.col)
+      result.logger.warn("Unused variable", v.varMeta.line, v.varMeta.col, k)
 
 proc partialThread(filePath: string, lastModified: Time): Parser {.thread.} =
   {.gcsafe.}:

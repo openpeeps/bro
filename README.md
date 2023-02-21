@@ -29,18 +29,18 @@
 ## ✨ Why BRO?
 Because time is too precious &mdash; that's why Bro 👏
 
-Because current Sass implementations sucks. Zero types, no warnings, slow compilation!
+Because the official Sass implementations sucks. Zero types, no warnings, slow compilation!
 
 Typos, invalid properties or non-standard/deprecated values? Well, from their point of view it doesn't matter,
 because everything that looks like a pair of `key: value` should be just fine.
 
 Wait, is something magic here. Don't you ever dare to miss a space between `:` and `value` because `sassc`
-will simply ignore the line (no message, WTF?), same with `DartSass` except this one is printing the "error". Oh!
+will simply ignore the line (no message, WTF?), same with `DartSass`, except this one is printing the "error". Oh!
 
-&mdash; Bruh, I mean, Bro! I mean, that's why = 😋 Bro aka NimSass 👑
+&mdash; Bruh, I mean, Bro! I mean... that's why = 😋 Bro aka NimSass 👑
 
 **Okay, okay, then why Nim?**<br>
-Because [Nim is a modern programming language](https://nim-lang.org) that comes with performance, fast compilation and C-like freedom.
+Because [Nim is beautiful, modern, expressive](https://nim-lang.org). Nim provides performance, super fast compilation and C-like freedom.
 
 ### Bro 💛 Nim
 Integrate Bro in your Nim application
@@ -55,21 +55,17 @@ _Bun.js implements 90% of the APIs available in Node-API (napi). [Read more](htt
 
 
 ## Benchmarks
-<details>
-  <summary><h3>393K+ lines</h3></summary>
-
-  2^17 instances of:
+- 393K+ lines / 2^17 instances of (including a new line):
 ```sass
 button_0
   background: yellow
-// including a new line
+
 ```
 
 ```bash
 # Bro (NimSass) 🚀   bro build big.sass
   Time (mean ± σ):     256.1 ms ±  14.9 ms    [User: 179.0 ms, System: 77.1 ms]
   Range (min … max):   247.1 ms … 282.6 ms    5 runs
-
 
 # Bro w/ BunJS 👍    bun bro.js
   Time (mean ± σ):     514.2 ms ±   3.1 ms    [User: 370.8 ms, System: 143.0 ms]
@@ -99,11 +95,21 @@ Benchmarks made with [hyperfine](https://github.com/sharkdp/hyperfine) on<br>
 
 Example
 ```
-Warning (5:0): Declared and not used `$primary-color`
+Warning (5:0): Declared and not used $primary-color
  /examples/main.sass
-```
 
-```
+Warning (1:0): Declared and not used $paddin-gSize
+ /examples/forms/form.sass
+
+Warning (2:0): Declared and not used $font-stack
+ /examples/forms/form.sass
+
+Warning (6:0): Declared and not used $file-border-color
+ /examples/forms/form.sass
+
+Warning (5:0): Declared and not used $file-radius
+ /examples/forms/form.sass
+
 Error (21899:2): Unknown pseudo-class `focusa`
   /examples/main.sass
 ```

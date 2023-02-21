@@ -5,17 +5,30 @@
 #          Made by Humans from OpenPeep
 #          https://github.com/openpeep/bro
 
-when compileOption("app", "lib"):
+when defined napibuild:
+  import denim/napi/napibindings
   import bro/[parser, compiler]
 
-  proc compile*(stylesheetPath: cstring): cstring {.stdcall, exportc, dynlib.} =
-    var p = parser.parseProgram($stylesheetPath)
-    let c = newCompiler(p.getProgram(), p.getMemtable())
-    return c.getCss.cstring
+  init proc(module: Module) =
+    module.registerFn(1, "compile"):
+      let sourcePath = args[0].getStr
+      var p = parseProgram(sourcePath)
+      let cssContent = newCompilerStr(p.getProgram, p.getMemtable, sourcePath)
+      return %* cssContent
+      # return napiCall("JSON.parse", [ %* "[]" ])
+
+# elif compileOption("app", "lib"):
+#   import bro/[parser, compiler]
+
+#   proc compile*(stylesheetPath: cstring): cstring {.stdcall, exportc, dynlib.} =
+#     var p = parser.parseProgram($stylesheetPath)
+#     let c = newCompiler(p.getProgram(), p.getMemtable())
+#     return c.getCss.cstring
 
 elif compileOption("app", "console"):
   import klymene/commands
-  import commands/[watchCommand, buildCommand, mapCommand, astCommand]
+  import commands/[watchCommand, buildCommand,
+                  mapCommand, astCommand, docCommand]
 
   App:
     about:
@@ -30,8 +43,11 @@ elif compileOption("app", "console"):
         ? "Watch for changes and transpile the given stylesheet into CSS"
       $ "map" `style`:
         ? "Generates a source map for the given stylesheet"
+      $ "doc" `style`:
+        ? "Builds a documentation website"
       $ "ast" `style`:
         ? "Generates Abstract Syntax Tree"
+
 else:
   import bro/[parser, compiler]
   export parser, compiler

@@ -19,10 +19,10 @@ type
     lvlError
 
   Log* = ref object
-    msg: string
+    msg, extraLabel: string
     line, col: int
     useFmt: bool
-    args: seq[string]
+    args, extraLines: seq[string]
 
   Logger* = ref object
     infoLogs, noticeLogs, warnLogs, errorLogs: seq[Log]
@@ -31,6 +31,28 @@ proc add(logger: Logger, lvl: Level, msg: string,
                 line, col: int, useFmt: bool, args: varargs[string]) =
   let log = Log(msg: msg, args: args.toSeq(),
                 line: line, col: col, useFmt: useFmt)
+  case lvl:
+    of lvlInfo:
+      logger.infoLogs.add(log)
+    of lvlNotice:
+      logger.noticeLogs.add(log)
+    of lvlWarn:
+      logger.warnLogs.add(log)
+    of lvlError:
+      logger.errorLogs.add(log)
+
+proc add(logger: Logger, lvl: Level, msg: string,
+                line, col: int, useFmt: bool,
+                extraLines: seq[string], extraLabel: string, args: varargs[string]) =
+  let log = Log(
+    msg: msg,
+    args: args.toSeq(),
+    line: line,
+    col: col,
+    useFmt: useFmt,
+    extraLines: extraLines,
+    extraLabel: extraLabel
+  )
   case lvl:
     of lvlInfo:
       logger.infoLogs.add(log)
@@ -57,18 +79,11 @@ proc newError*(logger: Logger, msg: string, line, col: int,
               useFmt: bool, args:varargs[string]) =
   logger.add(lvlError, msg, line, col, useFmt, args)
 
-
-proc hasInfo*(logger: Logger): bool =
-  result = logger.infoLogs.len != 0
-
-proc hasNotice*(logger: Logger): bool =
-  result = logger.noticeLogs.len != 0
-
-proc hasWarnings*(logger: Logger): bool =
-  result = logger.warnLogs.len != 0
-
-proc hasErrors*(logger: Logger): bool =
-  result = logger.errorLogs.len != 0
+proc newErrorMultiLines*(logger: Logger, msg: string, line, col: int,
+              useFmt: bool, extraLines: seq[string],
+              extraLabel: string, args:varargs[string]) =
+  logger.add(lvlError, msg, line, col, useFmt,
+            extraLines, extraLabel, args)
 
 template warn*(msg: string, tk: TokenTuple, args: varargs[string]) =
   let pos = if tk.pos == 0: 0 else: tk.pos + 1
@@ -78,9 +93,22 @@ template warn*(msg: string, tk: TokenTuple, strFmt: bool, args: varargs[string])
   let pos = if tk.pos == 0: 0 else: tk.pos + 1
   p.logger.newWarn(msg, tk.line, pos, true, args)  
 
+proc warn*(logger: Logger, msg: string, line, col: int, args: varargs[string]) =
+  logger.add(lvlWarn, msg, line, col, false, args)
+
 template error*(msg: string, tk: TokenTuple, args: varargs[string]) =
   let pos = if tk.pos == 0: 0 else: tk.pos + 1
   p.logger.newError(msg, tk.line, pos, false, args)
+  p.hasErrors = true
+  return # block code exection
+
+template error*(msg: string, tk: TokenTuple, strFmt: bool,
+            extraLines: seq[string], extraLabel: string,
+            args: varargs[string]) =
+  let pos = if tk.pos == 0: 0 else: tk.pos + 1
+  newErrorMultiLines(
+    p.logger, msg, tk.line, pos, strFmt,
+    extraLines, extraLabel, args)
   p.hasErrors = true
   return # block code exection
 
@@ -89,6 +117,9 @@ template error*(msg: string, tk: TokenTuple, strFmt: bool, args: varargs[string]
   p.logger.newError(msg, tk.line, pos, true, args)
   p.hasErrors = true
   return # block code exection
+
+proc error*(logger: Logger, msg: string, line, col: int, args: varargs[string]) =
+  logger.add(lvlError, msg, line, col, false, args)
 
 proc runIterator(i: Log, label: string, fgColor: ForegroundColor): Row =
   add result, span(label, fgColor, indentSize = 0)
@@ -115,3 +146,12 @@ when compileOption("app", "console"):
   iterator errors*(logger: Logger): Row =
     for i in logger.errorLogs:
       yield runIterator(i, "Error", fgRed)
+      if i.extraLines.len != 0:
+        if i.extraLabel.len != 0:
+          var extraLabel: Row
+          extraLabel.add(span(i.extraLabel, indentSize = 6))
+          yield extraLabel
+        for extraLine in i.extraLines:
+          var extra: Row
+          extra.add(span(extraLine, indentSize = 12))
+          yield extra

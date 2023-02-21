@@ -15,6 +15,8 @@ requires "toktok"
 requires "klymene"
 requires "watchout"
 requires "jsony"
+requires "threading"
+requires "denim"
 
 let label = "\n✨ Compiling..." & "\n"
 task dev, "development build":
@@ -23,6 +25,13 @@ task dev, "development build":
 
 task dll, "dynamic library build":
   exec "nim c -f -d:release --app:lib --tlsEmulation:off --opt:speed --gc:arc -d:danger --noMain --out:./bin/libbro.so src/bro.nim"
+
+task node, "build for NodeJS":
+  exec "denim build src/bro.nim"
+
+task propsgen, "Generate CSS Properties":
+  # ignore undeclared identifier: 'Properties'
+  exec "nim c src/utils/propertiesGen.nim"
 
 task prod, "production build":
   echo label

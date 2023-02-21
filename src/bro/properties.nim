@@ -17,24 +17,26 @@ type
   Separator* = enum
     commaSep = ",", spaceSep = " "
   Status* = enum
-    None, Implemented, NonStandard,
-    Unimplemented, Experimental, Obsolete, Removed,
+    Implemented, NonStandard, Unimplemented, Experimental, Obsolete, Removed,
     Deprecated
   Property* = ref object
     status: Status
     longhands: seq[string]
-    values*: TableRef[string, Status]
+    values: TableRef[string, Status]
     url: string
 
   PropertiesTable = TableRef[string, Property]
-## Adding properties
 var Properties* = newTable[string, Property]()
-
-proc hasStrictValue*(prop: Property, key: string): tuple[exists: bool, status: Status] =
+proc hasStrictValue*(prop: Property; key: string): tuple[
+    exists: bool, status: Status] =
   if prop.values != nil:
     if prop.values.hasKey(key):
       result.exists = true
       result.status = prop.values[key]
+
+proc getValues*(prop: Property): seq[string] =
+  for p in prop.values.keys:
+    result.add p
 
 ## 
 ## Property `accent-color`

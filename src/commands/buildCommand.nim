@@ -18,23 +18,29 @@ proc runCommand*(v: Values) =
     QuitFailure.quit
 
   let cssPath = stylesheetPath.changeFileExt("css")
-  display "✨ Building...", br="after"
+  display("✨ Building...", br="after")
   let
     t = cpuTime()
     p = parser.parseProgram(stylesheetPath)
-  if p.hasError:
-    display(p.getError, indent=3)
-    # display("fname", br="after", indent = 3)
+  for warning in p.logger.warnings:
+    display(warning)
+  display(" 👉 " & stylesheetPath, br="after")
+
+  if p.hasErrors:
+    display("Build failed with errors")
+    for error in p.logger.errors:
+      display(error)
+    display(" 👉 " & stylesheetPath)
   else:
-    if p.hasWarnings:
-      for warning in p.warnings:
-        display(
-          span("Warning:", fgYellow),
-          span("Declared and not used"),
-          span("$1\n" % [warning.msg], fgBlue),
-          span(stylesheetPath),
-          span("($1:$2)\n" % [$warning.line, $warning.col]),
-        )
+  #   if p.hasWarnings:
+  #     for warning in p.warnings:
+  #       display(
+  #         span("Warning", fgYellow),
+  #         span("($1:$2):" % [$warning.line, $warning.col]),
+  #         span("Declared and not used"),
+  #         span("$1\n" % [warning.msg], fgBlue),
+  #         span(stylesheetPath & "\n"),
+  #       )
     newCompiler(p.getProgram(), p.getMemtable(), cssPath)
     display "Done in " & $(cpuTime() - t)
     QuitSuccess.quit

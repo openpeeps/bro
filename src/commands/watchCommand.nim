@@ -1,21 +1,24 @@
-import std/[times, os, strutils]
+import std/[times, os, strutils, threadpool]
 import pkg/watchout
 import pkg/klymene/[runtime, cli]
 
 import ../bro/[parser, memtable, compiler]
 
-template runProgram(fpath, fname: string) =
-  let t = cpuTime()
-  var p = parser.parseProgram(fpath)
-  if p.hasError:
-    display(p.getError, indent=3)
-    display fname, br="after", indent = 3
-  else:
-    display(fname, indent = 3)
-    let cssPath = fpath.changeFileExt("css")
-    newCompiler(p.getProgram, p.getMemtable, cssPath)
-    display("Done in " & $(cpuTime() - t), br="before")
-  reset p
+proc runProgram(fpath, fname: string) {.thread.} =
+  {.gcsafe.}:
+    let t = cpuTime()
+    var p = parser.parseProgram(fpath)
+    for warning in p.logger.warnings:
+      display(warning)
+    if p.hasErrors:
+      for error in p.logger.errors:
+        display(error)
+    else:
+      display(fname, indent = 3)
+      let cssPath = fpath.changeFileExt("css")
+      newCompiler(p.getProgram, p.getMemtable, cssPath)
+      display("Done in " & $(cpuTime() - t), br="before")
+    reset p
 
 proc runCommand*(v: Values) =
   var stylesheetPath: string
@@ -41,10 +44,12 @@ proc runCommand*(v: Values) =
   proc watchoutCallback(file: watchout.File) {.closure.} =
     display "✨ Changes detected"
     if stylesheetPath.getFileSize > 0:
-      runProgram(file.getPath, file.getName())
+      spawn(runProgram(file.getPath, file.getName()))
     else:
       display("Stylesheet is empty")
 
   watchFiles.add(stylesheetPath)
+  spawn(runProgram(stylesheetPath, v.get("style")))
+  sync()
   startThread(watchoutCallback, watchFiles, delay, shouldJoinThread = true)
   QuitSuccess.quit
