@@ -71,6 +71,35 @@ handlers:
       lex.kind = TKDefault
     else: discard # TODO error
 
+  proc handleSnippets*(lex: var Lexer, kind: TokenKind) =    
+    lex.startPos = lex.getColNumber(lex.bufpos)
+    var k = TKPreview
+    if lex.next("``html"):
+      setLen(lex.token, 0)
+      inc lex.bufpos, 7
+      skip lex
+    else:
+      lex.setError("Unknown markup. Use either `html` or `timl`")
+      return
+    while true:
+      case lex.buf[lex.bufpos]
+      of '`':
+        if lex.next("``"):
+          lex.kind = k
+          inc lex.bufpos, 3
+          return
+        else:
+          add lex.token, lex.buf[lex.bufpos]
+          inc lex.bufpos
+      of EndOfFile:
+        lex.setError("EOF reached before end of snippet")
+        return
+      else:
+        add lex.token, lex.buf[lex.bufpos]
+        inc lex.bufpos
+      skip lex
+      lex.startPos = lex.getColNumber(lex.bufpos)
+
 tokens:
   A            > "a"
   Abbr         > "abbr"
@@ -199,3 +228,6 @@ tokens:
   Color
   Important
   Default
+  Preview     > tokenize(handleSnippets, '`')
+  FunctionCall
+  FunctionStmt

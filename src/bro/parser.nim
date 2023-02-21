@@ -5,43 +5,105 @@
 #          Made by Humans from OpenPeep
 #          https://github.com/openpeep/bro
 
-import std/[strutils, sequtils, macros, tables, critbits]
-import ./tokens, ./ast, ./resolver, ./memtable
+import std/[os, strutils, sequtils, macros, tables,
+            memfiles, critbits]
+import ./tokens, ./ast, ./resolver, ./memtable, ./logging
+import ./properties
+
+import std/[threadpool, times]
+
+import pkg/klymene/cli
 
 when not defined release:
   import std/[json, jsonutils] 
-  
+
+export logging
+
 type
+  ParserType = enum
+    Main
+    Partial 
 
   Warning* = tuple[msg: string, line, col: int]
 
-  Parser* = ref object
+  PartialFilePath = distinct string
+
+  Importer* = ref object
+    partials: OrderedTableRef[int, tuple[indentation: int, sourcePath: string]]
+    sources: TableRef[string, MemFile]
+
+  Parser* = object
     lex: Lexer
     prev, curr, next: TokenTuple
     program: Program
     memtable: Memtable
-    error: string
+    when compileOption("app", "console"):
+      error: seq[Row]
+      logger*: Logger
+    else:
+      error: string
+    hasErrors*: bool
     warnings*: seq[Warning]
+    imports: Importer
+    ptrNodes: Table[string, Node]
+    case ptype: ParserType
+    of Main:
+      projectDirectory: string
+    else: discard
+    filePath: string
 
-  PrefixFunction = proc(p: Parser): Node
+  PrefixFunction = proc(p: var Parser): Node
+  PartialChannel = tuple[status: string, program: Program]
 
-template err(msg: string) =
-  p.error = "Error ($2:$3): $1" % [msg, $p.curr.line, $p.curr.pos]
+# forward definition
+proc getPrefix(p: var Parser, kind: TokenKind): PrefixFunction
+proc parse(p: var Parser): Node
+proc parseVariableCall(p: var Parser): Node
+proc partialThread(filePath: string, lastModified: Time): Parser {.thread.}
 
-template err(msg: string, tk: TokenTuple, sfmt: varargs[string]) =
-  var errmsg = msg
-  for str in sfmt:
-    add errmsg, indent("\"" & str & "\"", 1)  
-  p.error = "Error ($2:$3): $1" % [errmsg, $tk.line, $tk.pos]
-  return
+when compileOption("app", "console"):
+  template err(msg: string) =
+    let pos = if p.curr.pos == 0: 0 else: p.curr.pos + 1
+    add p.error, @[span("Error ($2:$3): $1" % [msg, $p.curr.line, $pos])]
+
+  template err(msg: string, tk: TokenTuple, sfmt: varargs[string]) =
+    let pos = if tk.pos == 0: 0 else: tk.pos + 1
+    var newRow: Row
+    add newRow, span("Error", fgRed, indentSize = 0)
+    add newRow, span("(" & $tk.line & ":" & $pos & ")")
+    add newRow, span(msg)
+    for str in sfmt:
+      add newRow, span(str, fgMagenta)
+    add p.error, newRow
+    add p.error, @[span(p.filePath)]
+    return
+
+  proc getError*(p: Parser): seq[Row] =
+    result =
+      if p.error.len != 0: p.error
+      else:
+        @[@[span(p.lex.getError)]]
+
+else:
+  template err(msg: string) =
+    let pos = if tk.pos == 0: 0 else: tk.pos + 1
+    p.error = "Error ($2:$3): $1" % [msg, $p.curr.line, $pos]
+
+  template err(msg: string, tk: TokenTuple, sfmt: varargs[string]) =
+    var errmsg = msg
+    for str in sfmt:
+      add errmsg, indent("\"" & str & "\"", 1)  
+    let pos = if tk.pos == 0: 0 else: tk.pos + 1 
+    p.error = "Error ($2:$3): $1" % [errmsg, $tk.line, $pos]
+    return
+
+  proc getError*(p: Parser): string =
+    result =
+      if p.error.len != 0: p.error
+      else: p.lex.getError
 
 proc hasError*(p: Parser): bool =
   result = p.error.len != 0 or p.lex.hasError
-
-proc getError*(p: Parser): string =
-  result =
-    if p.error.len != 0: p.error
-    else: p.lex.getError
 
 proc hasWarnings*(p: Parser): bool =
   result = p.warnings.len != 0
@@ -86,7 +148,9 @@ macro definePseudoClasses() =
 
 definePseudoClasses()
 
-proc walk(p: Parser, offset = 1) =
+# https://github.com/WebKit/WebKit/blob/main/Source/WebCore/css/CSSProperties.json
+
+proc walk(p: var Parser, offset = 1) =
   var i = 0
   while offset > i:
     inc i
@@ -94,63 +158,71 @@ proc walk(p: Parser, offset = 1) =
     p.curr = p.next
     p.next = p.lex.getToken()
 
-proc tkNot(p: Parser, expKind: TokenKind): bool =
+proc tkNot(p: var Parser, expKind: TokenKind): bool =
   result = p.curr.kind != expKind
 
-proc tkNot(p: Parser, expKind: set[TokenKind]): bool =
+proc tkNot(p: var Parser, expKind: set[TokenKind]): bool =
   result = p.curr.kind notin expKind
 
-proc isProp(p: Parser): bool =
+proc isProp(p: var Parser): bool =
   result = p.curr.kind == TKIdentifier
 
-proc childOf(p: Parser, tk: TokenTuple): bool =
+proc childOf(p: var Parser, tk: TokenTuple): bool =
   result = p.curr.pos > tk.pos and p.curr.kind != TKEOF
 
-proc isPropOf(p: Parser, tk: TokenTuple): bool =
+proc isPropOf(p: var Parser, tk: TokenTuple): bool =
   result = p.childOf(tk) and p.isProp()
 
-# forward definition
-proc getPrefix(p: Parser, kind: TokenKind): PrefixFunction
-proc parse(p: Parser): Node
-proc parseCall(p: Parser): Node
-
-proc parseComment(p: Parser): Node =
+proc parseComment(p: var Parser): Node =
   discard newComment(p.curr.value)
   walk p
 
-proc parseProperty(p: Parser): Node =
-  let pName = p.curr
-  walk p
-  if p.curr.kind == TKColon:
+proc parseProperty(p: var Parser): Node =
+  if likely(Properties.hasKey(p.curr.value)):
+    let pName = p.curr
     walk p
-    result = newProperty(pName.value)
-    while p.curr.line == pName.line:
-      if p.curr.kind in {TKIdentifier, TKColor, TKString, TKCenter}:
-        result.pVal.add newString(p.curr.value)
-        walk p
-      elif p.curr.kind == TKInteger:
-        result.pVal.add newInt(p.curr.value)
-        walk p
-      elif p.curr.kind == TKFloat:
-        result.pVal.add newFloat(p.curr.value)
-        walk p
-      elif p.curr.kind == TKVariableCall:
-        let callNode = p.parseCall()
-        if callNode != nil:
-          result.pVal.add(deepCopy(callNode))
-        else: return
-      else:
-        break # TODO error
-    if p.curr.kind == TKImportant:
-      result.pRule = propRuleImportant
+    if p.curr.kind == TKColon:
       walk p
-    elif p.curr.kind == TKDefault:
-      result.pRule = propRuleDefault
-      walk p
+      result = newProperty(pName.value)
+      while p.curr.line == pName.line:
+        if p.curr.kind in {TKIdentifier, TKColor, TKString, TKCenter}:
+          let checkValue = Properties[pName.value].hasStrictValue(p.curr.value)
+          if checkValue.exists:
+            if checkValue.status in {Unimplemented, Deprecated, Obsolete, NonStandard}:
+              warn("Using $ ➭ value is $", p.curr, true,
+                pName.value & ": " & p.curr.value, $checkValue.status)
+            result.pVal.add newString(p.curr.value)
+            walk p
+          else:
+            walk p
+            err "Invalid value $1 for $2 property" % [p.prev.value, pName.value], p.prev
+        elif p.curr.kind == TKInteger:
+          result.pVal.add newInt(p.curr.value)
+          walk p
+        elif p.curr.kind == TKFloat:
+          result.pVal.add newFloat(p.curr.value)
+          walk p
+        elif p.curr.kind == TKVariableCall:
+          let callNode = p.parseVariableCall()
+          if callNode != nil:
+            result.pVal.add(deepCopy(callNode))
+          else:
+            walk p
+            return
+        else:
+          break # TODO error
+      if p.curr.kind == TKImportant:
+        result.pRule = propRuleImportant
+        walk p
+      elif p.curr.kind == TKDefault:
+        result.pRule = propRuleDefault
+        walk p
+    else:
+      err "Missing assignment token"
   else:
-    err "Missing assignment token"
+    err "Invalid CSS property", p.curr, p.curr.value
 
-proc whileChild(p: Parser, this: TokenTuple, parentNode: Node) =
+proc whileChild(p: var Parser, this: TokenTuple, parentNode: Node) =
   while p.isPropOf(this):
     let tk = p.curr
     let propNode = p.parseProperty()
@@ -164,16 +236,32 @@ proc whileChild(p: Parser, this: TokenTuple, parentNode: Node) =
       tk = p.curr
       node = p.parse()
     if node != nil:
-      node.parents = concat(@[parentNode.ident], parentNode.multiIdent)
-      if not parentNode.props.hasKey(node.ident):
-        parentNode.props[node.ident] = node
+      if unlikely(node.nt == NTExtend):
+        # Add extended properties to parent node
+        # TODO support extend, except
+        if likely(parentNode.props.hasKey(node.extendIdent) == false):
+          parentNode.props[node.extendIdent] = node
+        else:
+          error("Extending properties more than once is not allowed", p.prev, node.extendIdent)
+        if p.curr.kind == TKIdentifier:
+          while p.isPropOf(this):
+            let tk = p.curr
+            let propNode = p.parseProperty()
+            if propNode != nil:
+              parentNode.props[propNode.pName] = propNode
+            else: return
+            if p.curr.pos == this.pos: break
       else:
-        for k, v in node.props.pairs():
-          parentNode.props[node.ident].props[k] = v
+        node.parents = concat(@[parentNode.ident], parentNode.multiIdent)
+        if not parentNode.props.hasKey(node.ident):
+          parentNode.props[node.ident] = node
+        else:
+          for k, v in node.props.pairs():
+            parentNode.props[node.ident].props[k] = v
     else: break
     if p.curr.pos == this.pos: break
 
-proc parseSelector(p: Parser, node: Node, tk: TokenTuple): Node =
+proc parseSelector(p: var Parser, node: Node, tk: TokenTuple): Node =
   walk p
   var multiIdent: seq[string]
   while p.curr.kind == TKComma:
@@ -189,23 +277,24 @@ proc parseSelector(p: Parser, node: Node, tk: TokenTuple): Node =
   p.whileChild tk, node
   result = node
 
-proc parseRoot(p: Parser): Node =
+proc parseRoot(p: var Parser): Node =
   let tk = p.curr
   result = p.parseSelector(newRoot(), tk)
 
-proc parseClass(p: Parser): Node =
+proc parseClass(p: var Parser): Node =
   let tk = p.curr
   result = p.parseSelector(tk.newClass, tk)
+  p.ptrNodes[tk.value] = result
 
-proc parseID(p: Parser): Node =
+proc parseID(p: var Parser): Node =
   let tk = p.curr
   result = p.parseSelector(tk.newID, tk)
 
-proc parseTag(p: Parser): Node =
+proc parseTag(p: var Parser): Node =
   let tk = p.curr
   result = p.parseSelector(tk.newTag, tk)
 
-proc parseNest(p: Parser): Node =
+proc parseNest(p: var Parser): Node =
   walk p
   if p.curr.kind == TKClass:
     result = p.parseClass()
@@ -213,7 +302,7 @@ proc parseNest(p: Parser): Node =
   else:
     err "Invalid nest for given selector", p.curr, p.curr.value
 
-proc parsePseudoNest(p: Parser): Node =
+proc parsePseudoNest(p: var Parser): Node =
   if pseudoTable.hasKey(p.next.value):
     walk p
     p.curr.col = p.prev.col
@@ -223,7 +312,16 @@ proc parsePseudoNest(p: Parser): Node =
   else:
     err "Unknown pseudo-class", p.curr, p.next.value
 
-proc parseVariable(p: Parser): Node =
+proc parseVariableCall(p: var Parser): Node = 
+  if likely(p.memtable.hasKey(p.curr.value)):
+    let valNode = p.memtable[p.curr.value]
+    valNode.varValue.used = true
+    result = newCall(valNode)
+    walk p
+  else:
+    err "Undeclared variable", p.curr, "$" & p.curr.value
+
+proc parseVariable(p: var Parser): Node =
   let tk = p.curr
   walk p # :
   if likely(p.memtable.hasKey(tk.value) == false):
@@ -238,8 +336,7 @@ proc parseVariable(p: Parser): Node =
             if p.memtable.hasKey(p.curr.value):
               discard
             else:
-              err "Undeclared variable", p.curr, "$" & p.curr.value
-              return
+              error("Undeclared variable", p.curr, "$" & p.curr.value)
           add varValue, p.curr.value
           add varValue, spaces(1)
           walk p
@@ -249,33 +346,77 @@ proc parseVariable(p: Parser): Node =
         if p.memtable.hasKey(p.curr.value):
           varNode = deepCopy p.memtable[p.curr.value]
         else:
-          err "Assigned an undeclared variable", p.curr, "$" & p.curr.value
+          error("Assigning an undeclared variable", p.curr, "$" & p.curr.value)
       p.memtable[tk.value] = varNode
       return varNode
-    err "Undefined value for variable", tk, tk.value
+    error("Undefined value for variable", tk, tk.value)
   else:
     if p.next.kind in {TKIdentifier, TKColor, TKString, TKFloat, TKInteger}: 
       walk p
       p.memtable[tk.value].varValue.val = newString(p.curr.value)
       result = p.memtable[tk.value]
       walk p
+    elif p.next.kind == TKVariableCall:
+      walk p
+      let node = p.parseVariableCall()
+      p.memtable[tk.value] = deepCopy node.callNode
     else:
-      err "Undefined value for variable", tk, tk.value
+      error("Undefined value for variable", tk, tk.value)
 
-proc parseCall(p: Parser): Node = 
-  if likely(p.memtable.hasKey(p.curr.value)):
-    let valNode = p.memtable[p.curr.value]
-    valNode.varValue.used = true
-    result = newCall(valNode)
+proc inLoop(filePath: string, lastModified: Time): Parser =
+  var p = ^ spawn(partialThread(filePath, lastModified))
+  var lm = lastModified
+  if p.hasError:
+    for row in p.error.rows:
+      display(row)
+    while true:
+      let lastModifiedNow = filePath.getLastModificationTime()
+      if p.hasError:
+        if lastModifiedNow > lm:
+          lm = lastModifiedNow
+          p = inLoop(filePath, lm)
+        sleep(220)
+      else:
+        return p
+  else:
+    result = p
+
+proc parseImport(p: var Parser): Node = 
+  if p.next.kind == TKString:
+    walk p
+  var filePath = addFileExt(p.curr.value, "sass").absolutePath
+  var lastModified = filePath.getLastModificationTime()
+  if fileExists(filePath):
+    var pp = inLoop(filePath, lastModified)
+    # echo pp.program.nodes.len
+    result = newImport(pp.program.nodes, filePath)
     walk p
   else:
-    err "Undeclared variable", p.curr, "$" & p.curr.value
+    err "Import error file not found", p.curr, p.curr.value
 
-proc getNil(p: Parser): Node =
+proc parseExtend(p: var Parser): Node =
+  walk p 
+  if p.curr.kind in {TKClass, TKID}:
+    result = newExtend(p.curr, p.ptrNodes[p.curr.value].props)
+    walk p
+  else:
+    error("Cannot extend", p.curr, p.curr.value)
+
+proc getNil(p: var Parser): Node =
   result = nil
   walk p
 
-proc getPrefix(p: Parser, kind: TokenKind): PrefixFunction =
+proc parseFunctionStmt(p: var Parser): Node =
+  discard
+
+proc parseFunctionCall(p: var Parser): Node =
+  discard
+
+proc parsePreview(p: var Parser): Node =
+  result = newPreview(p.curr)
+  walk p
+
+proc getPrefix(p: var Parser, kind: TokenKind): PrefixFunction =
   case p.curr.kind:
   of TKRoot:
     parseRoot
@@ -292,12 +433,22 @@ proc getPrefix(p: Parser, kind: TokenKind): PrefixFunction =
   of TKVariable:
     parseVariable
   of TKVariableCall:
-    parseCall
+    parseVariableCall
+  of TKFunctionCall:
+    parseFunctionCall
+  of TKFunctionStmt:
+    parseFunctionStmt
+  of TKImport:
+    parseImport
+  of TKPreview:
+    parsePreview
+  of TKExtend:
+    parseExtend
   else:
     parseTag
     # getNil
 
-proc parse(p: Parser): Node =
+proc parse(p: var Parser): Node =
   let callFunction = p.getPrefix(p.curr.kind)
   if callFunction != nil:
     let node = p.callFunction()
@@ -309,27 +460,55 @@ proc getProgram*(p: Parser): Program =
 proc getMemtable*(p: Parser): Memtable =
   result = p.memtable
 
+template initParser(fpath: string) =
+  result.lex = Lexer.init(readFile(fpath))
+  result.program = Program()
+  result.memtable = Memtable()
+  result.curr = result.lex.getToken()
+  result.next = result.lex.getToken()
+  while not result.hasError:
+    if result.curr.kind == TK_EOF: break
+    let node = result.parse()
+    if likely(node != nil):
+      case node.nt
+        of NTVariable:
+          discard
+        else:
+          result.program.nodes.add(node)
+  result.lex.close()
+  for k, v in result.memtable.pairs():
+    if unlikely(v.varValue.used == false):
+      add result.warnings, ("$" & k, v.varMeta.line, v.varMeta.col)
+
+proc partialThread(filePath: string, lastModified: Time): Parser {.thread.} =
+  {.gcsafe.}:
+    let lastTime = filePath.getLastModificationTime()
+    result = Parser(ptype: Partial, filePath: filePath)
+    filePath.initParser()
+
 proc parseProgram*(fpath: string): Parser =
-  var importer = resolve(fpath, fpath)
-  var p = Parser()
-  if not importer.hasError: 
-    p.lex = Lexer.init(importer.getFullCode)
-    p.program = Program()
-    p.memtable = Memtable()
-    p.curr = p.lex.getToken()
-    p.next = p.lex.getToken()
-    while not p.hasError:
-      if p.curr.kind == TK_EOF: break
-      let node = p.parse()
-      if likely(node != nil):
-        case node.nt
-        of NTVariable: discard
-        else: p.program.nodes.add(node)
-    p.lex.close()
-    for k, v in p.memtable.pairs():
-      if unlikely(v.varValue.used == false):
-        add p.warnings, ("$" & k, v.varMeta.line, v.varMeta.col)
-    result = p
-  else:
-    p.error = importer.getError()
-    result = p
+  result = Parser(ptype: Main, logger: Logger())
+  result.projectDirectory = fpath.parentDir()
+  fpath.initParser()
+
+# proc parseProgram*(fpath: string): Parser =
+#   var importer = resolve(fpath, fpath)
+#   if not importer.hasError: 
+#     result.lex = Lexer.init(importer.getFullCode)
+#     result.program = Program()
+#     result.memtable = Memtable()
+#     result.curr = p.lex.getToken()
+#     result.next = result.lex.getToken()
+#     while not result.hasError:
+#       if result.curr.kind == TK_EOF: break
+#       let node = result.parse()
+#       if likely(node != nil):
+#         case node.nt
+#         of NTVariable: discard
+#         else: result.program.nodes.add(node)
+#     result.lex.close()
+#     for k, v in result.memtable.pairs():
+#       if unlikely(v.varValue.used == false):
+#         add result.warnings, ("$" & k, v.varMeta.line, v.varMeta.col)
+#   else:
+#     result.error = importer.getError()

@@ -1,11 +1,14 @@
 import std/[ropes, tables, strutils]
-import ./ast, ./memtable
+import ./ast, ./memtable, ./sourcemap
+
+# import pkg/jsony
 
 type
   Compiler* = ref object
     css*: string
     mem: Memtable
     program: Program
+    sourceMap: SourceInfo
 
 # forward defintion
 proc write(c: var Compiler, node: Node)
@@ -50,6 +53,20 @@ proc writeVal(c: var Compiler, val: Node) =
     c.writeVal(val.callNode.varValue.val)
     discard
 
+proc writeProps(c: var Compiler, n: Node, k: string, i: var int, length: int) =
+  var ii = 1
+  var vLen = n.pVal.len
+  add c.css, indent(k & ":", 2)
+  for val in n.pVal:
+    c.writeVal val
+    if vLen != ii:
+      add c.css, spaces(1)
+    inc ii
+  if i != length:
+    add c.css, ";"
+  add c.css, "\n"
+  inc i
+
 proc writeSelector(c: var Compiler, node: Node) =
   var skipped: bool
   let length = node.props.len
@@ -64,18 +81,7 @@ proc writeSelector(c: var Compiler, node: Node) =
   for k, v in node.props.pairs():
     case v.nt:
     of NTProperty:
-      var ii = 1
-      var vLen = v.pVal.len
-      add c.css, indent(k & ":", 2)
-      for val in v.pVal:
-        c.writeVal val
-        if vLen != ii:
-          add c.css, spaces(1)
-        inc ii
-      if i != length:
-        add c.css, ";"
-      add c.css, "\n"
-      inc i
+      c.writeProps(v, k, i, length)
     of NTSelectorClass:
       if not skipped:
         endCurly()
@@ -86,8 +92,12 @@ proc writeSelector(c: var Compiler, node: Node) =
         endCurly()
         skipped = true
       c.writeSelector(v)
+    of NTExtend:
+      for eKey, eProp in v.extendProps.pairs():
+        var ix = 0
+        c.writeProps(eProp, eKey, ix, v.extendProps.len)
     of NTCall:
-      echo v.callNode.nt
+      discard v.callNode.nt
     else: discard
   if not skipped:
     endCurly()
@@ -105,12 +115,32 @@ proc write(c: var Compiler, node: Node) =
   case node.nt:
   of NTSelectorClass, NTSelectorTag, NTSelectorID, NTRoot:
     c.writeSelector(node)
+  of NTImport:
+    for subNode in node.importNodes:
+      case subNode.nt:
+      of NTSelectorClass, NTSelectorTag, NTSelectorID, NTRoot:
+        c.writeSelector(subNode)
+      else: discard 
   else: discard
 
 proc newCompiler*(p: Program, mem: Memtable, outputPath: string) =
   var c = Compiler(program: p)
+  # var info = SourceInfo()
+  # info.newLine("test.sass", 11)
+  # info.addSegment(0, 0)
+  # info.newLine("test.sass", 13)
+  # info.addSegment(0, 0)
+  # info.newLine("test.sass", 14)
+  # info.addSegment(0, 0)
+
+  # echo toJson(info.toSourceMap("test.css"))
   for node in c.program.nodes:
     c.write node
-  writeFile(outputPath, $c.css)
-  reset c.mem
-  reset c
+  writeFile(outputPath, c.css)
+  reset c.css
+
+proc newCompilerStr*(p: Program, mem: Memtable, outputPath: string): string =
+  var c = Compiler(program: p)
+  for node in c.program.nodes:
+    c.write node
+  result = c.css

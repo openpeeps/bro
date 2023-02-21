@@ -30,6 +30,9 @@ type
     NTInt
     NTFloat
     NTCall
+    NTImport
+    NTPreview
+    NTExtend
 
   PropertyRule* = enum
     propRuleNone
@@ -67,6 +70,14 @@ type
       fVal*: string
     of NTCall:
       callNode*: Node
+    of NTImport:
+      importNodes*: seq[Node]
+      importPath*: string
+    of NTPreview:
+      previewContent: string
+    of NTExtend:
+      extendIdent*: string
+      extendProps*: KeyValueTable
     else:
       ident*: string
       parents*: seq[string]
@@ -76,9 +87,6 @@ type
 
   Program* = ref object
     nodes*: seq[Node]
-
-# proc `=destroy`*(x: var Program) =
-#   echo "destroy Program"
 
 proc prefixed*(tk: TokenTuple): string =
   result = case tk.kind
@@ -101,6 +109,9 @@ proc newFloat*(fVal: string): Node =
 
 proc newCall*(node: Node): Node =
   result = Node(nt: NTCall, callNode: node)
+
+proc newImport*(nodes: seq[Node], importPath: string): Node =
+  result = Node(nt: NTImport, importNodes: nodes, importPath: importPath)
 
 proc newVariable*(varName: string, varValue: Node, tk: TokenTuple): Node =
   result = Node(nt: NTVariable, varName: varName, varValue: varValue, varMeta: (tk.line, tk.col))
@@ -127,3 +138,9 @@ proc newPseudoClass*(tk: TokenTuple, props = KeyValueTable(), multiIdent = @[""]
 
 proc newID*(tk: TokenTuple, props = KeyValueTable()): Node =
   result = Node(nt: NTSelectorID, ident: tk.prefixed, props: props)
+
+proc newPreview*(tk: TokenTuple): Node =
+  result = Node(nt: NTPreview, previewContent: tk.value)
+
+proc newExtend*(tk: TokenTuple, keyValueTable: KeyValueTable): Node =
+  result = Node(nt: NTExtend, extendIdent: tk.value, extendProps: keyValueTable)
