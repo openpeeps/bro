@@ -1,110 +1,137 @@
 <p align="center">
   <img src="https://github.com/openpeep/bro/blob/main/.github/bro.png" alt="Bro aka NimSass" width="170px"><br>
-  😋 Bro aka NimSass - A super fast stylesheet language for cool kids<br>👑 Written in Nim language
+  😋 Bro aka NimSass ⚡ A super fast statically typed stylesheet language for cool kids<br>👑 Written in Nim language
 </p>
 
 <p align="center">
-  <code>nimble install bro</code> or <a href="#">Download</a> the latest version 
-</p>
-
-<p align="center">
-  <a href="https://openpeep.github.io/bro">API reference</a><br>
+  <a href="https://openpeep.github.io/bro">API reference</a> | <a href="#">Download</a> (not yet)<br>
   <img src="https://github.com/openpeep/bro/workflows/test/badge.svg" alt="Github Actions">  <img src="https://github.com/openpeep/bro/workflows/docs/badge.svg" alt="Github Actions">
+  <br><br><br>
+  <strong>Bro, this is the fastest stylesheet preprocessor I've ever seen!</strong> [🐦 tweet this]
 </p>
 
 ## 😍 Key Features
-- [x] Extremly fast, Small executable **Only 340 kB**
-- [x] Dependency free / No Virtual Machine
-- [x] Works on Linux/UNIX, macOS, Windows
-- [x] `Warnings` - Unused **Variables**
-- [x] `Warnings` - Unused **Mixins**
-- [ ] Available as a **dynlib**
-- [ ] Available for **Bun JS**
-- [ ] Available as a **Native NodeJS addon**
-- [x] Open Source | `MIT` License
-- [x] Written in 👑 Nim language
+- [x] 🍃 Lightweight, tiny executable **650 kB**
+- [x] 🐱 Dependency Free / **No Virtual Machine**
+- [x] **Strong Typed Stylesheet** = Perfect **Cascading Style Sheets**
+- [x] 🌍 Works on **Linux**, **macOS**, **Windows**
+- [x] 👉 Friendly `Warnings` for Unused **Variables**
+- [x] 👉 Friendly `Warnings` for Unused **Mixins**
+- [x] A beautiful, improved `SASS`-like Syntax [Find why is different than DartSass](#why-different)
+- [x] 🔥 Works with **NodeJS** & **BunJS** via `NAPI`
+- [x] 🎁 Built-in **CSS Minifier**
+- [x] 🗺 Built-in **CSS SourceMap Generator**
+- [x] 🌴 Built-in **Abstract Syntax Tree** Generator
+- [x] 🎩 Open Source | `MIT` License
+- [x] 👑 Written in **Nim language**
+- [x] 😋 **Made for Cool Kids**
 
-## Why BRO?
-todo
+## ✨ Why BRO?
+Because time is too precious &mdash; that's why Bro 👏
+
+Because current Sass implementations sucks. Zero types, no warnings, slow compilation!
+
+Typos, invalid properties or non-standard/deprecated values? Well, from their point of view it doesn't matter,
+because everything that looks like a pair of `key: value` should be just fine.
+
+Wait, is something magic here. Don't you ever dare to miss a space between `:` and `value` because `sassc`
+will simply ignore the line (no message, WTF?), same with `DartSass` except this one is printing the "error". Oh!
+
+&mdash; Bruh, I mean, Bro! I mean, that's why = 😋 Bro aka NimSass 👑
+
+**Okay, okay, then why Nim?**<br>
+Because [Nim is a modern programming language](https://nim-lang.org) that comes with performance, fast compilation and C-like freedom.
 
 ### Bro 💛 Nim
-todo
+Integrate Bro in your Nim application
 
-### Bro 💖 Bun.js
-todo
+```bash
+nimble install bro
+```
 
-## BRO vs Sass
+### Bro 💖 BunJS & Node
+Use Bro as a native addon compiled via NAPI with Node or Bun.
+_Bun.js implements 90% of the APIs available in Node-API (napi). [Read more](https://github.com/oven-sh/bun#node-api-napi)_
 
-### Benchmark 1
+
+## Benchmarks
 <details>
-  <summary><strong>393K+ lines</strong>. 2^17 instances of</summary>
+  <summary><h3>393K+ lines</h3></summary>
 
+  2^17 instances of:
 ```sass
 button_0
   background: yellow
-
+// including a new line
 ```
 
-#### Bro (NimSass)
-
 ```bash
-Benchmark 1: bro build big.sass --noMap
-  Time (mean ± σ):     305.4 ms ±   1.6 ms    [User: 202.1 ms, System: 102.7 ms]
-  Range (min … max):   302.9 ms … 306.9 ms    5 runs
-```
+# Bro (NimSass) 🚀   bro build big.sass
+  Time (mean ± σ):     256.1 ms ±  14.9 ms    [User: 179.0 ms, System: 77.1 ms]
+  Range (min … max):   247.1 ms … 282.6 ms    5 runs
 
-#### SassC
 
-```bash
-Benchmark 1: sassc big.sass big.css --style=compressed
-  Time (mean ± σ):      1.653 s ±  0.014 s    [User: 1.514 s, System: 0.136 s]
-  Range (min … max):    1.639 s …  1.675 s    5 runs
-```
+# Bro w/ BunJS 👍    bun bro.js
+  Time (mean ± σ):     514.2 ms ±   3.1 ms    [User: 370.8 ms, System: 143.0 ms]
+  Range (min … max):   510.7 ms … 517.7 ms    5 runs
 
-#### DartSass
+# Bro w/ NodeJS 👌   node bro.js
+  Time (mean ± σ):     518.6 ms ±   2.1 ms    [User: 397.7 ms, System: 120.2 ms]
+  Range (min … max):   516.2 ms … 520.6 ms    5 runs
 
-```bash
-Benchmark 1: ./dart sass.snapshot big.sass:big.css --no-source-map --style=compressed
+# DartSass  👎    dart sass.snapshot big.sass:big.css --no-source-map
   Time (mean ± σ):      1.526 s ±  0.012 s    [User: 1.890 s, System: 0.107 s]
   Range (min … max):    1.512 s …  1.541 s    5 runs
-```
 
-</details>
-
-<details>
-  <summary>Want more? <strong>393K * 3</strong> = <strong>1M+ lines</strong></summary>
-
-#### Bro (NimSass)
-```bash
-Benchmark 1: bro build big.sass
-  Time (abs ≡):        874.0 ms               [User: 650.1 ms, System: 220.7 ms]
-```
-
-#### SassC
-```bash
-Benchmark 1: sassc big.sass big.css
-  Time (abs ≡):         5.058 s               [User: 4.698 s, System: 0.356 s]
-```
-
-#### DartSass
-```bash
-Benchmark 1: ./dart sass.snapshot big.sass:big.css --no-source-map
-  Time (abs ≡):         4.148 s               [User: 5.203 s, System: 0.223 s]
+# SassC 😅   sassc big.sass big.css
+  Time (mean ± σ):      1.653 s ±  0.014 s    [User: 1.514 s, System: 0.136 s]
+  Range (min … max):    1.639 s …  1.675 s    5 runs
 ```
 
 </details>
 
 Benchmarks made with [hyperfine](https://github.com/sharkdp/hyperfine) on<br>
-**Ubuntu 22.04 LTS**: Ryzen 5 5600g 3.9GHz × 12 / RAM 32 GB 3200MHz / SSD M.2
+**Ubuntu 22.04 LTS** / Ryzen 5 5600g 3.9GHz × 12 / RAM 32 GB 3200MHz / SSD M.2
+
+
+## Friendly Warnings
+**This is part of "No need to run 1000 npm packages"** to write some CSS.
+
+Example
+```
+Warning (5:0): Declared and not used `$primary-color`
+ /examples/main.sass
+```
+
+```
+Error (21899:2): Unknown pseudo-class `focusa`
+  /examples/main.sass
+```
 
 ## TODO
-todo
+- [x] Partials
+- [ ] Resolver
+- [x] Compile-Time Variables using `$`
+- [ ] Functions
+- [ ] Conditionals
+- [ ] For/Loop statements
+- [ ] Typed properties
+- [ ] Warnings for unused `variables`, `functions`
+- [ ] CSS Variable Declaration using `var`
+- [ ] `Preview` snippets (Docum)
+- [x] Command Line Interface 
+  - [x] CLI `watch` for live changes
+  - [x] CLI `build` sass to css
+  - [ ] CLI generate source `map`
+  - [x] CLI generate `ast` nodes to JSON
+  - [ ] CLI build code documentation with `doc`
+- [ ] Compiled Node.js / Bun.js addon via NAPI
 
 ### ❤ Contributions & Support
 - 🐛 Found a bug? [Create a new Issue](https://github.com/openpeep/bro/issues)
 - 👋 Wanna help? [Fork it!](https://github.com/openpeep/bro/fork)
 - 😎 [Get €20 in cloud credits from Hetzner](https://hetzner.cloud/?ref=Hm0mYGM9NxZ4)
-- 🥰 [Donate via PayPal address](https://www.paypal.com/donate/?hosted_button_id=RJK3ZTDWPL55C)
+- 🥰 [Donate to The Enthusiast via PayPal address](https://www.paypal.com/donate/?hosted_button_id=RJK3ZTDWPL55C)
 
 ### 🎩 License
 BRO aka NimSass | MIT license. [Made by Humans from OpenPeep](https://github.com/openpeep).<br>
