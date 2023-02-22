@@ -15,8 +15,9 @@ requires "toktok"
 requires "klymene"
 requires "watchout"
 requires "jsony"
-requires "threading"
-requires "denim"
+# requires "threading"
+requires "https://github.com/openpeep/denim"
+requires "chroma#head"
 
 let label = "\n✨ Compiling..." & "\n"
 task dev, "development build":
@@ -31,7 +32,7 @@ task node, "build for NodeJS":
 
 task propsgen, "Generate CSS Properties":
   # ignore undeclared identifier: 'Properties'
-  exec "nim c src/utils/propertiesGen.nim"
+  exec "nim c src/utils/props.nim"
 
 task prod, "production build":
   echo label
