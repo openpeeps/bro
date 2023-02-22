@@ -9,6 +9,7 @@ type
     mem: Memtable
     program: Program
     sourceMap: SourceInfo
+    minify: bool
 
 # forward defintion
 proc write(c: var Compiler, node: Node)
@@ -23,10 +24,16 @@ proc clean*(c: var Compiler) =
   discard
 
 template startCurly() =
-  add c.css, indent("{", 1) & "\n"
+  if c.minify:
+    add c.css, "{"
+  else:
+    add c.css, indent("{", 1) & "\n"
 
 template endCurly() =
-  add c.css, "}" & "\n"
+  if c.minify:
+    add c.css, "}"
+  else:
+    add c.css, "}" & "\n"
 
 template writeKeyValue(val: string, i: int) =
   add c.css, k & ":" & val
@@ -56,7 +63,10 @@ proc writeVal(c: var Compiler, val: Node) =
 proc writeProps(c: var Compiler, n: Node, k: string, i: var int, length: int) =
   var ii = 1
   var vLen = n.pVal.len
-  add c.css, indent(k & ":", 2)
+  if c.minify:
+    add c.css, k & ":"
+  else:
+    add c.css, indent(k & ":", 2)
   for val in n.pVal:
     c.writeVal val
     if vLen != ii:
@@ -64,7 +74,8 @@ proc writeProps(c: var Compiler, n: Node, k: string, i: var int, length: int) =
     inc ii
   if i != length:
     add c.css, ";"
-  add c.css, "\n"
+  if not c.minify:
+    add c.css, "\n"
   inc i
 
 proc writeSelector(c: var Compiler, node: Node) =
@@ -123,8 +134,8 @@ proc write(c: var Compiler, node: Node) =
       else: discard 
   else: discard
 
-proc newCompiler*(p: Program, mem: Memtable, outputPath: string) =
-  var c = Compiler(program: p)
+proc newCompiler*(p: Program, mem: Memtable, outputPath: string, minify = false) =
+  var c = Compiler(program: p, minify: minify)
   # var info = SourceInfo()
   # info.newLine("test.sass", 11)
   # info.addSegment(0, 0)

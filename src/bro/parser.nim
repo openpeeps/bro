@@ -7,7 +7,7 @@
 
 import std/[os, strutils, sequtils, macros, tables,
             memfiles, critbits]
-import ./tokens, ./ast, ./resolver, ./memtable, ./logging
+import ./tokens, ./ast, ./memtable, ./logging
 import ./properties
 
 import std/[threadpool, times]
@@ -26,11 +26,11 @@ type
 
   Warning* = tuple[msg: string, line, col: int]
 
-  PartialFilePath = distinct string
+  # PartialFilePath = distinct string
 
-  Importer* = ref object
-    partials: OrderedTableRef[int, tuple[indentation: int, sourcePath: string]]
-    sources: TableRef[string, MemFile]
+  # Importer* = ref object
+  #   partials: OrderedTableRef[int, tuple[indentation: int, sourcePath: string]]
+  #   sources: TableRef[string, MemFile]
 
   Parser* = object
     lex: Lexer
@@ -44,7 +44,7 @@ type
       error: string
     hasErrors*: bool
     warnings*: seq[Warning]
-    imports: Importer
+    # imports: Importer
     ptrNodes: Table[string, Node]
     case ptype: ParserType
     of Main:
@@ -148,8 +148,6 @@ macro definePseudoClasses() =
 
 definePseudoClasses()
 
-# https://github.com/WebKit/WebKit/blob/main/Source/WebCore/css/CSSProperties.json
-
 proc walk(p: var Parser, offset = 1) =
   var i = 0
   while offset > i:
@@ -188,20 +186,20 @@ proc parseProperty(p: var Parser): Node =
         if p.curr.kind in {TKIdentifier, TKColor, TKString, TKCenter}:
           let property = Properties[pName.value]
           let checkValue = property.hasStrictValue(p.curr.value)
-          if checkValue.exists:
-            if checkValue.status in {Unimplemented, Deprecated, Obsolete, NonStandard}:
-              warn("Using $ ➭ value is $", p.curr, true,
-                pName.value & ": " & p.curr.value, $checkValue.status)
-            result.pVal.add newString(p.curr.value)
-            walk p
-          else:
-            walk p
-            error("Invalid value $",
-              p.prev, true,
-              extraLines = property.getValues(),
-              extraLabel = "Available values:",
-              pName.value & ": " & p.prev.value
-            )
+          # if checkValue.exists:
+          #   if checkValue.status in {Unimplemented, Deprecated, Obsolete, NonStandard}:
+          #     warn("Using $ ➭ value is $", p.curr, true,
+          #             pName.value & ": " & p.curr.value, $checkValue.status)
+          result.pVal.add newString(p.curr.value)
+          walk p
+          # else:
+          #   walk p
+          #   error("Invalid value $",
+          #     p.prev, true,
+          #     extraLines = property.getValues(),
+          #     extraLabel = "Available values:",
+          #     pName.value & ": " & p.prev.value
+          #   )
         elif p.curr.kind == TKInteger:
           result.pVal.add newInt(p.curr.value)
           walk p
@@ -264,7 +262,7 @@ proc whileChild(p: var Parser, this: TokenTuple, parentNode: Node) =
         else:
           for k, v in node.props.pairs():
             parentNode.props[node.ident].props[k] = v
-    else: break
+    else: return
     if p.curr.pos == this.pos: break
 
 proc parseSelector(p: var Parser, node: Node, tk: TokenTuple): Node =
@@ -282,6 +280,8 @@ proc parseSelector(p: var Parser, node: Node, tk: TokenTuple): Node =
   node.multiIdent = multiIdent
   p.whileChild tk, node
   result = node
+  if unlikely(result.props.len == 0):
+    warn("CSS selector $ has no properties [ignored]", tk, true, node.ident)
 
 proc parseRoot(p: var Parser): Node =
   let tk = p.curr
@@ -477,15 +477,11 @@ template initParser(fpath: string) =
     if result.curr.kind == TK_EOF: break
     let node = result.parse()
     if likely(node != nil):
-      case node.nt
-        of NTVariable:
-          discard
-        else:
-          result.program.nodes.add(node)
+      result.program.nodes.add(node)
   result.lex.close()
   for k, v in result.memtable.pairs():
     if unlikely(v.varValue.used == false):
-      result.logger.warn("Unused variable", v.varMeta.line, v.varMeta.col, k)
+      result.logger.warn("Declared and not used", v.varMeta.line, v.varMeta.col, "$" & k)
 
 proc partialThread(filePath: string, lastModified: Time): Parser {.thread.} =
   {.gcsafe.}:
