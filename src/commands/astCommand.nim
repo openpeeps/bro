@@ -37,7 +37,7 @@ proc runCommand*(v: Values) =
           span("($1:$2)\n" % [$warning.line, $warning.col]),
         )
     try:
-      # writeFile(astPath, toJson(p.getProgram))
+      writeFile(astPath, toJson(p.getProgram))
       display "Done in " & $(cpuTime() - t)
       QuitSuccess.quit
     except IOError:

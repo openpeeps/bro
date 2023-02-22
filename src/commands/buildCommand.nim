@@ -41,6 +41,6 @@ proc runCommand*(v: Values) =
   #         span("$1\n" % [warning.msg], fgBlue),
   #         span(stylesheetPath & "\n"),
   #       )
-    newCompiler(p.getProgram(), p.getMemtable(), cssPath)
+    newCompiler(p.getProgram(), p.getMemtable(), cssPath, minify = v.flag("minify"))
     display "Done in " & $(cpuTime() - t)
     QuitSuccess.quit
