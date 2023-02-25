@@ -1,12 +1,19 @@
+# Bro aka NimSass
+# A super fast statically typed stylesheet language for cool kids
+#
+# (c) 2023 George Lemon | MIT License
+#          Made by Humans from OpenPeep
+#          https://github.com/openpeep/bro
+
+
 import std/[ropes, tables, strutils]
-import ./ast, ./memtable, ./sourcemap
+import ./ast, ./sourcemap
 
 # import pkg/jsony
 
 type
   Compiler* = ref object
     css*: string
-    mem: Memtable
     program: Program
     sourceMap: SourceInfo
     minify: bool
@@ -27,13 +34,13 @@ template startCurly() =
   if c.minify:
     add c.css, "{"
   else:
-    add c.css, indent("{", 1) & "\n"
+    add c.css, " {\n"
 
 template endCurly() =
   if c.minify:
     add c.css, "}"
   else:
-    add c.css, "}" & "\n"
+    add c.css, "}\n"
 
 template writeKeyValue(val: string, i: int) =
   add c.css, k & ":" & val
@@ -44,21 +51,26 @@ proc getOtherParents(node: Node, childSelector: string): string =
   var res: seq[string]
   for parent in node.parents:
     if likely(node.nested == false):
-      add res, parent & indent(childSelector, 1)
+      if unlikely(node.nt == NTPseudoClass):
+        add res, parent & ":" & childSelector
+      else:
+        add res, parent & " " & childSelector
     else:
       add res, parent & childSelector
   result = res.join(",")
 
 proc writeVal(c: var Compiler, val: Node) =
-  if val.nt == NTString:
+  case val.nt
+  of NTString:
     add c.css, val.sVal
-  elif val.nt == NTFloat:
+  of NTFloat:
     add c.css, val.fVal
-  elif val.nt == NTInt:
+  of NTInt:
     add c.css, val.iVal
-  elif val.nt == NTCall:
+  of NTCall:
     c.writeVal(val.callNode.varValue.val)
     discard
+  else: discard
 
 proc writeProps(c: var Compiler, n: Node, k: string, i: var int, length: int) =
   var ii = 1
@@ -66,7 +78,7 @@ proc writeProps(c: var Compiler, n: Node, k: string, i: var int, length: int) =
   if c.minify:
     add c.css, k & ":"
   else:
-    add c.css, indent(k & ":", 2)
+    add c.css, spaces(2) & k & ":" & spaces(1)
   for val in n.pVal:
     c.writeVal val
     if vLen != ii:
@@ -134,7 +146,7 @@ proc write(c: var Compiler, node: Node) =
       else: discard 
   else: discard
 
-proc newCompiler*(p: Program, mem: Memtable, outputPath: string, minify = false) =
+proc newCompiler*(p: Program, outputPath: string, minify = false) =
   var c = Compiler(program: p, minify: minify)
   # var info = SourceInfo()
   # info.newLine("test.sass", 11)
@@ -150,7 +162,7 @@ proc newCompiler*(p: Program, mem: Memtable, outputPath: string, minify = false)
   writeFile(outputPath, c.css)
   reset c.css
 
-proc newCompilerStr*(p: Program, mem: Memtable, outputPath: string): string =
+proc newCompilerStr*(p: Program, outputPath: string): string =
   var c = Compiler(program: p)
   for node in c.program.nodes:
     c.write node

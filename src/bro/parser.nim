@@ -1,5 +1,5 @@
 # Bro aka NimSass
-# A super fast stylesheet language for cool kids
+# A super fast statically typed stylesheet language for cool kids
 #
 # (c) 2023 George Lemon | MIT License
 #          Made by Humans from OpenPeep
@@ -51,6 +51,11 @@ type
       projectDirectory: string
     else: discard
     filePath: string
+
+  ParserErrors* = enum
+    UndeclaredVariable = "Undeclared variable"
+    AssignUndeclaredVar = "Assigning an undeclared variable"
+    MissingAssignmentToken = "Missing assignment token"
 
   PrefixFunction = proc(p: var Parser): Node
   PartialChannel = tuple[status: string, program: Program]
@@ -222,7 +227,7 @@ proc parseProperty(p: var Parser): Node =
         result.pRule = propRuleDefault
         walk p
     else:
-      err "Missing assignment token"
+      error($MissingAssignmentToken, p.curr)
   else:
     err "Invalid CSS property", p.curr, p.curr.value
 
@@ -230,7 +235,7 @@ proc whileChild(p: var Parser, this: TokenTuple, parentNode: Node) =
   while p.isPropOf(this):
     let tk = p.curr
     let propNode = p.parseProperty()
-    if propNode != nil:
+    if likely(propNode != nil):
       parentNode.props[propNode.pName] = propNode
     else: return
     if p.curr.pos == this.pos: break
@@ -242,16 +247,16 @@ proc whileChild(p: var Parser, this: TokenTuple, parentNode: Node) =
     if node != nil:
       if unlikely(node.nt == NTExtend):
         # Add extended properties to parent node
-        # TODO support extend, except
         if likely(parentNode.props.hasKey(node.extendIdent) == false):
-          parentNode.props[node.extendIdent] = node
+          for extendKey, extendProp in node.extendProps.pairs():
+            parentNode.props[extendKey] = extendProp
         else:
           error("Extending properties more than once is not allowed", p.prev, node.extendIdent)
         if p.curr.kind == TKIdentifier:
           while p.isPropOf(this):
             let tk = p.curr
             let propNode = p.parseProperty()
-            if propNode != nil:
+            if likely(propNode != nil):
               parentNode.props[propNode.pName] = propNode
             else: return
             if p.curr.pos == this.pos: break
@@ -309,7 +314,7 @@ proc parseNest(p: var Parser): Node =
     err "Invalid nest for given selector", p.curr, p.curr.value
 
 proc parsePseudoNest(p: var Parser): Node =
-  if pseudoTable.hasKey(p.next.value):
+  if likely(pseudoTable.hasKey(p.next.value)):
     walk p
     p.curr.col = p.prev.col
     p.curr.pos = p.prev.pos
@@ -343,7 +348,7 @@ proc parseVariable(p: var Parser): Node =
             if p.memtable.hasKey(p.curr.value):
               discard
             else:
-              error("Undeclared variable", p.curr, "$" & p.curr.value)
+              error($UndeclaredVariable, p.curr, "$" & p.curr.value)
           add varValue, p.curr.value
           add varValue, spaces(1)
           walk p
@@ -353,7 +358,7 @@ proc parseVariable(p: var Parser): Node =
         if p.memtable.hasKey(p.curr.value):
           varNode = deepCopy p.memtable[p.curr.value]
         else:
-          error("Assigning an undeclared variable", p.curr, "$" & p.curr.value)
+          error($AssignUndeclaredVar, p.curr, "$" & p.curr.value)
       p.memtable[tk.value] = varNode
       return varNode
     error("Undefined value for variable", tk, tk.value)
@@ -435,7 +440,7 @@ proc getPrefix(p: var Parser, kind: TokenKind): PrefixFunction =
     parseComment
   of TKNest:
     parseNest
-  of TKPseudoNest:
+  of TKPseudoClass:
     parsePseudoNest
   of TKVariable:
     parseVariable
@@ -473,6 +478,7 @@ template initParser(fpath: string) =
   result.memtable = Memtable()
   result.curr = result.lex.getToken()
   result.next = result.lex.getToken()
+  result.logger = Logger()
   while not result.hasError:
     if result.curr.kind == TK_EOF: break
     let node = result.parse()
@@ -490,7 +496,7 @@ proc partialThread(filePath: string, lastModified: Time): Parser {.thread.} =
     filePath.initParser()
 
 proc parseProgram*(fpath: string): Parser =
-  result = Parser(ptype: Main, logger: Logger())
+  result = Parser(ptype: Main)
   result.projectDirectory = fpath.parentDir()
   fpath.initParser()
 

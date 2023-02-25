@@ -1,5 +1,5 @@
 # Bro aka NimSass
-# A super fast stylesheet language for cool kids
+# A super fast statically typed stylesheet language for cool kids
 #
 # (c) 2023 George Lemon | MIT License
 #          Made by Humans from OpenPeep
@@ -39,7 +39,7 @@ type
     propRuleDefault
     propRuleImportant
 
-  KeyValueTable* = OrderedTableRef[string, Node]
+  KeyValueTable* = OrderedTable[string, Node]
 
   # You ain't got no style, muthafucka
   # https://developer.mozilla.org/en-US/docs/Web/CSS/Attribute_selectors

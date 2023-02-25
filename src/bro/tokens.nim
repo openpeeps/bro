@@ -1,5 +1,5 @@
 # Bro aka NimSass
-# A super fast stylesheet language for cool kids
+# A super fast statically typed stylesheet language for cool kids
 #
 # (c) 2023 George Lemon | MIT License
 #          Made by Humans from OpenPeep
@@ -204,14 +204,47 @@ tokens:
   Sub          > "sub"
   Summary      > "summary"
   Sup          > "sup"
-  Assign      > '='
+  SVG          > "svg"
+  Table        > "table"
+  Tbody        > "tbody"
+  TD           > "td"
+  Template     > "template"
+  Textarea     > "textarea"
+  Tfoot        > "tfoot"
+  TH           > "th"
+  Thead        > "thead"
+  Time         > "time"
+  Title        > "title"
+  TR           > "tr"
+  Track        > "track"
+  TT           > "tt"
+  Underline    > "u"  
+  UL           > "ul"
+  Var          > "var"
+  Video        > "video"
+  WBR          > "wbr"
+  Root > "root"
   Colon       > ':'
   Comma       > ','
   Nest        > '&':
-    PseudoNest > ':'
+    PseudoClass > ':'
+  Pipe        > '|'
+  Multi       > '*'
+  Minus       > '-'
+  Plus        > '+'
+  Assign      > '=':
+    EQ       ? '='
+  GT           > '>':
+    GTE      ? '='
+  LT           > '<':
+    LTE      ? '='
+  QMark       > '?'
+  LPar        > '('
+  RPar        > ')'
+  LBra        > '['
+  RBra        > ']'
   ExcRule     > tokenize(handleExclamation, '!')
   Hash        > tokenize(handleHash, '#')
-  Hyphen      > '-'
   Variable    > tokenize(handleVariable, '$')
   VariableCall
   Class       > tokenize(handleClassSelector, '.')
@@ -222,8 +255,6 @@ tokens:
     Extend    > "extend"
     Use       > "use"
     Mixin     > "mixin"
-  Root > "root"
-  Body > "body"
   ID
   Color
   Important
@@ -231,3 +262,8 @@ tokens:
   Preview     > tokenize(handleSnippets, '`')
   FunctionCall
   FunctionStmt
+  If          > "if"
+  Elif        > "elif"
+  Else        > "else"
+  For         > "for"
+  When        > "when"
