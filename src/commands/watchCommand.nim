@@ -1,8 +1,15 @@
+# Bro aka NimSass
+# A super fast statically typed stylesheet language for cool kids
+#
+# (c) 2023 George Lemon | MIT License
+#          Made by Humans from OpenPeep
+#          https://github.com/openpeep/bro
+
 import std/[times, os, strutils, threadpool]
 import pkg/watchout
 import pkg/klymene/[runtime, cli]
 
-import ../bro/[parser, memtable, compiler]
+import ../bro/[parser, compiler]
 
 proc runProgram(fpath, fname: string) {.thread.} =
   {.gcsafe.}:
@@ -16,7 +23,7 @@ proc runProgram(fpath, fname: string) {.thread.} =
     else:
       display(fname, indent = 3)
       let cssPath = fpath.changeFileExt("css")
-      newCompiler(p.getProgram, p.getMemtable, cssPath)
+      newCompiler(p.getProgram, cssPath)
       display("Done in " & $(cpuTime() - t), br="before")
     reset p
 

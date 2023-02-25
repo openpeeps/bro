@@ -1,7 +1,14 @@
+# Bro aka NimSass
+# A super fast statically typed stylesheet language for cool kids
+#
+# (c) 2023 George Lemon | MIT License
+#          Made by Humans from OpenPeep
+#          https://github.com/openpeep/bro
+
 import std/[times, os, strutils]
 import pkg/klymene/[runtime, cli]
 
-import ../bro/[parser, memtable, compiler]
+import ../bro/[parser, compiler]
 
 proc runCommand*(v: Values) =
   var stylesheetPath: string
@@ -41,6 +48,6 @@ proc runCommand*(v: Values) =
   #         span("$1\n" % [warning.msg], fgBlue),
   #         span(stylesheetPath & "\n"),
   #       )
-    newCompiler(p.getProgram(), p.getMemtable(), cssPath, minify = v.flag("minify"))
+    newCompiler(p.getProgram, cssPath, minify = v.flag("minify"))
     display "Done in " & $(cpuTime() - t)
     QuitSuccess.quit

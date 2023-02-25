@@ -1,8 +1,10 @@
-import std/[os, times]
-import pkg/jsony
-import pkg/klymene/[runtime, cli]
+import std/[os, times, tables]
 
-import ../bro/[parser]
+import pkg/klymene/[runtime, cli]
+import pkg/[jsony, bson]
+import pkg/[msgpack4nim, msgpack4nim/msgpack4collection]
+
+import ../bro/[parser, ast]
 
 proc runCommand*(v: Values) =
   var stylesheetPath: string
@@ -18,14 +20,14 @@ proc runCommand*(v: Values) =
     display("Stylesheet is empty")
     QuitFailure.quit
 
-  let astPath = stylesheetPath.changeFileExt("json")
-  display "✨ Building AST...", br="after"
+  display("✨ Building AST...", br="after")
   let
     t = cpuTime()
     p = parser.parseProgram(stylesheetPath)
   if p.hasError:
     for row in p.getError.rows:
       display(row)
+    QuitFailure.quit
   else:
     if p.hasWarnings:
       for warning in p.warnings:
@@ -36,10 +38,19 @@ proc runCommand*(v: Values) =
           span(stylesheetPath),
           span("($1:$2)\n" % [$warning.line, $warning.col]),
         )
-    try:
-      writeFile(astPath, toJson(p.getProgram))
-      display "Done in " & $(cpuTime() - t)
-      QuitSuccess.quit
-    except IOError:
-      display("Could not write JSON AST to file")
-      QuitFailure.quit
+    if v.has("bson"):
+        var doc = newBsonDocument()
+        doc["ast"] = toJson(p.getProgram)
+        try:
+          writeFile(stylesheetPath.changeFileExt("bson"), doc.bytes)
+        except IOError:
+          display("Could not write JSON AST to file")
+          QuitFailure.quit
+    else:
+      var s = MsgStream.init()
+      s.pack(p.getProgram)
+      s.pack_bin(sizeof(p.getProgram))
+      writeFile(stylesheetPath.changeFileExt("msgpkd"), s.data)
+
+    display "Done in " & $(cpuTime() - t)
+    QuitSuccess.quit
