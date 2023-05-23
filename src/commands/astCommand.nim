@@ -1,7 +1,7 @@
 import std/[os, times, tables]
 
 import pkg/klymene/[runtime, cli]
-import pkg/[jsony, bson]
+# import pkg/[jsony, bson]
 import pkg/[msgpack4nim, msgpack4nim/msgpack4collection]
 
 import ../bro/[parser, ast]
@@ -38,19 +38,19 @@ proc runCommand*(v: Values) =
           span(stylesheetPath),
           span("($1:$2)\n" % [$warning.line, $warning.col]),
         )
-    if v.has("bson"):
-        var doc = newBsonDocument()
-        doc["ast"] = toJson(p.getProgram)
-        try:
-          writeFile(stylesheetPath.changeFileExt("bson"), doc.bytes)
-        except IOError:
-          display("Could not write JSON AST to file")
-          QuitFailure.quit
-    else:
-      var s = MsgStream.init()
-      s.pack(p.getProgram)
-      s.pack_bin(sizeof(p.getProgram))
-      writeFile(stylesheetPath.changeFileExt("msgpkd"), s.data)
+    # if v.has("bson"):
+    #     var doc = newBsonDocument()
+    #     doc["ast"] = toJson(p.getProgram)
+    #     try:
+    #       writeFile(stylesheetPath.changeFileExt("bson"), doc.bytes)
+    #     except IOError:
+    #       display("Could not write JSON AST to file")
+    #       QuitFailure.quit
+    # else:
+    var s = MsgStream.init()
+    s.pack(p.getProgram)
+    s.pack_bin(sizeof(p.getProgram))
+    writeFile(stylesheetPath.changeFileExt("ast"), s.data)
 
     display "Done in " & $(cpuTime() - t)
     QuitSuccess.quit
