@@ -30,7 +30,7 @@ type
 proc add(logger: Logger, lvl: Level, msg: string,
                 line, col: int, useFmt: bool, args: varargs[string]) =
   let log = Log(msg: msg, args: args.toSeq(),
-                line: line, col: col, useFmt: useFmt)
+                line: line, col: col + 1, useFmt: useFmt)
   case lvl:
     of lvlInfo:
       logger.infoLogs.add(log)

@@ -26,6 +26,7 @@ type
     url: string
 
   PropertiesTable = TableRef[string, Property]
+
 var Properties* = newTable[string, Property]()
 proc hasStrictValue*(prop: Property; key: string): tuple[
     exists: bool, status: Status] =
@@ -33,10 +34,6 @@ proc hasStrictValue*(prop: Property; key: string): tuple[
     if prop.values.hasKey(key):
       result.exists = true
       result.status = prop.values[key]
-
-proc getValues*(prop: Property): seq[string] =
-  for p in prop.values.keys:
-    result.add p
 
 ## 
 ## Property `accent-color`

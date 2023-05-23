@@ -5,14 +5,13 @@
 #          Made by Humans from OpenPeep
 #          https://github.com/openpeep/bro
 
+import pkg/klymene/cli
+import std/[threadpool, times]
 import std/[os, strutils, sequtils, macros, tables,
             memfiles, critbits]
+
 import ./tokens, ./ast, ./memtable, ./logging
 import ./properties
-
-import std/[threadpool, times]
-
-import pkg/klymene/cli
 
 when not defined release:
   import std/[json, jsonutils] 
@@ -53,18 +52,24 @@ type
     filePath: string
 
   ParserErrors* = enum
+    InvalidIndentation = "Invalid indentation"
     UndeclaredVariable = "Undeclared variable"
     AssignUndeclaredVar = "Assigning an undeclared variable"
     MissingAssignmentToken = "Missing assignment token"
+    UndeclaredCSSSelector = "Undeclared CSS selector"
+    ExtendCssSelector = "CSS properties can only be extended from ID or CSS selectors."
+    InvalidProperty = "Invalid CSS property"
+    DuplicateVarDeclaration = "Duplicate variable declaration"
 
-  PrefixFunction = proc(p: var Parser): Node
+  ScopeTable = OrderedTableRef[string, Node]
+  PrefixFunction = proc(p: var Parser, scope: ScopeTable = nil): Node
   PartialChannel = tuple[status: string, program: Program]
 
 # forward definition
 proc getPrefix(p: var Parser, kind: TokenKind): PrefixFunction
-proc parse(p: var Parser): Node
-proc parseVariableCall(p: var Parser): Node
-proc partialThread(filePath: string, lastModified: Time): Parser {.thread.}
+proc parse(p: var Parser, scope: ScopeTable = nil): Node
+proc parseVariableCall(p: var Parser, scope: ScopeTable = nil): Node
+proc partialThread(fpath: string, lastModified: Time): Parser {.thread.}
 
 when compileOption("app", "console"):
   template err(msg: string) =
@@ -113,10 +118,16 @@ proc hasError*(p: Parser): bool =
 proc hasWarnings*(p: Parser): bool =
   result = p.warnings.len != 0
 
+const tkPropsName = {TKRuby, TKStrong}
+
 when not defined release:
   proc `$`(node: Node): string =
     # print nodes while in dev mode
     result = pretty(node.toJson(), 2)
+
+  proc `$`(program: Program): string =
+    # print nodes while in dev mode
+    result = pretty(program.toJson(), 2)
 
 macro definePseudoClasses() =
   # https://developer.mozilla.org/en-US/docs/Web/CSS/:host_function
@@ -142,16 +153,49 @@ macro definePseudoClasses() =
     newStmtList(
       newLetStmt(
         ident "pseudoTable",
-        newCall(
-          newDotExpr(
-            pseudoTable,
-            ident "toCritBitTree"
-          )
-        )
+        newCall(newDotExpr(pseudoTable, ident "toCritBitTree"))
       )
   )
 
 definePseudoClasses()
+
+proc newNodeByValueType(tk: TokenTuple): Node =
+  if tk.kind == TKColor:
+    result = newColor tk.value
+  elif tk.kind == TKString:
+    result = newString tk.value
+  elif tk.kind == TKInteger:
+    result = newInt tk.value
+  elif tk.kind == TKBool:
+    result = newBool tk.value
+  else:
+    if tk.value in ["aliceblue", "antiquewhite", "aqua", "aquamarine", "azure", "beige",
+    "bisque", "black", "blanchedalmond", "blue", "blueviolet", "brown",
+    "burlywood", "cadetblue", "chartreuse", "chocolate", "coral", "cornflowerblue",
+    "cornsilk", "crimson", "cyan", "darkblue", "darkcyan", "darkgoldenrod",
+    "darkgray", "darkgreen", "darkkhaki", "darkmagenta", "darkolivegreen",
+    "darkorange", "darkorchid", "darkred", "darksalmon", "darkseagreen",
+    "darkslateblue", "darkslategray", "darkturquoise", "darkviolet",
+    "deeppink", "deepskyblue", "dimgray", "dodgerblue", "firebrick",
+    "floralwhite", "forestgreen", "fuchsia", "gainsboro", "ghostwhite",
+    "gold", "goldenrod", "gray", "grey", "green", "greenyellow", "honeydew",
+    "hotpink", "indianred", "indigo", "ivory", "khaki", "lavender",
+    "lavenderblush", "lawngreen", "lemonchiffon", "lightblue", "lightcoral",
+    "lightcyan", "lightgoldenrodyellow", "lightgray", "lightgreen", "lightpink",
+    "lightsalmon", "lightseagreen", "lightskyblue", "lightslategray",
+    "lightsteelblue", "lightyellow", "lime", "limegreen", "linen", "magenta",
+    "maroon", "mediumaquamarine", "mediumblue", "mediumorchid", "mediumpurple",
+    "mediumseagreen", "mediumslateblue", "mediumspringgreen", "mediumturquoise",
+    "mediumvioletred", "midnightblue", "mintcream", "mistyrose", "moccasin",
+    "navajowhite", "navy", "oldlace", "olive", "olivedrab", "orange", "orangered",
+    "orchid", "palegoldenrod", "palegreen", "paleturquoise", "palevioletred",
+    "papayawhip", "peachpuff", "peru", "pink", "plum", "powderblue",
+    "purple", "rebeccapurple", "red", "rosybrown", "royalblue", "saddlebrown",
+    "salmon", "sandybrown", "seagreen", "seashell", "sienna", "silver", "skyblue",
+    "slateblue", "slategray", "snow", "springgreen", "steelblue", "tan",
+    "teal", "thistle", "tomato", "turquoise", "violet", "wheat", "white",
+    "whitesmoke", "yellow", "yellowgreen"]:
+      result = newColor(tk.value)
 
 proc walk(p: var Parser, offset = 1) =
   var i = 0
@@ -176,11 +220,14 @@ proc childOf(p: var Parser, tk: TokenTuple): bool =
 proc isPropOf(p: var Parser, tk: TokenTuple): bool =
   result = p.childOf(tk) and p.isProp()
 
-proc parseComment(p: var Parser): Node =
+proc parseComment(p: var Parser, scope: ScopeTable = nil): Node =
   discard newComment(p.curr.value)
   walk p
 
-proc parseProperty(p: var Parser): Node =
+proc getVNode(tk: TokenTuple): TokenTuple =
+  result = tk
+
+proc parseProperty(p: var Parser, scope: ScopeTable = nil): Node =
   if likely(Properties.hasKey(p.curr.value)):
     let pName = p.curr
     walk p
@@ -188,13 +235,14 @@ proc parseProperty(p: var Parser): Node =
       walk p
       result = newProperty(pName.value)
       while p.curr.line == pName.line:
-        if p.curr.kind in {TKIdentifier, TKColor, TKString, TKCenter}:
+        if p.curr.kind in {TKIdentifier, TKColor, TKString, TKCenter} + tkPropsName:
           let property = Properties[pName.value]
+          let propValue = getVNode(p.curr)
           let checkValue = property.hasStrictValue(p.curr.value)
-          # if checkValue.exists:
-          #   if checkValue.status in {Unimplemented, Deprecated, Obsolete, NonStandard}:
-          #     warn("Using $ ➭ value is $", p.curr, true,
-          #             pName.value & ": " & p.curr.value, $checkValue.status)
+          if checkValue.exists:
+            if checkValue.status in {Unimplemented, Deprecated, Obsolete, NonStandard}:
+              warn("Use of $ is marked as $", p.curr, true,
+                      pName.value & ": " & p.curr.value, $checkValue.status)
           result.pVal.add newString(p.curr.value)
           walk p
           # else:
@@ -212,7 +260,7 @@ proc parseProperty(p: var Parser): Node =
           result.pVal.add newFloat(p.curr.value)
           walk p
         elif p.curr.kind == TKVariableCall:
-          let callNode = p.parseVariableCall()
+          let callNode = p.parseVariableCall(scope)
           if callNode != nil:
             result.pVal.add(deepCopy(callNode))
           else:
@@ -229,21 +277,20 @@ proc parseProperty(p: var Parser): Node =
     else:
       error($MissingAssignmentToken, p.curr)
   else:
-    err "Invalid CSS property", p.curr, p.curr.value
+    error($InvalidProperty, p.curr)
 
-proc whileChild(p: var Parser, this: TokenTuple, parentNode: Node) =
+proc whileChild(p: var Parser, this: TokenTuple, parentNode: Node, scope: ScopeTable) =
   while p.isPropOf(this):
     let tk = p.curr
-    let propNode = p.parseProperty()
+    let propNode = p.parseProperty(scope)
     if likely(propNode != nil):
       parentNode.props[propNode.pName] = propNode
     else: return
     if p.curr.pos == this.pos: break
-
   while p.childOf(this):
     let
       tk = p.curr
-      node = p.parse()
+      node = p.parse(scope)
     if node != nil:
       if unlikely(node.nt == NTExtend):
         # Add extended properties to parent node
@@ -255,11 +302,13 @@ proc whileChild(p: var Parser, this: TokenTuple, parentNode: Node) =
         if p.curr.kind == TKIdentifier:
           while p.isPropOf(this):
             let tk = p.curr
-            let propNode = p.parseProperty()
+            let propNode = p.parseProperty(scope)
             if likely(propNode != nil):
               parentNode.props[propNode.pName] = propNode
             else: return
             if p.curr.pos == this.pos: break
+      elif node.nt == NTForStmt:
+        discard
       else:
         node.parents = concat(@[parentNode.ident], parentNode.multiIdent)
         if not parentNode.props.hasKey(node.ident):
@@ -270,8 +319,8 @@ proc whileChild(p: var Parser, this: TokenTuple, parentNode: Node) =
     else: return
     if p.curr.pos == this.pos: break
 
-proc parseSelector(p: var Parser, node: Node, tk: TokenTuple): Node =
-  walk p
+proc parseSelector(p: var Parser, node: Node, tk: TokenTuple, scope: ScopeTable, toWalk = true): Node =
+  if toWalk: walk p
   var multiIdent: seq[string]
   while p.curr.kind == TKComma:
     walk p
@@ -283,78 +332,116 @@ proc parseSelector(p: var Parser, node: Node, tk: TokenTuple): Node =
       else:
         err("Duplicated CSS declaration", p.curr, prefixedIdent)
   node.multiIdent = multiIdent
-  p.whileChild tk, node
+  p.whileChild(tk, node, scope)
   result = node
   if unlikely(result.props.len == 0):
     warn("CSS selector $ has no properties [ignored]", tk, true, node.ident)
 
-proc parseRoot(p: var Parser): Node =
-  let tk = p.curr
-  result = p.parseSelector(newRoot(), tk)
+# proc parseRoot(p: var Parser, scope: ScopeTable = nil): Node =
+#   let tk = p.curr
+#   result = p.parseSelector(newRoot(), tk, scope)
 
-proc parseClass(p: var Parser): Node =
+proc parseClass(p: var Parser, scope: ScopeTable = nil): Node =
   let tk = p.curr
-  result = p.parseSelector(tk.newClass, tk)
+  if unlikely(p.next.kind == TKVarConcat and p.next.line == tk.line):
+    walk p
+    var concatNodes: seq[Node] # NTVariable
+    while p.curr.line == tk.line:
+      # handle selector name + var concatenation
+      if p.curr.kind == TKVarConcat:
+        concatNodes.add(p.parseVariableCall(scope))
+      elif p.curr.kind == TKIdentifier:
+        concatNodes.add(newString(p.curr.value))
+        walk p
+      elif p.curr.kind == TKRC:
+        walk p
+      elif p.curr.kind == TKMinus:
+        walk p # todo selector separators
+      else:
+        break
+    result = p.parseSelector(tk.newClass(concat = concatNodes), tk, scope, toWalk = false)
+  else:
+    result = p.parseSelector(tk.newClass, tk, scope)
   p.ptrNodes[tk.value] = result
 
-proc parseID(p: var Parser): Node =
+proc parseID(p: var Parser, scope: ScopeTable = nil): Node =
   let tk = p.curr
-  result = p.parseSelector(tk.newID, tk)
+  result = p.parseSelector(tk.newID, tk, scope)
 
-proc parseTag(p: var Parser): Node =
-  let tk = p.curr
-  result = p.parseSelector(tk.newTag, tk)
-
-proc parseNest(p: var Parser): Node =
+proc parseNest(p: var Parser, scope: ScopeTable = nil): Node =
   walk p
   if p.curr.kind == TKClass:
-    result = p.parseClass()
+    result = p.parseClass(scope)
     result.nested = true
   else:
     err "Invalid nest for given selector", p.curr, p.curr.value
 
-proc parsePseudoNest(p: var Parser): Node =
+proc parsePseudoNest(p: var Parser, scope: ScopeTable = nil): Node =
   if likely(pseudoTable.hasKey(p.next.value)):
     walk p
     p.curr.col = p.prev.col
     p.curr.pos = p.prev.pos
     let tk = p.curr
-    result = p.parseSelector(tk.newPseudoClass, tk)
+    result = p.parseSelector(tk.newPseudoClass, tk, scope)
   else:
     walk p
     error("Unknown pseudo-class", p.prev, p.curr.value)
 
-proc parseVariableCall(p: var Parser): Node = 
+proc parseVariableCall(p: var Parser, scope: ScopeTable = nil): Node = 
+  if scope != nil:
+    if scope.hasKey(p.curr.value):
+      walk p
+      return newCall scope[p.prev.value]
   if likely(p.memtable.hasKey(p.curr.value)):
     let valNode = p.memtable[p.curr.value]
-    valNode.varValue.used = true
+    if valNode.varValue.nt != NTArray:
+      valNode.varValue.used = true
+    else:
+      valNode.varValue.usedArray = true
     result = newCall(valNode)
     walk p
   else:
-    err "Undeclared variable", p.curr, "$" & p.curr.value
+    error($UndeclaredVariable, p.curr, "$" & p.curr.value)
 
-proc parseVariable(p: var Parser): Node =
+proc parseVariable(p: var Parser, scope: ScopeTable = nil): Node =
   let tk = p.curr
+  var inArray: bool
   walk p # :
+  if p.next.kind == TKLB:
+    walk p
+    inArray = true
   if likely(p.memtable.hasKey(tk.value) == false):
     if p.next.kind in {TKIdentifier, TKColor, TKString, TKFloat, TKInteger, TKVariableCall}:
       walk p
-      var varNode: Node
+      var varNode, valNode: Node
       if p.curr.kind != TKVariableCall:
         var varValue: string
-        while p.curr.line == tk.line:
-          if p.curr.kind == TKComment: break
-          if p.curr.kind == TKVariableCall:
-            if p.memtable.hasKey(p.curr.value):
-              discard
-            else:
-              error($UndeclaredVariable, p.curr, "$" & p.curr.value)
-          add varValue, p.curr.value
-          add varValue, spaces(1)
-          walk p
-        let node = newValue(newString(varValue.strip()))
-        varNode = newVariable(tk.value, node, tk)
-      else:
+        if not inArray:
+          while p.curr.line == tk.line:
+            if p.curr.kind == TKComment: break
+            if p.curr.kind == TKVariableCall:
+              if p.memtable.hasKey(p.curr.value):
+                discard # todo
+              else:
+                error($UndeclaredVariable, p.curr, "$" & p.curr.value)
+            add varValue, spaces(p.curr.wsno)
+            add varValue, p.curr.value
+            walk p
+          valNode = newValue(newString varValue.strip)
+        else:
+          valNode = Node(nt: NTArray)
+          while p.curr.kind != TKRB:
+            valNode.arrayVal.add(newValue(newNodeByValueType p.curr))
+            walk p
+            if p.curr.kind == TKComma:
+              walk p
+          if p.curr.kind == TKRB:
+            walk p
+          else:
+            error("Missing closing bracket", p.curr)
+            return
+        varNode = newVariable(tk.value, valNode, tk)
+      else: 
         if p.memtable.hasKey(p.curr.value):
           varNode = deepCopy p.memtable[p.curr.value]
         else:
@@ -375,63 +462,98 @@ proc parseVariable(p: var Parser): Node =
     else:
       error("Undefined value for variable", tk, tk.value)
 
-proc inLoop(filePath: string, lastModified: Time): Parser =
-  var p = ^ spawn(partialThread(filePath, lastModified))
+proc inLoop(fpath: string, lastModified: Time): Parser =
+  var p = ^ spawn(partialThread(fpath, lastModified))
   var lm = lastModified
   if p.hasError:
     for row in p.error.rows:
       display(row)
     while true:
-      let lastModifiedNow = filePath.getLastModificationTime()
+      let lastModifiedNow = fpath.getLastModificationTime()
       if p.hasError:
         if lastModifiedNow > lm:
           lm = lastModifiedNow
-          p = inLoop(filePath, lm)
+          p = inLoop(fpath, lm)
         sleep(220)
       else:
         return p
   else:
     result = p
 
-proc parseImport(p: var Parser): Node = 
+proc parseImport(p: var Parser, scope: ScopeTable = nil): Node = 
   if p.next.kind == TKString:
-    walk p
-  var filePath = addFileExt(p.curr.value, "sass").absolutePath
-  var lastModified = filePath.getLastModificationTime()
-  if fileExists(filePath):
-    var pp = inLoop(filePath, lastModified)
-    # echo pp.program.nodes.len
-    result = newImport(pp.program.nodes, filePath)
+    walk p # walk to file name
+  var fpath = addFileExt(p.curr.value, "sass").absolutePath
+  if fileExists(fpath):
+    var lastModified = fpath.getLastModificationTime()
+    var pp = inLoop(fpath, lastModified)
+    result = newImport(pp.program.nodes, fpath)
     walk p
   else:
-    err "Import error file not found", p.curr, p.curr.value
+    error("Import error file not found", p.curr, p.curr.value)
 
-proc parseExtend(p: var Parser): Node =
+proc parseExtend(p: var Parser, scope: ScopeTable = nil): Node =
   walk p 
   if p.curr.kind in {TKClass, TKID}:
-    result = newExtend(p.curr, p.ptrNodes[p.curr.value].props)
-    walk p
+    if p.ptrNodes.hasKey(p.curr.value):
+      result = newExtend(p.curr, p.ptrNodes[p.curr.value].props)
+      walk p
+    else:
+      error($UndeclaredCSSSelector, p.curr, p.curr.value)
   else:
-    error("Cannot extend", p.curr, p.curr.value)
+    error($ExtendCssSelector, p.curr)
 
 proc getNil(p: var Parser): Node =
   result = nil
   walk p
 
-proc parseFunctionStmt(p: var Parser): Node =
+proc parseFunctionStmt(p: var Parser, scope: ScopeTable = nil): Node =
   discard
 
-proc parseFunctionCall(p: var Parser): Node =
+proc parseFunctionCall(p: var Parser, scope: ScopeTable = nil): Node =
   discard
 
-proc parsePreview(p: var Parser): Node =
+proc parseForStmt(p: var Parser, scope: ScopeTable = nil): Node =
+  ## Parse `for x in y` loop statement
+  var item: Node
+  let tk = p.curr
+  let tkNext = p.next
+  item = newVariable(tkNext)
+  walk p, 2
+  if p.curr.kind == TKIn:
+    walk p # in
+    var items = p.parseVariableCall() # raise "UndeclaredVariable"
+    if items == nil: return
+    if p.curr.kind == TKColon:
+      walk p
+      if p.curr.line > tk.line and p.curr.col > tk.col:
+        var forNode = newForStmt(item, items)
+        if scope == nil:
+          forNode.forScopes = newOrderedTable[string, Node]()
+        else:
+          if not scope.hasKey(item.varName):
+            forNode.forScopes = scope
+          else:
+            error($DuplicateVarDeclaration, tkNext)
+        forNode.forScopes[item.varName] = item
+        while p.curr.col > tk.col:
+          if p.curr.kind == TK_EOF: break
+          let forBodyNode = p.parse(forNode.forScopes)
+          forNode.forBody.add forBodyNode
+        return forNode
+      error($InvalidIndentation, p.curr)
+    else:
+      error("Unexpected token", p.curr)
+  else: error("Invalid loop statement", p.curr)
+
+proc parsePreview(p: var Parser, scope: ScopeTable = nil): Node =
   result = newPreview(p.curr)
   walk p
 
 proc getPrefix(p: var Parser, kind: TokenKind): PrefixFunction =
   case p.curr.kind:
-  of TKRoot:
-    parseRoot
+  # of TKRoot:
+    # parseRoot
   of TKClass:
     parseClass
   of TKID:
@@ -456,20 +578,26 @@ proc getPrefix(p: var Parser, kind: TokenKind): PrefixFunction =
     parsePreview
   of TKExtend:
     parseExtend
-  else:
-    parseTag
+  of TKFor:
+    parseForStmt
+  else: nil
+    # parseTag
     # getNil
 
-proc parse(p: var Parser): Node =
+proc parse(p: var Parser, scope: ScopeTable = nil): Node =
   let callFunction = p.getPrefix(p.curr.kind)
   if callFunction != nil:
-    let node = p.callFunction()
+    let node = p.callFunction(scope)
     result = node
+  else:
+    error("Unrecognized token", p.curr)
 
 proc getProgram*(p: Parser): Program =
+  ## Return current AST as `Program`
   result = p.program
 
 proc getMemtable*(p: Parser): Memtable =
+  ## Return data stored in memory as `Memtable`
   result = p.memtable
 
 template initParser(fpath: string) =
@@ -484,21 +612,28 @@ template initParser(fpath: string) =
     let node = result.parse()
     if likely(node != nil):
       result.program.nodes.add(node)
+    else: break
   result.lex.close()
+  # echo result.program
   for k, v in result.memtable.pairs():
-    if unlikely(v.varValue.used == false):
-      result.logger.warn("Declared and not used", v.varMeta.line, v.varMeta.col, "$" & k)
+    if v.varValue.nt != NTArray:
+      if unlikely(v.varValue.used == false):
+        result.logger.warn("Declared and not used", v.varMeta.line, v.varMeta.col, "$" & k)
+    else:
+      if unlikely(v.varValue.usedArray == false):
+        result.logger.warn("Declared array and not used", v.varMeta.line, v.varMeta.col, "$" & k)
 
-proc partialThread(filePath: string, lastModified: Time): Parser {.thread.} =
+proc partialThread(fpath: string, lastModified: Time): Parser {.thread.} =
   {.gcsafe.}:
-    let lastTime = filePath.getLastModificationTime()
-    result = Parser(ptype: Partial, filePath: filePath)
-    filePath.initParser()
+    let lastTime = fpath.getLastModificationTime()
+    result = Parser(ptype: Partial, filePath: fpath)
+    initParser(fpath)
 
 proc parseProgram*(fpath: string): Parser =
+  ## Parse program and return `Parser` instance
   result = Parser(ptype: Main)
   result.projectDirectory = fpath.parentDir()
-  fpath.initParser()
+  initParser(fpath)
 
 # proc parseProgram*(fpath: string): Parser =
 #   var importer = resolve(fpath, fpath)

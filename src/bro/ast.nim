@@ -5,7 +5,7 @@
 #          Made by Humans from OpenPeep
 #          https://github.com/openpeep/bro
 
-import std/[tables]
+import std/[tables, strutils]
 from ./tokens import TokenKind, TokenTuple
 # from std/enumutils import symbolName
 
@@ -26,13 +26,19 @@ type
     NTFunction
     NTComment
     NTSelectorTag
+    
     NTString
     NTInt
     NTFloat
+    NTBool
+    NTArray
+    NTColor
+    
     NTCall
     NTImport
     NTPreview
     NTExtend
+    NTForStmt
 
   PropertyRule* = enum
     propRuleNone
@@ -41,9 +47,28 @@ type
 
   KeyValueTable* = OrderedTable[string, Node]
 
-  # You ain't got no style, muthafucka
-  # https://developer.mozilla.org/en-US/docs/Web/CSS/Attribute_selectors
-  # https://developer.mozilla.org/en-US/docs/Web/CSS/Specificity
+  ColorType* = enum
+    cNamed, cHex, cRGB, cRGBA, cHSL, cHSLA
+
+  GlobalValue* = enum
+    gInherit = "inherit"
+    gInitial = "initial"
+    gRevert = "revert"
+    gRevertLayer = "revert-layer"
+    gUnset = "unset"
+
+  # Value
+  # VNodeType* = enum
+  #   vntColor,
+  #   vntPercentage
+
+  # VNode* = ref object
+  #   case vnt*: VNodeType
+  #   of vntColor:
+  #     colorValue: 
+  #   of vntPercentage:
+
+  # Node
   Node* = ref object
     case nt*: NodeType
     of NTProperty:
@@ -68,6 +93,15 @@ type
       iVal*: string
     of NTFloat:
       fVal*: string
+    of NTBool:
+      bVal*: bool
+    of NTColor:
+      colorType*: ColorType
+      colorGlobals: GlobalValue
+      cVal*: string
+    of NTArray:
+      arrayVal*: seq[Node]
+      usedArray*: bool
     of NTCall:
       callNode*: Node
     of NTImport:
@@ -78,12 +112,20 @@ type
     of NTExtend:
       extendIdent*: string
       extendProps*: KeyValueTable
-    else:
+    of NTForStmt:
+      forItem*, inItems*: Node
+      forBody*: seq[Node]
+      forScopes*: OrderedTableRef[string, Node]
+        # Variable scopes Nodes of NTVariableValue
+    of NTSelectorTag, NTSelectorClass, NTPseudoClass, NTSelectorID:
       ident*: string
       parents*: seq[string]
       multiIdent*: seq[string]
       nested*: bool
       props*, pseudo*: KeyValueTable
+      nodes: seq[Node]
+      identConcat*: seq[Node] # NTVariable
+    else: discard
 
   Program* = ref object
     nodes*: seq[Node]
@@ -107,6 +149,12 @@ proc newInt*(iVal: string): Node =
 proc newFloat*(fVal: string): Node =
   result = Node(nt: NTFloat, fVal: fVal)
 
+proc newBool*(bVal: string): Node =
+  result = Node(nt: NTBool, bVal: parseBool bVal)
+
+proc newColor*(cVal: string): Node =
+  result = Node(nt: NTColor, cVal: cVal)
+
 proc newCall*(node: Node): Node =
   result = Node(nt: NTCall, callNode: node)
 
@@ -116,8 +164,14 @@ proc newImport*(nodes: seq[Node], importPath: string): Node =
 proc newVariable*(varName: string, varValue: Node, tk: TokenTuple): Node =
   result = Node(nt: NTVariable, varName: varName, varValue: varValue, varMeta: (tk.line, tk.col))
 
+proc newVariable*(tk: TokenTuple): Node =
+  result = Node(nt: NTVariable, varName: tk.value, varMeta: (tk.line, tk.col))
+
 proc newValue*(val: Node): Node =
   result = Node(nt: NTVariableValue, val: val)
+
+proc newValue*(tk: TokenTuple, valNode: Node): Node =
+  result = Node(nt: NTVariableValue, val: valNode)
 
 proc newComment*(str: string): Node =
   result = Node(nt: NTComment, comment: str)
@@ -125,12 +179,12 @@ proc newComment*(str: string): Node =
 proc newTag*(tk: TokenTuple, string, props = KeyValueTable(), multiIdent = @[""]): Node =
   result = Node(nt: NTSelectorTag, ident: tk.prefixed, props: props, multiIdent: multiIdent)
 
-proc newRoot*(props: KeyValueTable = KeyValueTable()): Node =
-  result = Node(nt: NTRoot, ident: ":root", props: props)
+# proc newRoot*(props: KeyValueTable = KeyValueTable()): Node =
+#   result = Node(nt: NTRoot, ident: ":root", props: props)
 
-proc newClass*(tk: TokenTuple, props = KeyValueTable(), multiIdent = @[""]): Node =
+proc newClass*(tk: TokenTuple, props = KeyValueTable(), multiIdent = @[""], concat: seq[Node] = @[]): Node =
   result = Node(nt: NTSelectorClass, ident: tk.prefixed,
-              props: props, multiIdent: multiIdent)
+              props: props, multiIdent: multiIdent, identConcat: concat)
 
 proc newPseudoClass*(tk: TokenTuple, props = KeyValueTable(), multiIdent = @[""]): Node =
   result = Node(nt: NTPseudoClass, ident: tk.prefixed,
@@ -144,3 +198,6 @@ proc newPreview*(tk: TokenTuple): Node =
 
 proc newExtend*(tk: TokenTuple, keyValueTable: KeyValueTable): Node =
   result = Node(nt: NTExtend, extendIdent: tk.value, extendProps: keyValueTable)
+
+proc newForStmt*(item, items: Node): Node =
+  result = Node(nt: NTForStmt, forItem: item, inItems: items)

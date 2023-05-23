@@ -44,7 +44,7 @@ handlers:
   proc handleVariable(lex: var Lexer, kind: TokenKind) =
     lex.startPos = lex.getColNumber(lex.bufpos)
     setLen(lex.token, 0)
-    inc lex.bufpos
+    inc lex.bufpos # $
     while true:
       if lex.hasLetters(lex.bufpos) or lex.hasNumbers(lex.bufpos):
         add lex.token, lex.buf[lex.bufpos]
@@ -55,6 +55,17 @@ handlers:
       lex.kind = TKVariable
     else:
       lex.kind = TKVariableCall
+
+  proc handleCurlyVar(lex: var Lexer, kind: TokenKind) =
+    lex.startPos = lex.getColNumber(lex.bufpos)
+    setLen(lex.token, 0)
+    inc lex.bufpos # {
+    lex.handleVariable(kind)
+    if lex.buf[lex.bufpos] == '}':
+      inc lex.bufpos
+      lex.kind = TKVarConcat
+    else:
+      lex.setError("Missing closing curly bracket")
 
   proc handleExclamation(lex: var Lexer, kind: TokenKind) =
     lex.startPos = lex.getColNumber(lex.bufpos)
@@ -223,7 +234,7 @@ tokens:
   Var          > "var"
   Video        > "video"
   WBR          > "wbr"
-  Root > "root"
+  Root         > "root"
   Colon       > ':'
   Comma       > ','
   Nest        > '&':
@@ -232,17 +243,20 @@ tokens:
   Multi       > '*'
   Minus       > '-'
   Plus        > '+'
-  Assign      > '=':
-    EQ       ? '='
-  GT           > '>':
-    GTE      ? '='
-  LT           > '<':
-    LTE      ? '='
-  QMark       > '?'
-  LPar        > '('
-  RPar        > ')'
-  LBra        > '['
-  RBra        > ']'
+  Assign    > '=':
+    EQ      ? '='
+  GT        > '>':
+    GTE     ? '='
+  LT        > '<':
+    LTE     ? '='
+  QMark     > '?'
+  LPar      > '('
+  RPar      > ')'
+  LB        > '['
+  RB        > ']'
+  VarConcat > tokenize(handleCurlyVar, '{')
+  LC        # '{'
+  RC        # '}'
   ExcRule     > tokenize(handleExclamation, '!')
   Hash        > tokenize(handleHash, '#')
   Variable    > tokenize(handleVariable, '$')
@@ -266,4 +280,6 @@ tokens:
   Elif        > "elif"
   Else        > "else"
   For         > "for"
+  In          > "in"
   When        > "when"
+  Bool        > {"true", "false"}
