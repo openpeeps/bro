@@ -11,7 +11,7 @@ import toktok
 export lexbase.close
 
 static:
-  Program.settings(true, "TK_")
+  Program.settings(true, "TK")
 
 handlers:
   proc handleClassSelector(lex: var Lexer, kind: TokenKind) =
@@ -75,7 +75,12 @@ handlers:
       if lex.hasLetters(lex.bufpos) or lex.hasNumbers(lex.bufpos):
         add lex.token, lex.buf[lex.bufpos]
         inc lex.bufpos
-      else: break
+      else:
+        if lex.buf[lex.bufpos] == '=':
+          add lex.token, lex.buf[lex.bufpos]
+          inc lex.bufpos
+          return
+        break
     if lex.token == "important":
       lex.kind = TKImportant
     elif lex.token == "default":
@@ -237,7 +242,7 @@ tokens:
   Root         > "root"
   Colon       > ':'
   Comma       > ','
-  Nest        > '&':
+  And        > '&':
     PseudoClass > ':'
   Pipe        > '|'
   Multi       > '*'
@@ -245,6 +250,7 @@ tokens:
   Plus        > '+'
   Assign    > '=':
     EQ      ? '='
+  NE        # != handledExclamation
   GT        > '>':
     GTE     ? '='
   LT        > '<':

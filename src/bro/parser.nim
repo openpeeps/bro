@@ -60,6 +60,9 @@ type
     ExtendCssSelector = "CSS properties can only be extended from ID or CSS selectors."
     InvalidProperty = "Invalid CSS property"
     DuplicateVarDeclaration = "Duplicate variable declaration"
+    UnexpectedToken = "Unexpected token"
+    UndefinedValueVariable = "Undefined value for variable"
+    DeclaredEmtpySelector = "Declared CSS selector $ has no properties"
 
   ScopeTable = OrderedTableRef[string, Node]
   PrefixFunction = proc(p: var Parser, scope: ScopeTable = nil): Node
@@ -69,6 +72,7 @@ type
 proc getPrefix(p: var Parser, kind: TokenKind): PrefixFunction
 proc parse(p: var Parser, scope: ScopeTable = nil): Node
 proc parseVariableCall(p: var Parser, scope: ScopeTable = nil): Node
+proc parseInfix(p: var Parser, scope: ScopeTable = nil): Node
 proc partialThread(fpath: string, lastModified: Time): Parser {.thread.}
 
 when compileOption("app", "console"):
@@ -159,17 +163,21 @@ macro definePseudoClasses() =
 
 definePseudoClasses()
 
-proc newNodeByValueType(tk: TokenTuple): Node =
-  if tk.kind == TKColor:
-    result = newColor tk.value
-  elif tk.kind == TKString:
-    result = newString tk.value
-  elif tk.kind == TKInteger:
-    result = newInt tk.value
-  elif tk.kind == TKBool:
-    result = newBool tk.value
-  else:
-    if tk.value in ["aliceblue", "antiquewhite", "aqua", "aquamarine", "azure", "beige",
+proc walk(p: var Parser, offset = 1) =
+  var i = 0
+  while offset > i:
+    inc i
+    p.prev = p.curr
+    p.curr = p.next
+    p.next = p.lex.getToken()
+
+const
+  tkVars = {TKVariableCall, TKVariable}
+  tkAssignable = {TKString, TKInteger, TKBool, TKColor} + tkVars
+  tkComparable = tkAssignable
+  tkOperators = {TK_EQ, TK_NE, TK_GT, TK_GTE, TK_LT, TK_LTE}
+  tkConditional = {TKIf, TKElif, TKElse}
+  tkNamedColors = ["aliceblue", "antiquewhite", "aqua", "aquamarine", "azure", "beige",
     "bisque", "black", "blanchedalmond", "blue", "blueviolet", "brown",
     "burlywood", "cadetblue", "chartreuse", "chocolate", "coral", "cornflowerblue",
     "cornsilk", "crimson", "cyan", "darkblue", "darkcyan", "darkgoldenrod",
@@ -194,16 +202,30 @@ proc newNodeByValueType(tk: TokenTuple): Node =
     "salmon", "sandybrown", "seagreen", "seashell", "sienna", "silver", "skyblue",
     "slateblue", "slategray", "snow", "springgreen", "steelblue", "tan",
     "teal", "thistle", "tomato", "turquoise", "violet", "wheat", "white",
-    "whitesmoke", "yellow", "yellowgreen"]:
-      result = newColor(tk.value)
+    "whitesmoke", "yellow", "yellowgreen"]
 
-proc walk(p: var Parser, offset = 1) =
-  var i = 0
-  while offset > i:
-    inc i
-    p.prev = p.curr
-    p.curr = p.next
-    p.next = p.lex.getToken()
+proc isColor(tk: TokenTuple): bool =
+  result = tk.value in tkNamedColors
+
+proc getAssignableNode(p: var Parser, scope: ScopeTable): Node =
+  if p.curr.kind == TKColor:
+    result = newColor p.curr.value
+    walk p
+  elif p.curr.kind == TKString:
+    result = newString p.curr.value
+    walk p
+  elif p.curr.kind == TKInteger:
+    result = newInt p.curr.value
+    walk p
+  elif p.curr.kind == TKBool:
+    result = newBool p.curr.value
+    walk p
+  elif p.curr.kind == TKVariableCall:
+    result = p.parseVariableCall(scope)
+  else:
+    if p.curr.isColor:
+      result = newColor(p.curr.value)
+      walk p
 
 proc tkNot(p: var Parser, expKind: TokenKind): bool =
   result = p.curr.kind != expKind
@@ -332,10 +354,12 @@ proc parseSelector(p: var Parser, node: Node, tk: TokenTuple, scope: ScopeTable,
       else:
         err("Duplicated CSS declaration", p.curr, prefixedIdent)
   node.multiIdent = multiIdent
-  p.whileChild(tk, node, scope)
-  result = node
-  if unlikely(result.props.len == 0):
-    warn("CSS selector $ has no properties [ignored]", tk, true, node.ident)
+  if p.curr.line > tk.line:
+    p.whileChild(tk, node, scope)
+    result = node
+    if unlikely(result.props.len == 0):
+      warn($DeclaredEmtpySelector, tk, true, node.ident)
+  else: error($UnexpectedToken, p.curr, p.curr.value)
 
 # proc parseRoot(p: var Parser, scope: ScopeTable = nil): Node =
 #   let tk = p.curr
@@ -411,7 +435,7 @@ proc parseVariable(p: var Parser, scope: ScopeTable = nil): Node =
     walk p
     inArray = true
   if likely(p.memtable.hasKey(tk.value) == false):
-    if p.next.kind in {TKIdentifier, TKColor, TKString, TKFloat, TKInteger, TKVariableCall}:
+    if p.next.kind in {TKIdentifier, TKColor, TKString, TKFloat, TKInteger, TKBool, TKVariableCall}:
       walk p
       var varNode, valNode: Node
       if p.curr.kind != TKVariableCall:
@@ -431,8 +455,7 @@ proc parseVariable(p: var Parser, scope: ScopeTable = nil): Node =
         else:
           valNode = Node(nt: NTArray)
           while p.curr.kind != TKRB:
-            valNode.arrayVal.add(newValue(newNodeByValueType p.curr))
-            walk p
+            valNode.arrayVal.add(newValue(p.getAssignableNode(scope)))
             if p.curr.kind == TKComma:
               walk p
           if p.curr.kind == TKRB:
@@ -460,7 +483,7 @@ proc parseVariable(p: var Parser, scope: ScopeTable = nil): Node =
       let node = p.parseVariableCall()
       p.memtable[tk.value] = deepCopy node.callNode
     else:
-      error("Undefined value for variable", tk, tk.value)
+      error($UndefinedValueVariable, tk, tk.value)
 
 proc inLoop(fpath: string, lastModified: Time): Parser =
   var p = ^ spawn(partialThread(fpath, lastModified))
@@ -539,16 +562,67 @@ proc parseForStmt(p: var Parser, scope: ScopeTable = nil): Node =
         while p.curr.col > tk.col:
           if p.curr.kind == TK_EOF: break
           let forBodyNode = p.parse(forNode.forScopes)
-          forNode.forBody.add forBodyNode
+          if forBodyNode != nil:
+            forNode.forBody.add forBodyNode
+          else: return
         return forNode
       error($InvalidIndentation, p.curr)
     else:
       error("Unexpected token", p.curr)
   else: error("Invalid loop statement", p.curr)
 
+proc getInfixOp(kind: TokenKind): InfixOp =
+  case kind:
+  of TK_EQ: result = EQ
+  of TK_NE: result = NE
+  of TK_LT: result = LT
+  of TK_LTE: result = LTE
+  of TK_GT: result = GT
+  of TK_GTE: result = GTE
+  of TK_AND: result = AND
+  # of TK_AMP: result  = AMP
+  else: discard
+
+proc parseInfix(p: var Parser, scope: ScopeTable = nil): Node =
+  if p.curr.kind in tkComparable or p.curr.isColor:
+    let assignLeft = p.getAssignableNode(scope)
+    assert assignLeft != nil
+    var infixNode = newInfix(assignLeft)
+    if p.curr.kind in tkOperators:
+      infixNode.infixOp = getInfixOp p.curr.kind
+      walk p
+      if p.curr.kind in tkComparable or p.curr.isColor:
+        let assignRight = p.getAssignableNode(scope)
+        assert assignRight != nil 
+        infixNode.infixRight = assignRight
+        result = infixNode
+      else: error("Invalid infix missing assignable token", p.curr)
+    else: error("Invalid infix missing operator", p.curr)
+  else: error("Invalid infix", p.curr)
+
+proc parseCondStmt(p: var Parser, scope: ScopeTable = nil): Node =
+  ## Parse a conditional statement
+  let tk = p.curr
+  walk p
+  let infixNode = p.parseInfix(scope)
+  if infixNode != nil and p.curr.kind == TKColon:
+    walk p
+    let ifNode = newIf(infixNode)
+    while p.curr.col > tk.col:
+      let subNode = p.parse(scope)
+      if subNode != nil:
+        ifNode.ifBody.add(subNode)
+      else: return nil
+    return ifNode
+  error("Invalid conditional statement", p.curr)
+
 proc parsePreview(p: var Parser, scope: ScopeTable = nil): Node =
   result = newPreview(p.curr)
   walk p
+
+proc parseTag(p: var Parser, scope: ScopeTable = nil): Node =
+  let tk = p.curr
+  result = p.parseSelector(tk.newTag, tk, scope)
 
 proc getPrefix(p: var Parser, kind: TokenKind): PrefixFunction =
   case p.curr.kind:
@@ -560,7 +634,7 @@ proc getPrefix(p: var Parser, kind: TokenKind): PrefixFunction =
     parseID
   of TKComment:
     parseComment
-  of TKNest:
+  of TKAnd:
     parseNest
   of TKPseudoClass:
     parsePseudoNest
@@ -580,9 +654,11 @@ proc getPrefix(p: var Parser, kind: TokenKind): PrefixFunction =
     parseExtend
   of TKFor:
     parseForStmt
+  of TKIdentifier:
+    parseTag
+  of TKIf:
+    parseCondStmt
   else: nil
-    # parseTag
-    # getNil
 
 proc parse(p: var Parser, scope: ScopeTable = nil): Node =
   let callFunction = p.getPrefix(p.curr.kind)
@@ -613,8 +689,8 @@ template initParser(fpath: string) =
     if likely(node != nil):
       result.program.nodes.add(node)
     else: break
+
   result.lex.close()
-  # echo result.program
   for k, v in result.memtable.pairs():
     if v.varValue.nt != NTArray:
       if unlikely(v.varValue.used == false):

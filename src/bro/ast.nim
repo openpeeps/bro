@@ -35,10 +35,12 @@ type
     NTColor
     
     NTCall
+    NTInfix
     NTImport
     NTPreview
     NTExtend
     NTForStmt
+    NTCondStmt
 
   PropertyRule* = enum
     propRuleNone
@@ -56,6 +58,17 @@ type
     gRevert = "revert"
     gRevertLayer = "revert-layer"
     gUnset = "unset"
+
+  InfixOp* {.pure.} = enum
+    None
+    EQ          = "=="
+    NE          = "!="
+    GT          = ">"
+    GTE         = ">="
+    LT          = "<"
+    LTE         = "<="
+    AND         = "and"
+    AMP         = "&"   # string concatenation
 
   # Value
   # VNodeType* = enum
@@ -104,6 +117,12 @@ type
       usedArray*: bool
     of NTCall:
       callNode*: Node
+    of NTInfix:
+      infixOp*: InfixOp
+      infixLeft*, infixRight*: Node
+    of NTCondStmt:
+      ifInfix*: Node
+      ifBody*: seq[Node]
     of NTImport:
       importNodes*: seq[Node]
       importPath*: string
@@ -157,6 +176,15 @@ proc newColor*(cVal: string): Node =
 
 proc newCall*(node: Node): Node =
   result = Node(nt: NTCall, callNode: node)
+
+proc newInfix*(infixLeft, infixRight: Node, infixOp: InfixOp): Node =
+  result = Node(nt: NTInfix, infixLeft: infixLeft, infixRight: infixRight, infixOp: infixOp)
+
+proc newInfix*(infixLeft: Node): Node =
+  result = Node(nt: NTInfix, infixLeft: infixLeft)
+
+proc newIf*(infix: Node): Node =
+  result = Node(nt: NTCondStmt, ifInfix: infix)
 
 proc newImport*(nodes: seq[Node], importPath: string): Node =
   result = Node(nt: NTImport, importNodes: nodes, importPath: importPath)

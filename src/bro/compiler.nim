@@ -6,7 +6,7 @@
 #          https://github.com/openpeep/bro
 
 
-import std/[tables, strutils]
+import std/[tables, strutils, macros]
 import ./ast, ./sourcemap, ./logging
 
 when not defined release:
@@ -33,6 +33,54 @@ when not defined release:
   proc `$`(node: Node): string =
     # print nodes while in dev mode
     result = pretty(node.toJson(), 2)
+
+macro isEqualBool*(a, b: bool): untyped =
+  result = quote:
+    `a` == `b`
+
+macro isNotEqualBool*(a, b: bool): untyped =
+  result = quote:
+    `a` != `b`
+
+macro isEqualInt*(a, b: int): untyped =
+  result = quote:
+    `a` == `b`
+
+macro isNotEqualInt*(a, b: int): untyped =
+  result = quote:
+    `a` != `b`
+
+macro isGreaterInt*(a, b: int): untyped =
+  result = quote:
+    `a` > `b`
+
+macro isGreaterEqualInt*(a, b: int): untyped =
+  result = quote:
+    `a` >= `b`
+
+macro isLessInt*(a, b: int): untyped =
+  result = quote:
+    `a` < `b`
+
+macro isLessEqualInt*(a, b: int): untyped =
+  result = quote:
+    `a` <= `b`
+
+macro isEqualFloat*(a, b: float64): untyped =
+  result = quote:
+    `a` == `b`
+
+macro isNotEqualFloat*(a, b: float64): untyped =
+  result = quote:
+    `a` != `b`
+
+macro isEqualString*(a, b: string): untyped =
+  result = quote:
+    `a` == `b`
+
+macro isNotEqualString*(a, b: string): untyped =
+  result = quote:
+    `a` != `b`
 
 proc clean*(c: var Compiler) =
   # reset c.css
@@ -156,8 +204,6 @@ proc writeSelector(c: var Compiler, node: Node, scope: OrderedTableRef[string, N
       discard v.callNode.nt
     of NTForStmt:
       let items = node.inItems.callNode.varValue.arrayVal
-      # for x in 0..items.high:
-      #   echo x
     else: discard
   if not skipped:
     endCurly()
@@ -171,16 +217,35 @@ proc writeID(c: var Compiler, node: Node) =
 proc writeTag(c: var Compiler, node: Node) =
   c.writeSelector(node)
 
+proc compInfix(c: var Compiler, infixNode: Node, scope: OrderedTableRef[string, Node]): bool =
+  # case infixNode.infixLeft.nt:
+  # of NTCall:
+  #   infixNode.infixLeft.callNode.varValue.val.sVal == infixNode.infixRight.cVal
+  # else: false
+  var
+    left = infixNode.infixLeft
+    right = infixNode.infixRight
+  case infixNode.infixOp:
+  of EQ:
+    if left.nt == NTCall:
+      if right.nt == NTColor:
+        result = isEqualString(left.callNode.varValue.val.sVal, right.cVal)
+  else: discard
+
 proc write(c: var Compiler, node: Node, scope: OrderedTableRef[string, Node] = nil, data: Node = nil) =
   case node.nt:
   of NTSelectorClass, NTSelectorTag, NTSelectorID, NTRoot:
     c.writeSelector(node, scope, data)
   of NTForStmt:
     let items = node.inItems.callNode.varValue.arrayVal
-    for i in 0..items.high:
+    for i in 0 .. items.high:
       for n in node.forBody:
         node.forScopes[node.forItem.varName].varValue = items[i]
         c.write(n, node.forScopes, items[i])
+  of NTCondStmt:
+    if c.compInfix(node.ifInfix, scope):
+      for i in 0 .. node.ifBody.high:
+        c.write(node.ifBody[i], scope)
   of NTImport:
     for subNode in node.importNodes:
       case subNode.nt:
