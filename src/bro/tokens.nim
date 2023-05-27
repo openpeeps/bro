@@ -14,26 +14,23 @@ static:
   Program.settings(true, "TK")
 
 handlers:
+
   proc handleClassSelector(lex: var Lexer, kind: TokenKind) =
-    lex.startPos = lex.getColNumber(lex.bufpos)
-    setLen(lex.token, 0)
-    inc lex.bufpos
+    ready lex
+    inc lex
     while true:
       if lex.hasLetters(lex.bufpos) or lex.hasNumbers(lex.bufpos):
-        add lex.token, lex.buf[lex.bufpos]
-        inc lex.bufpos
+        add lex
       else:
         break
     lex.kind = TKClass 
 
   proc handleHash(lex: var Lexer, kind: TokenKind) =
-    lex.startPos = lex.getColNumber(lex.bufpos)
-    setLen(lex.token, 0)
-    inc lex.bufpos
+    ready lex
+    inc lex
     while true:
       if lex.hasLetters(lex.bufpos) or lex.hasNumbers(lex.bufpos):
-        add lex.token, lex.buf[lex.bufpos]
-        inc lex.bufpos
+        add lex
       else: break
     if isColor("#" & lex.token):
       lex.token = "#" & lex.token
@@ -42,13 +39,11 @@ handlers:
       lex.kind = TkID 
 
   proc handleVariable(lex: var Lexer, kind: TokenKind) =
-    lex.startPos = lex.getColNumber(lex.bufpos)
-    setLen(lex.token, 0)
-    inc lex.bufpos # $
+    ready lex
+    inc lex
     while true:
       if lex.hasLetters(lex.bufpos) or lex.hasNumbers(lex.bufpos):
-        add lex.token, lex.buf[lex.bufpos]
-        inc lex.bufpos
+        add lex
       else:
         break
     if lex.buf[lex.bufpos] == ':':
@@ -57,28 +52,25 @@ handlers:
       lex.kind = TKVariableCall
 
   proc handleCurlyVar(lex: var Lexer, kind: TokenKind) =
-    lex.startPos = lex.getColNumber(lex.bufpos)
-    setLen(lex.token, 0)
-    inc lex.bufpos # {
+    ready lex
+    inc lex
     lex.handleVariable(kind)
-    if lex.buf[lex.bufpos] == '}':
-      inc lex.bufpos
+    if token(lex) == '}':
+      inc lex
       lex.kind = TKVarConcat
     else:
       lex.setError("Missing closing curly bracket")
 
   proc handleExclamation(lex: var Lexer, kind: TokenKind) =
-    lex.startPos = lex.getColNumber(lex.bufpos)
-    setLen(lex.token, 0)
-    inc lex.bufpos
+    ready lex
+    inc lex
     while true:
       if lex.hasLetters(lex.bufpos) or lex.hasNumbers(lex.bufpos):
-        add lex.token, lex.buf[lex.bufpos]
-        inc lex.bufpos
+        add lex
       else:
         if lex.buf[lex.bufpos] == '=':
-          add lex.token, lex.buf[lex.bufpos]
-          inc lex.bufpos
+          add lex
+          lex.kind = TKNE
           return
         break
     if lex.token == "important":
@@ -92,29 +84,39 @@ handlers:
     var k = TKPreview
     if lex.next("``html"):
       setLen(lex.token, 0)
-      inc lex.bufpos, 7
+      inc lex, 7
       skip lex
     else:
       lex.setError("Unknown markup. Use either `html` or `timl`")
       return
     while true:
-      case lex.buf[lex.bufpos]
+      case token lex:
       of '`':
         if lex.next("``"):
           lex.kind = k
-          inc lex.bufpos, 3
+          inc lex, 3
           return
         else:
-          add lex.token, lex.buf[lex.bufpos]
-          inc lex.bufpos
+          add lex
       of EndOfFile:
         lex.setError("EOF reached before end of snippet")
         return
       else:
-        add lex.token, lex.buf[lex.bufpos]
-        inc lex.bufpos
+        add lex
       skip lex
       lex.startPos = lex.getColNumber(lex.bufpos)
+
+  proc handleAnd(lex: var Lexer, kind: TokenKind) =
+    ready lex
+    add lex
+    if token(lex) == ':':
+      lex.kind = TKPseudoClass
+      add lex
+    elif token(lex) == '&':
+      lex.kind = TKAndAnd
+      add lex
+    else:
+      lex.kind = kind
 
 tokens:
   A            > "a"
@@ -240,16 +242,27 @@ tokens:
   Video        > "video"
   WBR          > "wbr"
   Root         > "root"
+
+  stdStartsWith  > "startsWith"
+  stdEndsWith    > "endsWith"
+  stdCount       > "count"
+  stdLowercase   > "lowercase"
+  stdUppercase   > "uppercase"
+
+  AltAnd      > "and"
+  AltOr       > "or"
   Colon       > ':'
   Comma       > ','
-  And        > '&':
-    PseudoClass > ':'
-  Pipe        > '|'
+  And         > tokenize(handleAnd, '&')
+  AndAnd        # && handleAnd
+  PseudoClass   # &: handleAnd
+  Pipe        > '|':
+    OR        ? '|'   # ||
   Multi       > '*'
   Minus       > '-'
   Plus        > '+'
   Assign    > '=':
-    EQ      ? '='
+    EQ      ? '='   # ==
   NE        # != handledExclamation
   GT        > '>':
     GTE     ? '='

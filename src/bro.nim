@@ -26,15 +26,15 @@ when defined napibuild:
 #     return c.getCss.cstring
 
 elif compileOption("app", "console"):
-  import klymene/commands
-  import klymene/db
+  import yacli/commands
+  import yacli/db
   import commands/[watchCommand, cCommand,
                   mapCommand, astCommand, docCommand, reprCommand]
 
   App:
     settings(
       database = dbMsgPacked, # enable flat file database via Klymene
-      rootCmd = "c",          # enable root command
+      mainCmd = "c",          # set `c` command as main
     )
 
     about:

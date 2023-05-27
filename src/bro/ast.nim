@@ -5,7 +5,7 @@
 #          Made by Humans from OpenPeep
 #          https://github.com/openpeep/bro
 
-import std/[tables, strutils]
+import std/[tables, strutils, oids]
 from ./tokens import TokenKind, TokenTuple
 # from std/enumutils import symbolName
 
@@ -41,6 +41,7 @@ type
     NTExtend
     NTForStmt
     NTCondStmt
+    NTMathStmt
 
   PropertyRule* = enum
     propRuleNone
@@ -68,7 +69,16 @@ type
     LT          = "<"
     LTE         = "<="
     AND         = "and"
+    OR          = "or"
     AMP         = "&"   # string concatenation
+
+  ArithmeticOperators* {.pure.} = enum
+    Invalid
+    Plus = "+"
+    Minus = "-"
+    Multi = "*"
+    Div = "/"
+    Modulo = "%"
 
   # Value
   # VNodeType* = enum
@@ -121,8 +131,11 @@ type
       infixOp*: InfixOp
       infixLeft*, infixRight*: Node
     of NTCondStmt:
+      condOid*: Oid
       ifInfix*: Node
       ifBody*: seq[Node]
+      elifNode*: seq[tuple[infix: Node, body: seq[Node]]]
+      elseBody*: seq[Node] # a seq of Node
     of NTImport:
       importNodes*: seq[Node]
       importPath*: string
@@ -132,17 +145,21 @@ type
       extendIdent*: string
       extendProps*: KeyValueTable
     of NTForStmt:
+      forOid*: Oid
       forItem*, inItems*: Node
       forBody*: seq[Node]
       forScopes*: OrderedTableRef[string, Node]
         # Variable scopes Nodes of NTVariableValue
+    of NTMathStmt:
+      mathInfixOp: ArithmeticOperators
+      mathLeft, mathRight: Node
     of NTSelectorTag, NTSelectorClass, NTPseudoClass, NTSelectorID:
       ident*: string
       parents*: seq[string]
-      multiIdent*: seq[string]
-      nested*: bool
+      multipleSelectors*: seq[string]
+      nested*, extends*: bool
       props*, pseudo*: KeyValueTable
-      nodes: seq[Node]
+      nodes*: seq[Node]
       identConcat*: seq[Node] # NTVariable
     else: discard
 
@@ -184,7 +201,7 @@ proc newInfix*(infixLeft: Node): Node =
   result = Node(nt: NTInfix, infixLeft: infixLeft)
 
 proc newIf*(infix: Node): Node =
-  result = Node(nt: NTCondStmt, ifInfix: infix)
+  result = Node(nt: NTCondStmt, condOid: genOid(), ifInfix: infix)
 
 proc newImport*(nodes: seq[Node], importPath: string): Node =
   result = Node(nt: NTImport, importNodes: nodes, importPath: importPath)
@@ -204,19 +221,19 @@ proc newValue*(tk: TokenTuple, valNode: Node): Node =
 proc newComment*(str: string): Node =
   result = Node(nt: NTComment, comment: str)
 
-proc newTag*(tk: TokenTuple, string, props = KeyValueTable(), multiIdent = @[""]): Node =
-  result = Node(nt: NTSelectorTag, ident: tk.prefixed, props: props, multiIdent: multiIdent)
+proc newTag*(tk: TokenTuple, string, props = KeyValueTable(), multipleSelectors = @[""]): Node =
+  result = Node(nt: NTSelectorTag, ident: tk.prefixed, props: props, multipleSelectors: multipleSelectors)
 
 # proc newRoot*(props: KeyValueTable = KeyValueTable()): Node =
 #   result = Node(nt: NTRoot, ident: ":root", props: props)
 
-proc newClass*(tk: TokenTuple, props = KeyValueTable(), multiIdent = @[""], concat: seq[Node] = @[]): Node =
+proc newClass*(tk: TokenTuple, props = KeyValueTable(), multipleSelectors = @[""], concat: seq[Node] = @[]): Node =
   result = Node(nt: NTSelectorClass, ident: tk.prefixed,
-              props: props, multiIdent: multiIdent, identConcat: concat)
+              props: props, multipleSelectors: multipleSelectors, identConcat: concat)
 
-proc newPseudoClass*(tk: TokenTuple, props = KeyValueTable(), multiIdent = @[""]): Node =
+proc newPseudoClass*(tk: TokenTuple, props = KeyValueTable(), multipleSelectors = @[""]): Node =
   result = Node(nt: NTPseudoClass, ident: tk.prefixed,
-              props: props, multiIdent: multiIdent)
+              props: props, multipleSelectors: multipleSelectors)
 
 proc newID*(tk: TokenTuple, props = KeyValueTable()): Node =
   result = Node(nt: NTSelectorID, ident: tk.prefixed, props: props)
@@ -228,4 +245,4 @@ proc newExtend*(tk: TokenTuple, keyValueTable: KeyValueTable): Node =
   result = Node(nt: NTExtend, extendIdent: tk.value, extendProps: keyValueTable)
 
 proc newForStmt*(item, items: Node): Node =
-  result = Node(nt: NTForStmt, forItem: item, inItems: items)
+  result = Node(nt: NTForStmt, forOid: genOid(), forItem: item, inItems: items)

@@ -22,8 +22,10 @@ type
     warnings*: seq[Warning]
 
 # forward defintion
-proc write(c: var Compiler, node: Node, scope: OrderedTableRef[string, Node] = nil, data: Node = nil)
-proc writeSelector(c: var Compiler, node: Node, scope: OrderedTableRef[string, Node] = nil, data: Node = nil)
+proc write(c: var Compiler, node: Node,
+          scope: OrderedTableRef[string, Node] = nil, data: Node = nil)
+proc writeSelector(c: var Compiler, node: Node,
+          scope: OrderedTableRef[string, Node] = nil, data: Node = nil)
 proc writeClass(c: var Compiler, node: Node)
 
 # proc getCss*(c: Compiler): string =
@@ -98,6 +100,42 @@ template endCurly() =
   else:
     add c.css, "}\n"
 
+proc call(node: Node): Node = 
+  result = node.callNode.varValue.val
+
+proc getColor(node: Node): string =
+  result = node.cVal
+
+proc getString(node: Node): string =
+  result = node.sVal
+
+proc compInfix(c: var Compiler, infixLeft, infixRight: Node, infixOp: InfixOp, scope: OrderedTableRef[string, Node]): bool =
+  case infixOp:
+  of EQ:
+    if infixLeft.nt == NTCall:
+      if infixRight.nt == NTColor:
+        return isEqualString(call(infixLeft).getColor, infixRight.getColor)
+      elif infixRight.nt == NTBool:
+        return isEqualBool(call(infixLeft).bVal, infixRight.bVal)
+  of NE:
+    if infixLeft.nt == NTCall:
+      if infixRight.nt == NTColor:
+        return isNotEqualString(call(infixLeft).getColor, infixRight.getColor)
+      elif infixRight.nt == NTBool:
+        return isNotEqualBool(call(infixLeft).bVal, infixRight.bVal)
+  of AND:
+    result =
+      c.compInfix(infixLeft.infixLeft,infixLeft.infixRight,
+                infixLeft.infixOp, scope) and
+      c.compInfix(infixRight.infixLeft, infixRight.infixRight,
+                infixRight.infixOp, scope)
+  of OR:
+    result =
+      c.compInfix(infixLeft.infixLeft, infixLeft.infixRight, infixLeft.infixOp, scope) or
+      c.compInfix(infixRight.infixLeft, infixRight.infixRight, infixRight.infixOp, scope)
+  else: discard
+
+
 template writeKeyValue(val: string, i: int) =
   add c.css, k & ":" & val
   if length != i:
@@ -156,31 +194,9 @@ proc writeProps(c: var Compiler, n: Node, k: string, i: var int,
     add c.css, "\n"
   inc i
 
-proc writeSelector(c: var Compiler, node: Node, scope: OrderedTableRef[string, Node] = nil, data: Node = nil) =
-  var skipped: bool
-  let length = node.props.len
-  if node.multiIdent.len == 0 and node.parents.len == 0:
-    add c.css, node.ident
-    for identConcat in node.identConcat:
-      if identConcat.nt == NTCall:
-        let scopeVar = scope[identConcat.callNode.varName]
-        var varValue = scopeVar.varValue
-        if unlikely(varValue.val.nt == NTColor):
-          # check if given variable contains a hex based color,
-          # in this case will remove the hash ta
-          identConcat.callNode.varValue = varValue
-          c.writeVal(identConcat, nil, varValue.val.cVal[0] == '#')
-        else:
-          identConcat.callNode.varValue = varValue
-          c.writeVal(identConcat, nil)
-      elif identConcat.nt in {NTString, NTInt, NTFloat, NTBool}:
-        c.writeVal(identConcat, nil)
-
-  elif node.parents.len != 0:
-    add c.css, node.getOtherParents(node.ident)
-  else:
-    add c.css, node.ident & "," & node.multiIdent.join(",")
-  startCurly()
+proc handleChildNodes(c: var Compiler, node: Node,
+                  scope: OrderedTableRef[string, Node] = nil,
+                  skipped: var bool, length: int) =
   var i = 1
   for k, v in node.props.pairs():
     case v.nt:
@@ -204,7 +220,64 @@ proc writeSelector(c: var Compiler, node: Node, scope: OrderedTableRef[string, N
       discard v.callNode.nt
     of NTForStmt:
       let items = node.inItems.callNode.varValue.arrayVal
+    of NTCondStmt:
+      if c.compInfix(v.ifInfix.infixLeft, v.ifInfix.infixRight, v.ifInfix.infixOp, scope):
+        var ix = 0
+        for ii in 0 .. v.ifBody.high:
+          if v.ifBody[ii].nt == NTProperty:
+            c.writeProps(v.ifBody[ii], v.ifBody[ii].pName, ix, v.ifBody.len, scope)
+          elif v.ifBody[ii].nt == NTCondStmt:
+            discard
+            # echo v.ifBody[ii]
+            # c.handleChildNodes(v.ifBody[ii], scope, skipped, v.ifBody.len)
+          else:
+            # todo handle nested selectors
+            discard
+      elif v.elifNode.len != 0:
+        for elifNode in v.elifNode:
+          if c.compInfix(elifNode.infix.infixLeft, elifNode.infix.infixRight, elifNode.infix.infixOp, scope):
+            var ix = 0
+            for ii in 0 .. elifNode.body.high:
+              if elifNode.body[ii].nt == NTProperty:
+                c.writeProps(elifNode.body[ii], elifNode.body[ii].pName, ix, elifNode.body.len, scope)
+              elif elifNode.body[ii].nt == NTCondStmt:
+                discard
+                # echo elifNode.body[ii]
+                # c.handleChildNodes(elifNode.body[ii], scope, skipped, elifNode.body.len)
+              else:
+                # todo handle nested selectors
+                discard
     else: discard
+
+proc writeSelector(c: var Compiler, node: Node, scope: OrderedTableRef[string, Node] = nil, data: Node = nil) =
+  var skipped: bool
+  let length = node.props.len
+  if node.multipleSelectors.len == 0 and node.parents.len == 0:
+    add c.css, node.ident
+    for identConcat in node.identConcat:
+      if identConcat.nt == NTCall:
+        var scopeVar: Node
+        if identConcat.callNode.varValue != nil:
+          c.writeVal(identConcat, nil)
+        else:
+          scopeVar = scope[identConcat.callNode.varName]
+          var varValue = scopeVar.varValue
+          if unlikely(varValue.val.nt == NTColor):
+            # check if given variable contains a hex based color,
+            # in this case will remove the hash ta
+            identConcat.callNode.varValue = varValue
+            c.writeVal(identConcat, nil, varValue.val.cVal[0] == '#')
+          else:
+            identConcat.callNode.varValue = varValue
+            c.writeVal(identConcat, nil)
+      elif identConcat.nt in {NTString, NTInt, NTFloat, NTBool}:
+        c.writeVal(identConcat, nil)
+  elif node.parents.len != 0:
+    add c.css, node.getOtherParents(node.ident)
+  else:
+    add c.css, node.ident & "," & node.multipleSelectors.join(",")
+  startCurly()
+  c.handleChildNodes(node, scope, skipped, length)
   if not skipped:
     endCurly()
 
@@ -217,25 +290,12 @@ proc writeID(c: var Compiler, node: Node) =
 proc writeTag(c: var Compiler, node: Node) =
   c.writeSelector(node)
 
-proc compInfix(c: var Compiler, infixNode: Node, scope: OrderedTableRef[string, Node]): bool =
-  # case infixNode.infixLeft.nt:
-  # of NTCall:
-  #   infixNode.infixLeft.callNode.varValue.val.sVal == infixNode.infixRight.cVal
-  # else: false
-  var
-    left = infixNode.infixLeft
-    right = infixNode.infixRight
-  case infixNode.infixOp:
-  of EQ:
-    if left.nt == NTCall:
-      if right.nt == NTColor:
-        result = isEqualString(left.callNode.varValue.val.sVal, right.cVal)
-  else: discard
-
-proc write(c: var Compiler, node: Node, scope: OrderedTableRef[string, Node] = nil, data: Node = nil) =
+proc write(c: var Compiler, node: Node,
+            scope: OrderedTableRef[string, Node] = nil, data: Node = nil) =
   case node.nt:
   of NTSelectorClass, NTSelectorTag, NTSelectorID, NTRoot:
-    c.writeSelector(node, scope, data)
+    if node.props.len != 0:
+      c.writeSelector(node, scope, data)
   of NTForStmt:
     let items = node.inItems.callNode.varValue.arrayVal
     for i in 0 .. items.high:
@@ -243,7 +303,7 @@ proc write(c: var Compiler, node: Node, scope: OrderedTableRef[string, Node] = n
         node.forScopes[node.forItem.varName].varValue = items[i]
         c.write(n, node.forScopes, items[i])
   of NTCondStmt:
-    if c.compInfix(node.ifInfix, scope):
+    if c.compInfix(node.ifInfix.infixLeft, node.ifInfix.infixRight, node.ifInfix.infixOp, scope):
       for i in 0 .. node.ifBody.high:
         c.write(node.ifBody[i], scope)
   of NTImport:
