@@ -5,7 +5,7 @@
 #          Made by Humans from OpenPeep
 #          https://github.com/openpeep/bro
 
-import pkg/yacli/[runtime, cli]
+import pkg/kapsis/[runtime, cli]
 
 proc runCommand*(v: Values) =
   echo "todo"

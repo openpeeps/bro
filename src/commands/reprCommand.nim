@@ -6,9 +6,11 @@
 #          https://github.com/openpeep/bro
 
 import std/[times, os, strutils]
-import pkg/yacli/[runtime, cli]
-import pkg/[msgpack4nim, msgpack4nim/msgpack4collection]
 import ../bro/[ast, compiler]
+
+import pkg/zippy
+import pkg/kapsis/[runtime, cli]
+import pkg/[msgpack4nim, msgpack4nim/msgpack4collection]
 
 proc runCommand*(v: Values) =
   var astPath: string
@@ -33,6 +35,11 @@ proc runCommand*(v: Values) =
   # else:
   var astStruct: Program
   unpack(readFile(astPath), astStruct)
-  newCompiler(astStruct, astPath.changeFileExt("css"), minify = v.flag("minify"))
+  # newCompiler(astStruct, astPath.changeFileExt("css"), minify = v.flag("minify"))
+  let c = newCompiler(astStruct, astPath.changeFileExt("css"), minify = v.flag("minify"))
+  if likely(not v.flag("gzip")):
+    writeFile(astPath.changeFileExt("css"), c.getCSS)
+  else:
+    writeFile(astPath.changeFileExt(".css.gzip"), compress(c.getCSS, dataFormat = dfGzip))
   display "Done in " & $(cpuTime() - t)
   QuitSuccess.quit

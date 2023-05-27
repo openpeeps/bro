@@ -13,12 +13,13 @@ skipDirs      = @["utils"]
 
 requires "nim >= 1.6.10"
 requires "toktok"
-requires "yacli"
+requires "kapsis"
 requires "watchout"
 requires "jsony"
 requires "msgpack4nim"
 requires "denim"
 requires "chroma#head"
+requires "zippy"
 
 let label = "\n✨ Compiling..." & "\n"
 task dev, "development build":

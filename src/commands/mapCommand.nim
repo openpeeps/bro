@@ -7,7 +7,7 @@
 
 # import std/[times, os, strutils]
 # import ../bro/[parser, compiler]
-import pkg/yacli/[runtime]
+import pkg/kapsis/[runtime]
 
 proc runCommand*(v: Values) =
   echo "Not implemented"

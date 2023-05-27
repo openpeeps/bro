@@ -26,8 +26,8 @@ when defined napibuild:
 #     return c.getCss.cstring
 
 elif compileOption("app", "console"):
-  import yacli/commands
-  import yacli/db
+  import kapsis/commands
+  import kapsis/db
   import commands/[watchCommand, cCommand,
                   mapCommand, astCommand, docCommand, reprCommand]
 
@@ -42,10 +42,11 @@ elif compileOption("app", "console"):
       "   https://github.com/openpeep/bro"
     
     commands:
-      $ "c" `style` ["minify", "map"]:
+      $ "c" `style` ["minify", "map", "gzip"]:
         ?         "Compiles a stylesheet to CSS"
         ? style   "Provide a stylesheet path"
-        ? minify  ""
+        ? minify  "Output minified CSS code"
+        ? gzip    "Compress the final CSS output using gzip"
       
       --- "Development"
       $ "watch" `style` `delay`:
@@ -54,10 +55,10 @@ elif compileOption("app", "console"):
       $ "map" `style`:
         ? "Generates a source map"
       
-      $ "ast" `style`:
+      $ "ast" `style` ["gzip"]:
         ? "Generates a packed AST"
       
-      $ "repr" `ast` ["minify"]:
+      $ "repr" `ast` ["minify", "gzip"]:
         ? "Compiles packed AST to CSS"
 
       # --- "CSS"

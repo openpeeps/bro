@@ -6,7 +6,8 @@
 #          https://github.com/openpeep/bro
 
 import std/[times, os, strutils]
-import pkg/yacli/[runtime, cli]
+import pkg/kapsis/[runtime, cli]
+import pkg/zippy
 
 import ../bro/[parser, compiler]
 
@@ -49,6 +50,10 @@ proc runCommand*(v: Values) =
   #         span("$1\n" % [warning.msg], fgBlue),
   #         span(stylesheetPath & "\n"),
   #       )
-    newCompiler(p.getProgram, cssPath, minify = v.flag("minify"))
+    let c = newCompiler(p.getProgram, cssPath, minify = v.flag("minify"))
+    if likely(not v.flag("gzip")):
+      writeFile(cssPath, c.getCSS)
+    else:
+      writeFile(cssPath.changeFileExt(".css.gzip"), compress(c.getCSS, dataFormat = dfGzip))
     display "Done in " & $(cpuTime() - t)
     QuitSuccess.quit

@@ -5,7 +5,7 @@
 #          Made by Humans from OpenPeep
 #          https://github.com/openpeep/bro
 
-import pkg/yacli/cli
+import pkg/kapsis/cli
 import std/[os, strutils, sequtils, macros, tables,
             memfiles, critbits, threadpool, times, oids]
 

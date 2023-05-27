@@ -9,7 +9,7 @@ from ./tokens import TokenTuple
 import std/[sequtils, strutils]
 
 when compileOption("app", "console"):
-  import pkg/yacli/cli
+  import pkg/kapsis/cli
 
 type
   Level* = enum

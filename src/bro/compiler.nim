@@ -28,8 +28,8 @@ proc writeSelector(c: var Compiler, node: Node,
           scope: OrderedTableRef[string, Node] = nil, data: Node = nil)
 proc writeClass(c: var Compiler, node: Node)
 
-# proc getCss*(c: Compiler): string =
-  # result = c.css
+proc getCSS*(c: Compiler): string =
+  result = c.css
 
 when not defined release:
   proc `$`(node: Node): string =
@@ -314,7 +314,9 @@ proc write(c: var Compiler, node: Node,
       else: discard 
   else: discard
 
-proc newCompiler*(p: Program, outputPath: string, minify = false) =
+
+
+proc newCompiler*(p: Program, outputPath: string, minify = false): Compiler =
   var c = Compiler(program: p, minify: minify)
   # var info = SourceInfo()
   # info.newLine("test.sass", 11)
@@ -327,8 +329,8 @@ proc newCompiler*(p: Program, outputPath: string, minify = false) =
   # echo toJson(info.toSourceMap("test.css"))
   for node in c.program.nodes:
     c.write(node)
-  writeFile(outputPath, c.css)
-  reset c.css
+  result = c
+  # reset c.css
 
 proc newCompilerStr*(p: Program, outputPath: string): string =
   var c = Compiler(program: p)

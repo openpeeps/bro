@@ -7,7 +7,7 @@
 
 import std/[times, os, strutils, threadpool]
 import pkg/watchout
-import pkg/yacli/[runtime, cli]
+import pkg/kapsis/[runtime, cli]
 
 import ../bro/[parser, compiler]
 
