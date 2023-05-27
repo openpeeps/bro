@@ -136,16 +136,16 @@ Benchmark 2: sassc big.sass big.css --style=compressed
 Benchmark 3: bro big.sass --minify
   Time (abs ≡):         1.066 s               [User: 0.697 s, System: 0.367 s]
  
-Benchmark 4: node big.js
+Benchmark 4: node bro.js
   Time (abs ≡):         1.598 s               [User: 1.226 s, System: 0.373 s]
  
-Benchmark 5: bun big.js
+Benchmark 5: bun bro.js
   Time (abs ≡):         1.396 s               [User: 1.088 s, System: 0.308 s]
  
-Benchmark 6: node bigjs.js
+Benchmark 6: node sass.js
   Time (abs ≡):        14.910 s               [User: 22.484 s, System: 1.483 s]
  
-Benchmark 7: bun bigjs.js
+Benchmark 7: bun sass.js
   Time (abs ≡):        11.963 s               [User: 20.004 s, System: 1.236 s]
  
 Summary
