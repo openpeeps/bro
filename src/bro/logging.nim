@@ -9,7 +9,7 @@ from ./tokens import TokenTuple
 import std/[sequtils, strutils]
 
 when compileOption("app", "console"):
-  import pkg/klymene/cli
+  import pkg/yacli/cli
 
 type
   Level* = enum
@@ -25,7 +25,8 @@ type
     args, extraLines: seq[string]
 
   Logger* = ref object
-    infoLogs, noticeLogs, warnLogs, errorLogs: seq[Log]
+    filePath*: string
+    infoLogs*, noticeLogs*, warnLogs*, errorLogs*: seq[Log]
 
 proc add(logger: Logger, lvl: Level, msg: string,
                 line, col: int, useFmt: bool, args: varargs[string]) =
