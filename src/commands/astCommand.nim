@@ -1,6 +1,6 @@
 import std/[os, times, tables]
 
-import pkg/klymene/[runtime, cli]
+import pkg/yacli/[runtime, cli]
 # import pkg/[jsony, bson]
 import pkg/[msgpack4nim, msgpack4nim/msgpack4collection]
 

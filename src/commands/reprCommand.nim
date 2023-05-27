@@ -6,7 +6,7 @@
 #          https://github.com/openpeep/bro
 
 import std/[times, os, strutils]
-import pkg/klymene/[runtime, cli]
+import pkg/yacli/[runtime, cli]
 import pkg/[msgpack4nim, msgpack4nim/msgpack4collection]
 import ../bro/[ast, compiler]
 

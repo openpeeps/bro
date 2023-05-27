@@ -6,7 +6,7 @@
 #          https://github.com/openpeep/bro
 
 import std/[times, os, strutils]
-import pkg/klymene/[runtime, cli]
+import pkg/yacli/[runtime, cli]
 
 import ../bro/[parser, compiler]
 
@@ -29,15 +29,16 @@ proc runCommand*(v: Values) =
   let
     t = cpuTime()
     p = parser.parseProgram(stylesheetPath)
-  for warning in p.logger.warnings:
-    display(warning)
-  display(" 👉 " & stylesheetPath, br="after")
+  if p.logger.warnLogs.len != 0:
+    for warning in p.logger.warnings:
+      display(warning)
+    display(" 👉 " & stylesheetPath, br="after")
 
   if p.hasErrors:
     display("Build failed with errors")
     for error in p.logger.errors:
       display(error)
-    display(" 👉 " & stylesheetPath)
+    display(" 👉 " & p.logger.filePath)
   else:
   #   if p.hasWarnings:
   #     for warning in p.warnings:

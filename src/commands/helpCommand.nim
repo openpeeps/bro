@@ -5,7 +5,7 @@
 #          Made by Humans from OpenPeep
 #          https://github.com/openpeep/bro
 
-import pkg/klymene/[runtime, cli]
+import pkg/yacli/[runtime, cli]
 
 proc runCommand*(v: Values) =
   echo "todo"
