@@ -118,47 +118,56 @@ Warning (11:0) CSS selector .btn has no properties
 ```
 
 ## Benchmarks
-- 393K+ lines / 2^17 instances of (including a new line):
+DartSass, SassC, **Bro**, **BroJS (via NAPI w/ Node & Bun)**, Sass (JS w/ Node & Bun)
+
+1.572.876 lines of 
 ```sass
 button_0
   background: yellow
-
 ```
 
-Bro style!
-```bash
-# Bro 🚀
-# --- bro c big.sass
-  Time (mean ± σ):     256.1 ms ±  14.9 ms    [User: 179.0 ms, System: 77.1 ms]
-  Range (min … max):   247.1 ms … 282.6 ms    5 runs
-
-# Bro compile AST (MsgPack) 🔥
-# --- bro repr big.ast --minify
-  Time (mean ± σ):     140.8 ms ±   3.3 ms    [User: 118.1 ms, System: 22.4 ms]
-  Range (min … max):   138.6 ms … 146.6 ms    5 runs
-
-# Bro w/ BunJS 👍
-# --- bun bro.js
-  Time (mean ± σ):     514.2 ms ±   3.1 ms    [User: 370.8 ms, System: 143.0 ms]
-  Range (min … max):   510.7 ms … 517.7 ms    5 runs
-
-# Bro w/ NodeJS 👌
-# --- node bro.js
-  Time (mean ± σ):     518.6 ms ±   2.1 ms    [User: 397.7 ms, System: 120.2 ms]
-  Range (min … max):   516.2 ms … 520.6 ms    5 runs
+```
+Benchmark 1: ./dart sass.snapshot big.sass:big.css --no-source-map --style=compressed
+  Time (abs ≡):         5.009 s               [User: 6.379 s, System: 0.278 s]
+ 
+Benchmark 2: sassc big.sass big.css --style=compressed
+  Time (abs ≡):         6.448 s               [User: 5.881 s, System: 0.564 s]
+ 
+Benchmark 3: bro big.sass --minify
+  Time (abs ≡):         1.066 s               [User: 0.697 s, System: 0.367 s]
+ 
+Benchmark 4: node big.js
+  Time (abs ≡):         1.598 s               [User: 1.226 s, System: 0.373 s]
+ 
+Benchmark 5: bun big.js
+  Time (abs ≡):         1.396 s               [User: 1.088 s, System: 0.308 s]
+ 
+Benchmark 6: node bigjs.js
+  Time (abs ≡):        14.910 s               [User: 22.484 s, System: 1.483 s]
+ 
+Benchmark 7: bun bigjs.js
+  Time (abs ≡):        11.963 s               [User: 20.004 s, System: 1.236 s]
+ 
+Summary
+  'bro big.sass --minify' ran
+    1.31 times faster than 'bun bro.js'
+    1.50 times faster than 'node bro.js'
+    4.70 times faster than './dart sass.snapshot big.sass:big.css --no-source-map --style=compressed'
+    6.05 times faster than 'sassc big.sass big.css --style=compressed'
+   11.22 times faster than 'bun sass.js'
+   13.98 times faster than 'node sass.js'
 ```
 
-Original Sass implementation
-```bash
-# DartSass 👎
-# --- dart sass.snapshot big.sass:big.css --no-source-map
-  Time (mean ± σ):      1.526 s ±  0.012 s    [User: 1.890 s, System: 0.107 s]
-  Range (min … max):    1.512 s …  1.541 s    5 runs
+### BRO vs BRO Binary AST
 
-# SassC 😅
-# --- sassc big.sass big.css
-  Time (mean ± σ):      1.653 s ±  0.014 s    [User: 1.514 s, System: 0.136 s]
-  Range (min … max):    1.639 s …  1.675 s    5 runs
+Obviously, the `repr` command will run faster, since the entire AST is built 
+```
+Benchmark 1: bro big.sass
+  Time (abs ≡):         1.084 s               [User: 0.762 s, System: 0.317 s]
+ 
+Benchmark 2: bro repr big.ast
+  Time (abs ≡):        793.0 ms               [User: 548.7 ms, System: 240.3 ms]
+
 ```
 
 </details>
@@ -204,8 +213,9 @@ Benchmarks made with [hyperfine](https://github.com/sharkdp/hyperfine) on<br>
 ### ❤ Contributions & Support
 - 🐛 Found a bug? [Create a new Issue](https://github.com/openpeeps/bro/issues)
 - 👋 Wanna help? [Fork it!](https://github.com/openpeeps/bro/fork)
+- Create a Syntax Highlighter for your favorite code editor. 
 - 😎 [Get €20 in cloud credits from Hetzner](https://hetzner.cloud/?ref=Hm0mYGM9NxZ4)
-- 🥰 [Donate to The Enthusiast via PayPal address](https://www.paypal.com/donate/?hosted_button_id=RJK3ZTDWPL55C)
+- 🥰 [Donate to OpenPeeps via PayPal address](https://www.paypal.com/donate/?hosted_button_id=RJK3ZTDWPL55C)
 
 ### 🎩 License
 BRO aka NimSass | MIT license. Proudly made in 🇪🇺 Europe [by Humans from OpenPeeps](https://github.com/openpeeps).<br>
