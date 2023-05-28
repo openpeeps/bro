@@ -314,8 +314,6 @@ proc write(c: var Compiler, node: Node,
       else: discard 
   else: discard
 
-
-
 proc newCompiler*(p: Program, outputPath: string, minify = false): Compiler =
   var c = Compiler(program: p, minify: minify)
   # var info = SourceInfo()
@@ -325,12 +323,10 @@ proc newCompiler*(p: Program, outputPath: string, minify = false): Compiler =
   # info.addSegment(0, 0)
   # info.newLine("test.sass", 14)
   # info.addSegment(0, 0)
-
   # echo toJson(info.toSourceMap("test.css"))
   for node in c.program.nodes:
     c.write(node)
   result = c
-  # reset c.css
 
 proc newCompilerStr*(p: Program, outputPath: string): string =
   var c = Compiler(program: p)

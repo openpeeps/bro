@@ -40,13 +40,14 @@ handlers:
 
   proc handleVariable(lex: var Lexer, kind: TokenKind) =
     ready lex
-    inc lex
+    inc(lex) # $
     while true:
       if lex.hasLetters(lex.bufpos) or lex.hasNumbers(lex.bufpos):
         add lex
-      else:
-        break
-    if lex.buf[lex.bufpos] == ':':
+      else: break
+    while lex.buf[lex.bufpos] == ' ':
+      inc lex.bufpos
+    if lex.buf[lex.bufpos] == '=':
       lex.kind = TKVariable
     else:
       lex.kind = TKVariableCall
@@ -248,7 +249,8 @@ tokens:
   stdCount       > "count"
   stdLowercase   > "lowercase"
   stdUppercase   > "uppercase"
-
+  Case        > "case"
+  Of          > "of"
   AltAnd      > "and"
   AltOr       > "or"
   Colon       > ':'

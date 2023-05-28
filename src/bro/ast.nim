@@ -5,11 +5,9 @@
 #          Made by Humans from OpenPeep
 #          https://github.com/openpeep/bro
 
-import std/[tables, strutils, oids]
+import std/[tables, strutils, times, oids]
 from ./tokens import TokenKind, TokenTuple
-# from std/enumutils import symbolName
 
-# https://developer.mozilla.org/en-US/docs/Web/CSS/:root
 type
   NodeType* = enum
     NTRoot
@@ -26,14 +24,12 @@ type
     NTFunction
     NTComment
     NTSelectorTag
-    
     NTString
     NTInt
     NTFloat
     NTBool
     NTArray
     NTColor
-    
     NTCall
     NTInfix
     NTImport
@@ -42,6 +38,7 @@ type
     NTForStmt
     NTCondStmt
     NTMathStmt
+    NTCaseStmt
 
   PropertyRule* = enum
     propRuleNone
@@ -91,6 +88,8 @@ type
   #     colorValue: 
   #   of vntPercentage:
 
+  CaseCondTuple* = tuple[condOf: Node, body: seq[Node]]
+
   # Node
   Node* = ref object
     case nt*: NodeType
@@ -135,7 +134,12 @@ type
       ifInfix*: Node
       ifBody*: seq[Node]
       elifNode*: seq[tuple[infix: Node, body: seq[Node]]]
-      elseBody*: seq[Node] # a seq of Node
+      elseBody*: seq[Node]
+    of NTCaseStmt:
+      caseOid*: Oid
+      caseIdent*: Node # NTCall
+      caseCond*: seq[CaseCondTuple]
+      caseElse*: seq[Node] # body only
     of NTImport:
       importNodes*: seq[Node]
       importPath*: string
@@ -164,6 +168,7 @@ type
     else: discard
 
   Program* = ref object
+    info*: tuple[version: string, createdAt: DateTime]
     nodes*: seq[Node]
 
 proc prefixed*(tk: TokenTuple): string =
@@ -245,4 +250,9 @@ proc newExtend*(tk: TokenTuple, keyValueTable: KeyValueTable): Node =
   result = Node(nt: NTExtend, extendIdent: tk.value, extendProps: keyValueTable)
 
 proc newForStmt*(item, items: Node): Node =
+  ## Create a new `for` block statement
   result = Node(nt: NTForStmt, forOid: genOid(), forItem: item, inItems: items)
+
+proc newCaseStmt*(caseIdent: Node): Node =
+  ## Create a new `case` block statement
+  result = Node(nt: NTCaseStmt, caseIdent: caseIdent)

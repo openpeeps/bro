@@ -23,7 +23,8 @@ proc runProgram(fpath, fname: string) {.thread.} =
     else:
       display(fname, indent = 3)
       let cssPath = fpath.changeFileExt("css")
-      newCompiler(p.getProgram, cssPath)
+      let c = newCompiler(p.getProgram, cssPath)
+      writeFile(cssPath, c.getCSS)
       display("Done in " & $(cpuTime() - t), br="before")
     reset p
 
