@@ -2,7 +2,7 @@
 
 version       = "0.1.0"
 author        = "George Lemon"
-description   = "A super fast stylesheet language for cool kids"
+description   = "A super fast statically typed stylesheet language for cool kids"
 license       = "MIT"
 srcDir        = "src"
 bin           = @["bro"]
@@ -22,9 +22,7 @@ requires "https://github.com/openpeeps/denim/"
 requires "chroma#head"
 requires "zippy"
 
-let label = "\n✨ Compiling..." & "\n"
 task dev, "development build":
-  echo label
   exec "nimble build --threads:on -d:useMalloc --gc:arc --deepcopy:on"
 
 # task dll, "dynamic library build":
@@ -38,5 +36,4 @@ task propsgen, "Generate CSS Properties":
   exec "nim c --hints:off src/utils/propsgen.nim"
 
 task prod, "production build":
-  echo label
   exec "nimble build -d:release"
