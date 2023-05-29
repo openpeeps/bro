@@ -220,6 +220,9 @@ proc handleChildNodes(c: var Compiler, node: Node,
       discard v.callNode.nt
     of NTForStmt:
       let items = node.inItems.callNode.varValue.arrayVal
+    of NTCaseStmt:
+      # echo node
+      discard
     of NTCondStmt:
       if c.compInfix(v.ifInfix.infixLeft, v.ifInfix.infixRight, v.ifInfix.infixOp, scope):
         var ix = 0
@@ -306,6 +309,9 @@ proc write(c: var Compiler, node: Node,
     if c.compInfix(node.ifInfix.infixLeft, node.ifInfix.infixRight, node.ifInfix.infixOp, scope):
       for i in 0 .. node.ifBody.high:
         c.write(node.ifBody[i], scope)
+  of NTCaseStmt:
+    # echo node
+    discard
   of NTImport:
     for subNode in node.importNodes:
       case subNode.nt:

@@ -1,5 +1,5 @@
 import std/[os, times, tables]
-import ../bro/[parser, ast]
+import ../engine/[parser, ast]
 
 import pkg/zippy
 import pkg/kapsis/[runtime, cli]

@@ -25,7 +25,6 @@ type
   Warning* = tuple[msg: string, line, col: int]
 
   # PartialFilePath = distinct string
-
   # Importer* = ref object
   #   partials: OrderedTableRef[int, tuple[indentation: int, sourcePath: string]]
   #   sources: TableRef[string, MemFile]
@@ -43,7 +42,7 @@ type
     hasErrors*: bool
     warnings*: seq[Warning]
     # imports: Importer
-    lastSelector, currentSelector: Node
+    currentSelector: Node
     ptrNodes: Table[string, Node]
     case ptype: ParserType
     of Main:
@@ -74,7 +73,6 @@ type
     InvalidCaseStmt = "Invalid case statement"
     InvalidValueCaseStmt = "Invalid value for case statement"
 
-  ScopeTable = OrderedTableRef[string, Node]
   PrefixFunction = proc(p: var Parser, scope: ScopeTable = nil): Node
   InfixFunction = proc(p: var Parser, scope: ScopeTable = nil): Node
   # PartialChannel = tuple[status: string, program: Program]
@@ -436,10 +434,7 @@ proc parseVariableCall(p: var Parser, scope: ScopeTable = nil): Node =
       return newCall scope[p.prev.value]
   if likely(p.memtable.hasKey(p.curr.value)):
     let valNode = p.memtable[p.curr.value]
-    if valNode.varValue.nt != NTArray:
-      valNode.varValue.used = true
-    else:
-      valNode.varValue.usedArray = true
+    valNode.markVarUsed()
     result = newCall(valNode)
     walk p
   else:
@@ -447,18 +442,23 @@ proc parseVariableCall(p: var Parser, scope: ScopeTable = nil): Node =
 
 proc parseVariable(p: var Parser, scope: ScopeTable = nil): Node =
   let tk = p.curr
-  var inArray: bool
-  walk p # :
+  var inArray, inObject: bool
+  walk p # TKAssign
   if p.next.kind == TKLB:
-    walk p
+    # Handle array values
+    walk p # TKLB
     inArray = true
+  elif p.next.kind == TKLC:
+    # Handle object values
+    walk p # TKLC
+    inObject = true
   if likely(p.memtable.hasKey(tk.value) == false):
     if p.next.kind in {TKIdentifier, TKColor, TKString, TKFloat, TKInteger, TKBool, TKVariableCall}:
       walk p
       var varNode, valNode: Node
       if p.curr.kind != TKVariableCall:
         var varValue: string
-        if not inArray:
+        if likely(inArray == false and inObject == false):
           if p.curr.kind == TKBool:
             valNode = newValue(p.getAssignableNode(scope))
           else:
@@ -469,12 +469,37 @@ proc parseVariable(p: var Parser, scope: ScopeTable = nil): Node =
                   discard # todo
                 else:
                   error($UndeclaredVariable, p.curr, "$" & p.curr.value)
+                  return
               add varValue, spaces(p.curr.wsno)
               add varValue, p.curr.value
               walk p
             valNode = newValue(newString varValue.strip)
+        elif inObject:
+          # parse object key/value pairs
+          valNode = newObject()
+          while p.curr.kind == TKIdentifier and p.next.kind == TKColon:
+            let key = p.curr.value
+            if likely(valNode.objectPairs.hasKey(p.curr.value) == false):
+              walk p # TKColon
+              assert p.next.kind in tkAssignable
+              walk p # any value from tkAssignable
+              valNode.objectPairs[key] = newValue(p.getAssignableNode(scope))
+              if p.curr.kind == TKComma:
+                walk p
+              elif p.curr.kind == TKIdentifier and p.curr.line == p.prev.line:
+                error($InvalidIndentation, p.curr)
+                return
+            else:
+              error("Duplicate key in object", p.curr)
+              return
+          if p.curr.kind == TKRC:
+            walk p
+          else:
+            error("Missing closing object body", p.curr)
+            return
         else:
-          valNode = Node(nt: NTArray)
+          # parse array values
+          valNode = newArray()
           while p.curr.kind != TKRB:
             valNode.arrayVal.add(newValue(p.getAssignableNode(scope)))
             if p.curr.kind == TKComma:
@@ -571,7 +596,7 @@ proc parseForStmt(p: var Parser, scope: ScopeTable = nil): Node =
       if p.curr.line > tk.line and p.curr.col > tk.col:
         var forNode = newForStmt(item, items)
         if scope == nil:
-          forNode.forScopes = newOrderedTable[string, Node]()
+          forNode.forScopes = ScopeTable()
         else:
           if not scope.hasKey(item.varName):
             forNode.forScopes = scope
@@ -826,13 +851,17 @@ template initParser(fpath: string) =
 
   result.lex.close()
   for k, v in result.memtable.pairs():
-    if v.varValue.nt != NTArray:
-      if unlikely(v.varValue.used == false):
-        result.logger.warn("Declared and not used", v.varMeta.line, v.varMeta.col, "$" & k)
-    else:
+    case v.varValue.nt:
+    of NTArray:
       if unlikely(v.varValue.usedArray == false):
         result.logger.warn("Declared array and not used", v.varMeta.line, v.varMeta.col, "$" & k)
-  result.program.info = ("0.1.0", now())
+    of NTObject:
+      if unlikely(v.varValue.usedObject == false):
+        result.logger.warn("Declared object and not used", v.varMeta.line, v.varMeta.col, "$" & k)
+    else:
+      if unlikely(v.varValue.used == false):
+        result.logger.warn("Declared and not used", v.varMeta.line, v.varMeta.col, "$" & k)
+  # result.program.info = ("0.1.0", now())
 
 proc partialThread(fpath: string, lastModified: Time): Parser {.thread.} =
   {.gcsafe.}:

@@ -7,7 +7,8 @@ license       = "MIT"
 srcDir        = "src"
 bin           = @["bro"]
 binDir        = "bin"
-skipDirs      = @["utils"]
+installExt    = @["nim"]
+skipDirs      = @["bro/utils"]
 
 # Dependencies
 

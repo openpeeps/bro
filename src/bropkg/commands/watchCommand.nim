@@ -9,7 +9,7 @@ import std/[times, os, strutils, threadpool]
 import pkg/watchout
 import pkg/kapsis/[runtime, cli]
 
-import ../bro/[parser, compiler]
+import ../engine/[parser, compiler]
 
 proc runProgram(fpath, fname: string) {.thread.} =
   {.gcsafe.}:

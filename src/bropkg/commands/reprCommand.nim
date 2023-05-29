@@ -6,7 +6,7 @@
 #          https://github.com/openpeep/bro
 
 import std/[times, os, strutils]
-import ../bro/[ast, compiler]
+import ../engine/[ast, compiler]
 
 import pkg/zippy
 import pkg/kapsis/[runtime, cli]

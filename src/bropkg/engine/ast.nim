@@ -29,6 +29,7 @@ type
     NTFloat
     NTBool
     NTArray
+    NTObject
     NTColor
     NTCall
     NTInfix
@@ -89,6 +90,7 @@ type
   #   of vntPercentage:
 
   CaseCondTuple* = tuple[condOf: Node, body: seq[Node]]
+  ScopeTable* = OrderedTableRef[string, Node]
 
   # Node
   Node* = ref object
@@ -124,6 +126,9 @@ type
     of NTArray:
       arrayVal*: seq[Node]
       usedArray*: bool
+    of NTObject:
+      objectPairs*: OrderedTable[string, Node]
+      usedObject*: bool
     of NTCall:
       callNode*: Node
     of NTInfix:
@@ -152,7 +157,7 @@ type
       forOid*: Oid
       forItem*, inItems*: Node
       forBody*: seq[Node]
-      forScopes*: OrderedTableRef[string, Node]
+      forScopes*: ScopeTable
         # Variable scopes Nodes of NTVariableValue
     of NTMathStmt:
       mathInfixOp: ArithmeticOperators
@@ -166,9 +171,10 @@ type
       nodes*: seq[Node]
       identConcat*: seq[Node] # NTVariable
     else: discard
+    parent*: Node # when nil is at root level
 
   Program* = ref object
-    info*: tuple[version: string, createdAt: DateTime]
+    # info*: tuple[version: string, createdAt: DateTime]
     nodes*: seq[Node]
 
 proc prefixed*(tk: TokenTuple): string =
@@ -177,6 +183,12 @@ proc prefixed*(tk: TokenTuple): string =
             of TKID: "#"
             else: ""
   add result, tk.value
+
+proc markVarUsed*(node: Node) =
+  if node.varValue.nt == NTArray:
+    node.varValue.usedArray = true
+  else:
+    node.varValue.used = true
 
 proc newProperty*(pName: string): Node =
   result = Node(nt: NTProperty, pName: pName)
@@ -195,6 +207,12 @@ proc newBool*(bVal: string): Node =
 
 proc newColor*(cVal: string): Node =
   result = Node(nt: NTColor, cVal: cVal)
+
+proc newObject*(): Node =
+  result = Node(nt: NTObject)
+
+proc newArray*(): Node =
+  result = Node(nt: NTArray)
 
 proc newCall*(node: Node): Node =
   result = Node(nt: NTCall, callNode: node)

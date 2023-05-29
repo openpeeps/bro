@@ -9,7 +9,7 @@ import std/[times, os, strutils]
 import pkg/kapsis/[runtime, cli]
 import pkg/zippy
 
-import ../bro/[parser, compiler]
+import ../engine/[parser, compiler]
 
 proc runCommand*(v: Values) =
   var stylesheetPath: string

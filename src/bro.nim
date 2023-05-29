@@ -7,7 +7,7 @@
 
 when defined napibuild:
   import denim/napi/napibindings
-  import bro/[parser, compiler]
+  import bropkg/engine/[parser, compiler]
 
   init proc(module: Module) =
     module.registerFn(1, "compile"):
@@ -28,7 +28,7 @@ when defined napibuild:
 elif compileOption("app", "console"):
   import kapsis/commands
   import kapsis/db
-  import commands/[watchCommand, cCommand,
+  import bropkg/commands/[watchCommand, cCommand,
                   mapCommand, astCommand, docCommand, reprCommand]
 
   App:
@@ -70,5 +70,5 @@ elif compileOption("app", "console"):
         ? "Builds a documentation website"
 
 else:
-  import bro/[parser, compiler]
+  import bropkg/engine/[parser, compiler]
   export parser, compiler

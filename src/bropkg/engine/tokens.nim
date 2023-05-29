@@ -55,12 +55,15 @@ handlers:
   proc handleCurlyVar(lex: var Lexer, kind: TokenKind) =
     ready lex
     inc lex
-    lex.handleVariable(kind)
-    if token(lex) == '}':
-      inc lex
-      lex.kind = TKVarConcat
+    if token(lex) == '$':
+      lex.handleVariable(kind)
+      if token(lex) == '}':
+        inc lex
+        lex.kind = TKVarConcat
+      else:
+        lex.setError("Missing closing curly bracket")
     else:
-      lex.setError("Missing closing curly bracket")
+      lex.kind = TKLC
 
   proc handleExclamation(lex: var Lexer, kind: TokenKind) =
     ready lex
@@ -277,7 +280,7 @@ tokens:
   RB        > ']'
   VarConcat > tokenize(handleCurlyVar, '{')
   LC        # '{'
-  RC        # '}'
+  RC        > '}'
   ExcRule     > tokenize(handleExclamation, '!')
   Hash        > tokenize(handleHash, '#')
   Variable    > tokenize(handleVariable, '$')
