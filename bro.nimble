@@ -18,7 +18,7 @@ requires "kapsis"
 requires "watchout"
 requires "jsony"
 requires "msgpack4nim"
-requires "denim"
+requires "https://github.com/openpeeps/denim/"
 requires "chroma#head"
 requires "zippy"
 
