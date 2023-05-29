@@ -48,6 +48,8 @@ handlers:
       inc lex.bufpos
     if lex.buf[lex.bufpos] == '=':
       lex.kind = TKVar
+      if lex.next("="):
+        lex.kind = TKVarCall
     elif lex.token.contains("."):
       lex.kind = TKVarCallAccessor
     else:
