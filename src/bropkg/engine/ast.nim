@@ -29,6 +29,7 @@ type
     NTBool
     NTArray
     NTObject
+    NTAccessor # $myarr[0] $myobj.field
     NTColor
     NTCall
     NTInfix
@@ -128,6 +129,8 @@ type
     of NTObject:
       objectPairs*: OrderedTable[string, Node]
       usedObject*: bool
+    of NTAccessor:
+      accessorType: NodeType # either NTArray or NTObject
     of NTCall:
       callNode*: Node
     of NTInfix:
@@ -184,8 +187,11 @@ proc prefixed*(tk: TokenTuple): string =
   add result, tk.value
 
 proc markVarUsed*(node: Node) =
-  if node.varValue.nt == NTArray:
+  case node.varValue.nt
+  of NTArray:
     node.varValue.usedArray = true
+  of NTObject:
+    node.varValue.usedObject = true
   else:
     node.varValue.used = true
 

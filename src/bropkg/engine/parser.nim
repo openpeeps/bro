@@ -71,6 +71,8 @@ type
     ImportErrorFileNotFound = "Import error file not found"
     InvalidCaseStmt = "Invalid case statement"
     InvalidValueCaseStmt = "Invalid value for case statement"
+    RedefineVariableImmutable = "Compile-time variables are immutable"
+    UndefinedPropertyAccessor = "Undefined property accessor $ for object $"
 
   PrefixFunction = proc(p: var Parser, scope: ScopeTable = nil): Node
   InfixFunction = proc(p: var Parser, scope: ScopeTable = nil): Node
@@ -180,7 +182,7 @@ proc walk(p: var Parser, offset = 1) =
     p.next = p.lex.getToken()
 
 const
-  tkVars = {TKVariableCall, TKVariable}
+  tkVars = {TKVarCall, TKVar}
   tkAssignable = {TKString, TKInteger, TKBool, TKColor} + tkVars
   tkComparable = tkAssignable
   tkOperators = {TK_EQ, TK_NE, TK_GT, TK_GTE, TK_LT, TK_LTE}
@@ -228,7 +230,7 @@ proc getAssignableNode(p: var Parser, scope: ScopeTable): Node =
   elif p.curr.kind == TKBool:
     result = newBool p.curr.value
     walk p
-  elif p.curr.kind == TKVariableCall:
+  elif p.curr.kind == TKVarCall:
     result = p.parseVariableCall(scope)
   else:
     if p.curr.isColor:
@@ -302,7 +304,7 @@ proc parseProperty(p: var Parser, scope: ScopeTable = nil): Node =
         elif p.curr.kind == TKFloat:
           result.pVal.add newFloat(p.curr.value)
           walk p
-        elif p.curr.kind == TKVariableCall:
+        elif p.curr.kind == TKVarCall:
           let callNode = p.parseVariableCall(scope)
           if callNode != nil:
             result.pVal.add(deepCopy(callNode))
@@ -439,6 +441,22 @@ proc parseVariableCall(p: var Parser, scope: ScopeTable = nil): Node =
   else:
     error($UndeclaredVariable, p.curr, "$" & p.curr.value)
 
+proc parseVariableAccessor(p: var Parser, scope: ScopeTable = nil): Node =
+  var tkAccessor = p.curr.value.split(".")
+  p.curr.value = tkAccessor[0]
+  let varIdentStr = "$" & p.curr.value
+  tkAccessor.delete(0)
+  var key = tkAccessor[0]
+  let node = p.parseVariableCall(scope)
+  if node.callNode != nil:
+    if node.callNode.varValue.nt == NTObject:
+      if node.callNode.varValue.objectPairs.hasKey(key):
+        result = newCall(node.callNode.varValue.objectPairs[key])
+      else:
+        error($UndefinedPropertyAccessor, p.curr, true, key, varIdentStr)
+    else:
+      error("Trying to get property $ on a non-object variable $", p.curr, true, key, varIdentStr)
+
 proc parseVariable(p: var Parser, scope: ScopeTable = nil): Node =
   let tk = p.curr
   var inArray, inObject: bool
@@ -452,10 +470,10 @@ proc parseVariable(p: var Parser, scope: ScopeTable = nil): Node =
     walk p # TKLC
     inObject = true
   if likely(p.memtable.hasKey(tk.value) == false):
-    if p.next.kind in {TKIdentifier, TKColor, TKString, TKFloat, TKInteger, TKBool, TKVariableCall}:
+    if p.next.kind in {TKIdentifier, TKColor, TKString, TKFloat, TKInteger, TKBool, TKVarCall}:
       walk p
       var varNode, valNode: Node
-      if p.curr.kind != TKVariableCall:
+      if p.curr.kind != TKVarCall:
         var varValue: string
         if likely(inArray == false and inObject == false):
           if p.curr.kind == TKBool:
@@ -463,7 +481,7 @@ proc parseVariable(p: var Parser, scope: ScopeTable = nil): Node =
           else:
             while p.curr.line == tk.line:
               if p.curr.kind == TKComment: break
-              if p.curr.kind == TKVariableCall:
+              if p.curr.kind == TKVarCall:
                 if p.memtable.hasKey(p.curr.value):
                   discard # todo
                 else:
@@ -518,17 +536,18 @@ proc parseVariable(p: var Parser, scope: ScopeTable = nil): Node =
       return varNode
     error($UndefinedValueVariable, tk, tk.value)
   else:
-    if p.next.kind in {TKIdentifier, TKColor, TKString, TKFloat, TKInteger}: 
-      walk p
-      p.memtable[tk.value].varValue.val = newString(p.curr.value)
-      result = p.memtable[tk.value]
-      walk p
-    elif p.next.kind == TKVariableCall:
-      walk p
-      let node = p.parseVariableCall()
-      p.memtable[tk.value] = deepCopy node.callNode
-    else:
-      error($UndefinedValueVariable, tk, tk.value)
+    error($RedefineVariableImmutable, p.curr)
+    # if p.next.kind in {TKIdentifier, TKColor, TKString, TKFloat, TKInteger}: 
+    #   walk p
+    #   p.memtable[tk.value].varValue.val = newString(p.curr.value)
+    #   result = p.memtable[tk.value]
+    #   walk p
+    # if p.next.kind == TKVarCall:
+    #   walk p
+    #   let node = p.parseVariableCall()
+    #   p.memtable[tk.value] = deepCopy node.callNode
+    # else:
+    #   error($UndefinedValueVariable, tk, tk.value)
 
 proc inLoop(fpath: string, lastModified: Time): Parser =
   result = ^ spawn(partialThread(fpath, lastModified))
@@ -586,7 +605,7 @@ proc parseForStmt(p: var Parser, scope: ScopeTable = nil): Node =
   let tkNext = p.next
   item = newVariable(tkNext)
   walk p, 2
-  if p.curr.kind == TKIn and p.next.kind == TKVariableCall:
+  if p.curr.kind == TKIn and p.next.kind == TKVarCall:
     walk p # in
     var items = p.parseVariableCall() # raise "UndeclaredVariable"
     if items == nil: return
@@ -702,7 +721,7 @@ proc parseCaseStmt(p: var Parser, scope: ScopeTable = nil): Node =
   # Parse a `case` block statement
   let tk = p.curr # of
   walk p
-  if p.curr.kind == TKVariableCall:
+  if p.curr.kind == TKVarCall:
     if p.next.kind == TKColon:
       let callNode = p.parseVariableCall(scope)
       result = newCaseStmt(callNode)
@@ -712,9 +731,9 @@ proc parseCaseStmt(p: var Parser, scope: ScopeTable = nil): Node =
       var tkOf = p.curr
       while p.curr.kind == TKOF and p.curr.pos == tkOf.pos:
         tkOf = p.curr
-        if p.next.kind in {TKString, TKVariableCall}:
+        if p.next.kind in {TKString, TKVarCall}:
           walk p
-          while p.curr.kind in {TKString, TKVariableCall} and p.curr.kind != TKEOF:
+          while p.curr.kind in {TKString, TKVarCall} and p.curr.kind != TKEOF:
             var caseCondTuple: CaseCondTuple
             caseCondTuple.condOf = newString(p.curr.value)
             walk p
@@ -782,10 +801,12 @@ proc getPrefix(p: var Parser, kind: TokenKind): PrefixFunction =
     parseNest
   of TKPseudoClass:
     parsePseudoNest
-  of TKVariable:
+  of TKVar:
     parseVariable
-  of TKVariableCall:
+  of TKVarCall:
     parseVariableCall
+  of TKVarCallAccessor:
+    parseVariableAccessor
   of TKFunctionCall:
     parseFunctionCall
   of TKFunctionStmt:

@@ -41,15 +41,17 @@ handlers:
     ready lex
     inc(lex) # $
     while true:
-      if lex.hasLetters(lex.bufpos) or lex.hasNumbers(lex.bufpos):
+      if lex.hasLetters(lex.bufpos) or lex.hasNumbers(lex.bufpos) or token(lex) == '.':
         add lex
       else: break
     while lex.buf[lex.bufpos] == ' ':
       inc lex.bufpos
     if lex.buf[lex.bufpos] == '=':
-      lex.kind = TKVariable
+      lex.kind = TKVar
+    elif lex.token.contains("."):
+      lex.kind = TKVarCallAccessor
     else:
-      lex.kind = TKVariableCall
+      lex.kind = TKVarCall
 
   proc handleCurlyVar(lex: var Lexer, kind: TokenKind) =
     ready lex
@@ -280,10 +282,11 @@ tokens:
   VarConcat > tokenize(handleCurlyVar, '{')
   LC        # '{'
   RC        > '}'
-  ExcRule     > tokenize(handleExclamation, '!')
-  Hash        > tokenize(handleHash, '#')
-  Variable    > tokenize(handleVariable, '$')
-  VariableCall
+  ExcRule   > tokenize(handleExclamation, '!')
+  Hash      > tokenize(handleHash, '#')
+  Var       > tokenize(handleVariable, '$')
+  VarCall
+  VarCallAccessor
   Class       > tokenize(handleClassSelector, '.')
   Divide      > '/':
     Comment   > '/' .. EOL
