@@ -18,7 +18,7 @@
 - 👉 `Warnings` => Unused **Variables**
 - 👉 `Warnings` => Unused **Mixins**, **Functions**, **Empty selectors**
 - 👉 `Errors` => **invalid** properties/values or typos!
-- A beautiful, improved `SASS`-like Syntax [Find why Bro is better than DartSass/SassC](https://github.com/openpeeps/bro#-why-bro)
+- 🔖 A beautiful, improved `SASS`-like Syntax [Learn Bro in 5 minutes](https://github.com/openpeeps/bro/wiki/Learn-Bro-in-5-minutes)
 - 🎁 **CSS Minifier**
 - 🗺 **CSS SourceMap Generator**
 - 🌴 **Abstract Syntax Tree** binary serialization via **MessagePack**
