@@ -1,10 +1,8 @@
-# Bro aka NimSass
-# A super fast stylesheet language for cool kids
+# A super fast statically typed stylesheet language for cool kids
 #
 # (c) 2023 George Lemon | MIT License
-#          Made by Humans from OpenPeep
-#          https://github.com/openpeep/bro
-
+#          Made by Humans from OpenPeeps
+#          https://github.com/openpeeps/bro
 when defined napibuild:
   import denim/napi/napibindings
   import bropkg/engine/[parser, compiler]
@@ -38,8 +36,8 @@ elif compileOption("app", "console"):
     )
 
     about:
-      "😋 Bro aka NimSass - A super fast stylesheet language for cool kids!"
-      "   https://github.com/openpeep/bro"
+      "😋 Bro - A super fast stylesheet language for cool kids!"
+      "   https://github.com/openpeeps/bro"
     
     commands:
       $ "c" `style` ["minify", "map", "gzip"]:

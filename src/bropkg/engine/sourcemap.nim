@@ -1,11 +1,9 @@
-# Bro aka NimSass
-# A super fast statically typed stylesheet language for cool kids.
+# A super fast statically typed stylesheet language for cool kids
 #
 # (c) 2023 George Lemon | MIT License
-#          Made by Humans from OpenPeep
-#          https://github.com/openpeep/bro
-#
-# Sourcemap module taken from Nim
+#          Made by Humans from OpenPeeps
+#          https://github.com/openpeeps/bro
+#          https://github.com/nim-lang/Nim/blob/devel/compiler/sourcemap.nim
 
 import std/[strutils, strscans, parseutils]
 

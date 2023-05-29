@@ -1,3 +1,9 @@
+# A super fast statically typed stylesheet language for cool kids
+#
+# (c) 2023 George Lemon | MIT License
+#          Made by Humans from OpenPeeps
+#          https://github.com/openpeeps/bro
+
 import std/[tables, json, macros, strutils, os]
 
 template propTypes() =
@@ -38,17 +44,16 @@ macro initPropsTable() =
   let content = parseJSON(readFile(getProjectPath() / "CSSProperties.json"))["properties"]
   result = newStmtList()
   result.add(
-    newCommentStmtNode("""Bro aka NimSass
-A super fast stylesheet language for cool kids.
+    newCommentStmtNode("""
+A super fast statically typed stylesheet language for cool kids
+(c) 2023 George Lemon | MIT License
+         Made by Humans from OpenPeeps
+         https://github.com/openpeeps/bro
 
 Full list of CSS Properties and Values, parser grammar and other cool things.
 
 Auto-generated at Compile Time with Nim language from WebKit source:
-https://github.com/WebKit/WebKit/blob/main/Source/WebCore/css/CSSProperties.json
-
-(c) 2023 George Lemon | MIT License
-         Made by Humans from OpenPeep
-         https://github.com/openpeep/bro"""
+https://github.com/WebKit/WebKit/blob/main/Source/WebCore/css/CSSProperties.json"""
     )
   )
   result.add getAst(propTypes())
