@@ -28,8 +28,6 @@
 - 👑 Written in **Nim language**
 - 😋 **Made for Cool Kids**
 
-_Work in progress. Check TODO list_
-
 > __Warning__ Bro is still under development. Expect bugs and incomplete features.
 
 
@@ -38,36 +36,18 @@ _Work in progress. Check TODO list_
 😋 Bro aka NimSass - A super fast stylesheet language for cool kids!
    https://github.com/openpeeps/bro
 
-  <style> --minify ...            Transpiles the given stylesheet to CSS
-                                  
+   <style> --minify --map --gzip          Compiles a stylesheet to CSS
+
 Development:
-  watch <style> <delay>           Watch for changes and transpile the given stylesheet into CSS
-  map <style>                     Generates a source map for the given stylesheet
-  doc <style>                     Builds a documentation website
-  ast <style> --bson              Generates Abstract Syntax Tree. Use flag to save in BSON format
-  repr <ast> --minify             Convert the AST to human readable stylesheet
+  watch <style> <delay>                   Watch for changes and compile
+  map <style>                             Generates a source map
+  ast <style> --gzip                      Generates a packed AST
+  repr <ast> --minify --gzip              Compiles packed AST to CSS
+
+Documentation:
+  doc <style>                             Builds a documentation website
+
 ```
-
-<details>
-  <summary>About commands</summary>
-
-  #### Build
-  Build your awesome stylesheet to CSS.
-
-  #### Watch
-  Detect changes and build your awesome stylesheet to CSS
-
-  #### Doc
-  Generate a full Documentation website based on given stylesheet.
-  Note that Bro can handle HTML snippets/previews. [Read more about HTML Snippets](#)
-
-  #### AST
-  Generate a binary AST of your awesome stylesheet that can be stored in a database
-
-  #### Repr
-  Generate a human-readable CSS stylesheet from binary AST
-
-</details>
 
 ### Bro 💛 Nim
 Integrate Bro in your Nim application
