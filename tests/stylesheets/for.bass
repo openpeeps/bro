@@ -1,0 +1,5 @@
+$colors = [blue, yellow, pink, green]
+
+for $color in $colors:
+  .btn-{$color}
+    color: $color
