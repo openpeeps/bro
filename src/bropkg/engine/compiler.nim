@@ -20,6 +20,8 @@ type
     minify: bool
     warnings*: seq[Warning]
 
+var strNL, strCL, strCR: string
+
 # forward defintion
 proc write(c: var Compiler, node: Node, scope: ScopeTable = nil, data: Node = nil)
 proc writeSelector(c: var Compiler, node: Node, scope: ScopeTable = nil, data: Node = nil)
@@ -82,22 +84,6 @@ macro isEqualString*(a, b: string): untyped =
 macro isNotEqualString*(a, b: string): untyped =
   result = quote:
     `a` != `b`
-
-proc clean*(c: var Compiler) =
-  # reset c.css
-  discard
-
-template startCurly() =
-  if c.minify:
-    add c.css, "{"
-  else:
-    add c.css, " {\n"
-
-template endCurly() =
-  if c.minify:
-    add c.css, "}"
-  else:
-    add c.css, "}\n"
 
 proc call(node: Node): Node = 
   result = node.callNode.varValue.val
@@ -205,8 +191,7 @@ proc writeProps(c: var Compiler, n: Node, k: string, i: var int,
     inc ii
   if i != length:
     add c.css, ";"
-  if not c.minify:
-    add c.css, "\n"
+  add c.css, strNL # if not minifying
   inc i
 
 proc writeSelector(c: var Compiler, node: Node, scope: ScopeTable = nil,
@@ -216,7 +201,8 @@ proc writeSelector(c: var Compiler, node: Node, scope: ScopeTable = nil,
   if node.multipleSelectors.len == 0 and node.parents.len == 0:
     add c.css, node.ident
     for identConcat in node.identConcat:
-      if identConcat.nt == NTCall:
+      case identConcat.nt
+      of NTCall:
         var scopeVar: Node
         if identConcat.callNode.varValue != nil:
           c.writeVal(identConcat, nil)
@@ -231,16 +217,17 @@ proc writeSelector(c: var Compiler, node: Node, scope: ScopeTable = nil,
           else:
             identConcat.callNode.varValue = varValue
             c.writeVal(identConcat, nil)
-      elif identConcat.nt in {NTString, NTInt, NTFloat, NTBool}:
+      of NTString, NTInt, NTFloat, NTBool:
         c.writeVal(identConcat, nil)
+      else: discard
   elif node.parents.len != 0:
     add c.css, node.getOtherParents(node.ident)
   else:
     add c.css, node.ident & "," & node.multipleSelectors.join(",")
-  startCurly()
+  add c.css, strCL
   c.handleChildNodes(node, scope, skipped, length)
   if not skipped:
-    endCurly()
+    add c.css, strCR
 
 proc writeClass(c: var Compiler, node: Node) =
   c.writeSelector(node)
@@ -260,12 +247,12 @@ proc handleChildNodes(c: var Compiler, node: Node, scope: ScopeTable = nil,
       c.writeProps(v, k, i, length, scope)
     of NTSelectorClass:
       if not skipped:
-        endCurly()
+        add c.css, strCR
         skipped = true
       c.writeClass(v)
     of NTPseudoClass:
       if not skipped:
-        endCurly()
+        add c.css, strCR
         skipped = true
       c.writeSelector(v)
     of NTExtend:
@@ -287,9 +274,10 @@ proc handleChildNodes(c: var Compiler, node: Node, scope: ScopeTable = nil,
       if c.compInfix(v.ifInfix.infixLeft, v.ifInfix.infixRight, v.ifInfix.infixOp, scope):
         var ix = 0
         for ii in 0 .. v.ifBody.high:
-          if v.ifBody[ii].nt == NTProperty:
+          case v.ifBody[ii].nt:
+          of NTProperty:
             c.writeProps(v.ifBody[ii], v.ifBody[ii].pName, ix, v.ifBody.len, scope)
-          elif v.ifBody[ii].nt == NTCondStmt:
+          of NTCondStmt:
             discard
             # echo v.ifBody[ii]
             # c.handleChildNodes(v.ifBody[ii], scope, skipped, v.ifBody.len)
@@ -301,9 +289,10 @@ proc handleChildNodes(c: var Compiler, node: Node, scope: ScopeTable = nil,
           if c.compInfix(elifNode.infix.infixLeft, elifNode.infix.infixRight, elifNode.infix.infixOp, scope):
             var ix = 0
             for ii in 0 .. elifNode.body.high:
-              if elifNode.body[ii].nt == NTProperty:
+              case elifNode.body[ii].nt
+              of NTProperty:
                 c.writeProps(elifNode.body[ii], elifNode.body[ii].pName, ix, elifNode.body.len, scope)
-              elif elifNode.body[ii].nt == NTCondStmt:
+              of NTCondStmt:
                 discard
                 # echo elifNode.body[ii]
                 # c.handleChildNodes(elifNode.body[ii], scope, skipped, elifNode.body.len)
@@ -322,37 +311,43 @@ proc write(c: var Compiler, node: Node, scope: ScopeTable = nil, data: Node = ni
     of NTVariable:
       let items = node.inItems.callNode.varValue.arrayVal
       for i in 0 .. items.high:
-        for n in node.forBody:
-          node.forScopes[node.forItem.varName].varValue = items[i]
-          c.write(n, node.forScopes, items[i])
+        node.forScopes[node.forItem.varName].varValue = items[i]
+        for ii in 0 .. node.forBody.high:
+          c.write(node.forBody[ii], node.forScopes, items[i])
     of NTJsonValue:
       for item in items(node.inItems.callNode.jsonVal):
-        for n in node.forBody:
-          node.forScopes[node.forItem.varName].varValue = newJson item
-          c.write(n, node.forScopes, newJson item)
+        node.forScopes[node.forItem.varName].varValue = newJson item
+        for i in 0 .. node.forBody.high:
+          c.write(node.forBody[i], node.forScopes, newJson item)
     else: discard
   of NTCondStmt:
     if c.compInfix(node.ifInfix.infixLeft, node.ifInfix.infixRight, node.ifInfix.infixOp, scope):
       for i in 0 .. node.ifBody.high:
         c.write(node.ifBody[i], scope)
   of NTCaseStmt:
-    for caseNode in node.caseCond:
-      if c.compInfix(node.caseIdent, caseNode.condOf, EQ, scope):
-        for i in 0 .. caseNode.body.high:
-          c.write(caseNode.body[i], scope)
+    for i in 0 .. node.caseCond.high:
+      if c.compInfix(node.caseIdent, node.caseCond[i].condOf, EQ, scope):
+        for ii in 0 .. node.caseCond[i].body.high:
+          c.write(node.caseCond[i].body[ii], scope)
         return
     for i in 0 .. node.caseElse.high:
       c.write(node.caseElse[i], scope)
   of NTImport:
-    for subNode in node.importNodes:
-      case subNode.nt:
+    for i in 0 .. node.importNodes.high:
+      case node.importNodes[i].nt:
       of NTSelectorClass, NTSelectorTag, NTSelectorID, NTRoot:
-        c.writeSelector(subNode)
+        c.writeSelector(node.importNodes[i])
       else: discard 
   else: discard
 
 proc newCompiler*(p: Program, outputPath: string, minify = false): Compiler =
   var c = Compiler(program: p, minify: minify)
+  strCL = "{"
+  strCR = "}"
+  if minify == false:
+    strNL = "\n"
+    strCL = spaces(1) & strCL & strNL
+    strCR = strCR & strNL
   # var info = SourceInfo()
   # info.newLine("test.sass", 11)
   # info.addSegment(0, 0)
@@ -361,9 +356,13 @@ proc newCompiler*(p: Program, outputPath: string, minify = false): Compiler =
   # info.newLine("test.sass", 14)
   # info.addSegment(0, 0)
   # echo toJson(info.toSourceMap("test.css"))
-  for node in c.program.nodes:
-    c.write(node)
+  for i in 0.. c.program.nodes.high:
+    c.write(c.program.nodes[i])
   result = c
+
+  setLen strNL, 0
+  setLen strCL, 0
+  setLen strCR, 0
 
 proc newCompilerStr*(p: Program, outputPath: string): string =
   var c = Compiler(program: p)
