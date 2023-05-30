@@ -1,0 +1,58 @@
+InvalidIndentation	bropkg/engine/logging.html#InvalidIndentation	Message.InvalidIndentation	
+UnrecognizedToken	bropkg/engine/logging.html#UnrecognizedToken	Message.UnrecognizedToken	
+UndeclaredVariable	bropkg/engine/logging.html#UndeclaredVariable	Message.UndeclaredVariable	
+AssignUndeclaredVar	bropkg/engine/logging.html#AssignUndeclaredVar	Message.AssignUndeclaredVar	
+MissingAssignmentToken	bropkg/engine/logging.html#MissingAssignmentToken	Message.MissingAssignmentToken	
+UndeclaredCSSSelector	bropkg/engine/logging.html#UndeclaredCSSSelector	Message.UndeclaredCSSSelector	
+ExtendCssSelector	bropkg/engine/logging.html#ExtendCssSelector	Message.ExtendCssSelector	
+InvalidProperty	bropkg/engine/logging.html#InvalidProperty	Message.InvalidProperty	
+DuplicateVarDeclaration	bropkg/engine/logging.html#DuplicateVarDeclaration	Message.DuplicateVarDeclaration	
+DuplicateSelector	bropkg/engine/logging.html#DuplicateSelector	Message.DuplicateSelector	
+UnexpectedToken	bropkg/engine/logging.html#UnexpectedToken	Message.UnexpectedToken	
+UndefinedValueVariable	bropkg/engine/logging.html#UndefinedValueVariable	Message.UndefinedValueVariable	
+DeclaredEmptySelector	bropkg/engine/logging.html#DeclaredEmptySelector	Message.DeclaredEmptySelector	
+BadIndentation	bropkg/engine/logging.html#BadIndentation	Message.BadIndentation	
+UnstablePropertyStatus	bropkg/engine/logging.html#UnstablePropertyStatus	Message.UnstablePropertyStatus	
+DuplicateExtendStatement	bropkg/engine/logging.html#DuplicateExtendStatement	Message.DuplicateExtendStatement	
+InvalidNestSelector	bropkg/engine/logging.html#InvalidNestSelector	Message.InvalidNestSelector	
+UnknownPseudoClass	bropkg/engine/logging.html#UnknownPseudoClass	Message.UnknownPseudoClass	
+MissingClosingBracketArray	bropkg/engine/logging.html#MissingClosingBracketArray	Message.MissingClosingBracketArray	
+ImportErrorFileNotFound	bropkg/engine/logging.html#ImportErrorFileNotFound	Message.ImportErrorFileNotFound	
+InvalidValueCaseStmt	bropkg/engine/logging.html#InvalidValueCaseStmt	Message.InvalidValueCaseStmt	
+VariableRedefinition	bropkg/engine/logging.html#VariableRedefinition	Message.VariableRedefinition	
+UndefinedPropertyAccessor	bropkg/engine/logging.html#UndefinedPropertyAccessor	Message.UndefinedPropertyAccessor	
+InvalidInfixMissingValue	bropkg/engine/logging.html#InvalidInfixMissingValue	Message.InvalidInfixMissingValue	
+InvalidInfixOperator	bropkg/engine/logging.html#InvalidInfixOperator	Message.InvalidInfixOperator	
+DeclaredVariableUnused	bropkg/engine/logging.html#DeclaredVariableUnused	Message.DeclaredVariableUnused	
+TryingAccessNonObject	bropkg/engine/logging.html#TryingAccessNonObject	Message.TryingAccessNonObject	
+DuplicateObjectKey	bropkg/engine/logging.html#DuplicateObjectKey	Message.DuplicateObjectKey	
+MissingClosingObjectBody	bropkg/engine/logging.html#MissingClosingObjectBody	Message.MissingClosingObjectBody	
+InvalidSyntaxCaseStmt	bropkg/engine/logging.html#InvalidSyntaxCaseStmt	Message.InvalidSyntaxCaseStmt	
+InvalidSyntaxLoopStmt	bropkg/engine/logging.html#InvalidSyntaxLoopStmt	Message.InvalidSyntaxLoopStmt	
+InvalidSyntaxCondStmt	bropkg/engine/logging.html#InvalidSyntaxCondStmt	Message.InvalidSyntaxCondStmt	
+ConfigLoadingError	bropkg/engine/logging.html#ConfigLoadingError	Message.ConfigLoadingError	
+InternalError	bropkg/engine/logging.html#InternalError	Message.InternalError	
+Message	bropkg/engine/logging.html#Message	logging: Message	
+lvlInfo	bropkg/engine/logging.html#lvlInfo	Level.lvlInfo	
+lvlNotice	bropkg/engine/logging.html#lvlNotice	Level.lvlNotice	
+lvlWarn	bropkg/engine/logging.html#lvlWarn	Level.lvlWarn	
+lvlError	bropkg/engine/logging.html#lvlError	Level.lvlError	
+Level	bropkg/engine/logging.html#Level	logging: Level	
+Log	bropkg/engine/logging.html#Log	logging: Log	
+Logger	bropkg/engine/logging.html#Logger	logging: Logger	
+newInfo	bropkg/engine/logging.html#newInfo,Logger,Message,int,int,bool,varargs[string]	logging: newInfo(logger: Logger; msg: Message; line, col: int; useFmt: bool;\n        args: varargs[string])	
+newNotice	bropkg/engine/logging.html#newNotice,Logger,Message,int,int,bool,varargs[string]	logging: newNotice(logger: Logger; msg: Message; line, col: int; useFmt: bool;\n          args: varargs[string])	
+newWarn	bropkg/engine/logging.html#newWarn,Logger,Message,int,int,bool,varargs[string]	logging: newWarn(logger: Logger; msg: Message; line, col: int; useFmt: bool;\n        args: varargs[string])	
+newError	bropkg/engine/logging.html#newError,Logger,Message,int,int,bool,varargs[string]	logging: newError(logger: Logger; msg: Message; line, col: int; useFmt: bool;\n         args: varargs[string])	
+newErrorMultiLines	bropkg/engine/logging.html#newErrorMultiLines,Logger,Message,int,int,bool,seq[string],string,varargs[string]	logging: newErrorMultiLines(logger: Logger; msg: Message; line, col: int; useFmt: bool;\n                   extraLines: seq[string]; extraLabel: string;\n                   args: varargs[string])	
+newWarningMultiLines	bropkg/engine/logging.html#newWarningMultiLines,Logger,Message,int,int,bool,seq[string],string,varargs[string]	logging: newWarningMultiLines(logger: Logger; msg: Message; line, col: int; useFmt: bool;\n                     extraLines: seq[string]; extraLabel: string;\n                     args: varargs[string])	
+warn	bropkg/engine/logging.html#warn.t,Message,TokenTuple,varargs[string]	logging: warn(msg: Message; tk: TokenTuple; args: varargs[string])	
+warn	bropkg/engine/logging.html#warn.t,Message,TokenTuple,bool,varargs[string]	logging: warn(msg: Message; tk: TokenTuple; strFmt: bool; args: varargs[string])	
+warn	bropkg/engine/logging.html#warn,Logger,Message,int,int,varargs[string]	logging: warn(logger: Logger; msg: Message; line, col: int; args: varargs[string])	
+warn	bropkg/engine/logging.html#warn,Logger,Message,int,int,bool,varargs[string]	logging: warn(logger: Logger; msg: Message; line, col: int; strFmt: bool;\n     args: varargs[string])	
+error	bropkg/engine/logging.html#error.t,Message,TokenTuple,varargs[string]	logging: error(msg: Message; tk: TokenTuple; args: varargs[string])	
+error	bropkg/engine/logging.html#error.t,Message,TokenTuple,bool,seq[string],string,varargs[string]	logging: error(msg: Message; tk: TokenTuple; strFmt: bool; extraLines: seq[string];\n      extraLabel: string; args: varargs[string])	
+error	bropkg/engine/logging.html#error.t,Message,TokenTuple,bool,varargs[string]	logging: error(msg: Message; tk: TokenTuple; strFmt: bool; args: varargs[string])	
+error	bropkg/engine/logging.html#error,Logger,Message,int,int,varargs[string]	logging: error(logger: Logger; msg: Message; line, col: int; args: varargs[string])	
+warnings	bropkg/engine/logging.html#warnings.i,Logger	logging: warnings(logger: Logger): Row	
+errors	bropkg/engine/logging.html#errors.i,Logger	logging: errors(logger: Logger): Row	

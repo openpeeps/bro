@@ -1,0 +1,7 @@
+SourceInfo	bropkg/engine/sourcemap.html#SourceInfo	sourcemap: SourceInfo	
+SourceMap	bropkg/engine/sourcemap.html#SourceMap	sourcemap: SourceMap	
+addSegment	bropkg/engine/sourcemap.html#addSegment,SourceInfo,int,int,string	sourcemap: addSegment(info: var SourceInfo; original, generated: int; name: string = &quot;&quot;)	
+newLine	bropkg/engine/sourcemap.html#newLine,SourceInfo,string,int	sourcemap: newLine(info: var SourceInfo; file: string; line: int)	
+encode	bropkg/engine/sourcemap.html#encode,seq[int]	sourcemap: encode(values: seq[int]): string	
+tokenize	bropkg/engine/sourcemap.html#tokenize.i,string	sourcemap: tokenize(line: string): (int, string)	
+toSourceMap	bropkg/engine/sourcemap.html#toSourceMap,SourceInfo,string	sourcemap: toSourceMap(info: SourceInfo; file: string): SourceMap	

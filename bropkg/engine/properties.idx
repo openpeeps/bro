@@ -1,0 +1,14 @@
+commaSep	bropkg/engine/properties.html#commaSep	Separator.commaSep	
+spaceSep	bropkg/engine/properties.html#spaceSep	Separator.spaceSep	
+Separator	bropkg/engine/properties.html#Separator	properties: Separator	
+Implemented	bropkg/engine/properties.html#Implemented	Status.Implemented	
+NonStandard	bropkg/engine/properties.html#NonStandard	Status.NonStandard	
+Unimplemented	bropkg/engine/properties.html#Unimplemented	Status.Unimplemented	
+Experimental	bropkg/engine/properties.html#Experimental	Status.Experimental	
+Obsolete	bropkg/engine/properties.html#Obsolete	Status.Obsolete	
+Removed	bropkg/engine/properties.html#Removed	Status.Removed	
+Deprecated	bropkg/engine/properties.html#Deprecated	Status.Deprecated	
+Status	bropkg/engine/properties.html#Status	properties: Status	
+Property	bropkg/engine/properties.html#Property	properties: Property	
+Properties	bropkg/engine/properties.html#Properties	properties: Properties	
+hasStrictValue	bropkg/engine/properties.html#hasStrictValue,Property,string	properties: hasStrictValue(prop: Property; key: string): tuple[exists: bool, status: Status]	
