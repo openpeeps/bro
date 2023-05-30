@@ -40,6 +40,7 @@ lvlError	bropkg/engine/logging.html#lvlError	Level.lvlError
 Level	bropkg/engine/logging.html#Level	logging: Level	
 Log	bropkg/engine/logging.html#Log	logging: Log	
 Logger	bropkg/engine/logging.html#Logger	logging: Logger	
+getMessage	bropkg/engine/logging.html#getMessage,Log	logging: getMessage(log: Log): Message	
 newInfo	bropkg/engine/logging.html#newInfo,Logger,Message,int,int,bool,varargs[string]	logging: newInfo(logger: Logger; msg: Message; line, col: int; useFmt: bool;\n        args: varargs[string])	
 newNotice	bropkg/engine/logging.html#newNotice,Logger,Message,int,int,bool,varargs[string]	logging: newNotice(logger: Logger; msg: Message; line, col: int; useFmt: bool;\n          args: varargs[string])	
 newWarn	bropkg/engine/logging.html#newWarn,Logger,Message,int,int,bool,varargs[string]	logging: newWarn(logger: Logger; msg: Message; line, col: int; useFmt: bool;\n        args: varargs[string])	

@@ -112,7 +112,8 @@ window.addEventListener('DOMContentLoaded', main);
   lvlInfo, lvlNotice, lvlWarn, lvlError">Level</a></li>
   <li><a class="reference" href="#Log"
     title="Log = ref object
-  msg, extraLabel: string
+  msg: Message
+  extraLabel: string
   line, col: int
   useFmt: bool
   args, extraLines: seq[string]">Log</a></li>
@@ -162,6 +163,11 @@ window.addEventListener('DOMContentLoaded', main);
       <ul class="simple nested-toc-section">error
       <li><a class="reference" href="#error%2CLogger%2CMessage%2Cint%2Cint%2Cvarargs%5Bstring%5D"
     title="error(logger: Logger; msg: Message; line, col: int; args: varargs[string])">error(logger: Logger; msg: Message; line, col: int; args: varargs[string])</a></li>
+
+  </ul>
+  <ul class="simple nested-toc-section">getMessage
+      <li><a class="reference" href="#getMessage%2CLog"
+    title="getMessage(log: Log): Message">getMessage(log: Log): Message</a></li>
 
   </ul>
   <ul class="simple nested-toc-section">newError
@@ -290,7 +296,8 @@ window.addEventListener('DOMContentLoaded', main);
 </div>
 <div id="Log">
 <dt><pre><a href="logging.html#Log"><span class="Identifier">Log</span></a> <span class="Other">=</span> <span class="Keyword">ref</span> <span class="Keyword">object</span>
-  <span class="Identifier">msg</span><span class="Other">,</span> <span class="Identifier">extraLabel</span><span class="Other">:</span> <span class="Identifier">string</span>
+  <span class="Identifier">msg</span><span class="Other">:</span> <a href="logging.html#Message"><span class="Identifier">Message</span></a>
+  <span class="Identifier">extraLabel</span><span class="Other">:</span> <span class="Identifier">string</span>
   <span class="Identifier">line</span><span class="Other">,</span> <span class="Identifier">col</span><span class="Other">:</span> <span class="Identifier">int</span>
   <span class="Identifier">useFmt</span><span class="Other">:</span> <span class="Identifier">bool</span>
   <span class="Identifier">args</span><span class="Other">,</span> <span class="Identifier">extraLines</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">string</span><span class="Other">]</span>
@@ -359,6 +366,14 @@ window.addEventListener('DOMContentLoaded', main);
 <div id="error,Logger,Message,int,int,varargs[string]">
 <dt><pre><span class="Keyword">proc</span> <a href="#error%2CLogger%2CMessage%2Cint%2Cint%2Cvarargs%5Bstring%5D"><span class="Identifier">error</span></a><span class="Other">(</span><span class="Identifier">logger</span><span class="Other">:</span> <a href="logging.html#Logger"><span class="Identifier">Logger</span></a><span class="Other">;</span> <span class="Identifier">msg</span><span class="Other">:</span> <a href="logging.html#Message"><span class="Identifier">Message</span></a><span class="Other">;</span> <span class="Identifier">line</span><span class="Other">,</span> <span class="Identifier">col</span><span class="Other">:</span> <span class="Identifier">int</span><span class="Other">;</span> <span class="Identifier">args</span><span class="Other">:</span> <span class="Identifier">varargs</span><span class="Other">[</span><span class="Identifier">string</span><span class="Other">]</span><span class="Other">)</span> {.
     <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dd>
+
+
+
+</dd>
+</div>
+<div id="getMessage,Log">
+<dt><pre><span class="Keyword">proc</span> <a href="#getMessage%2CLog"><span class="Identifier">getMessage</span></a><span class="Other">(</span><span class="Identifier">log</span><span class="Other">:</span> <a href="logging.html#Log"><span class="Identifier">Log</span></a><span class="Other">)</span><span class="Other">:</span> <a href="logging.html#Message"><span class="Identifier">Message</span></a> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 
@@ -519,7 +534,7 @@ window.addEventListener('DOMContentLoaded', main);
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2023-05-30 19:30:23 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2023-05-30 20:53:29 UTC</small>
       </div>
     </div>
   </div>
