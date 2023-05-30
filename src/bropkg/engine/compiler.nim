@@ -315,7 +315,7 @@ proc write(c: var Compiler, node: Node, scope: ScopeTable = nil, data: Node = ni
       c.writeSelector(node, scope, data)
   of NTForStmt:
     case node.inItems.callNode.nt:
-    of NTVariableValue:
+    of NTVariable:
       let items = node.inItems.callNode.varValue.arrayVal
       for i in 0 .. items.high:
         for n in node.forBody:
