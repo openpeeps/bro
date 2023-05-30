@@ -43,6 +43,7 @@ type
     # imports: Importer
     currentSelector: Node
     ptrNodes: Table[string, Node]
+    redundancy: Table[string, Node]
     case ptype: ParserType
     of Main:
       projectDirectory: string
@@ -242,14 +243,15 @@ proc parseExtend(p: var Parser, scope: ScopeTable = nil): Node =
   case p.curr.kind
   of TKClass, TKID:
     if p.ptrNodes.hasKey(p.curr.value):
-      p.currentSelector.extends = true
-      p.ptrNodes[p.curr.value].multipleSelectors.add(p.currentSelector.ident)
-      # result = newExtend(p.curr, p.ptrNodes[p.curr.value].props)
-      walk p
+      if p.currentSelector.ident notin p.ptrNodes[p.curr.value].multipleSelectors:
+        p.currentSelector.extends = true
+        p.ptrNodes[p.curr.value].multipleSelectors.add(p.currentSelector.ident)
+        walk p
+      else:
+        error(ExtendRedundancyError, p.curr, true, p.currentSelector.ident, p.ptrNodes[p.curr.value].ident)
     else:
       error(UndeclaredCSSSelector, p.curr, p.curr.value)
-  else:
-    error(ExtendCssSelector, p.curr)
+  else: discard # todo
 
 proc parseProperty(p: var Parser, scope: ScopeTable = nil): Node =
   if likely(Properties.hasKey(p.curr.value)):
@@ -317,6 +319,7 @@ proc whileChild(p: var Parser, this: TokenTuple, parentNode: Node, scope: ScopeT
     elif p.childOf(this):
       if unlikely(p.curr.kind == TKExtend):
         discard p.parseExtend(scope)
+        if p.hasErrors: return # any errors from `parseExtend`
         continue
       let node = p.parse(scope, excludeOnly = {TKImport})
       if node != nil:
@@ -357,14 +360,12 @@ proc parseSelector(p: var Parser, node: Node, tk: TokenTuple, scope: ScopeTable,
     if unlikely(result.props.len == 0 and result.extends == false):
       warn(DeclaredEmptySelector, tk, true, node.ident)
   else:
-    if not p.hasErrors:
+    if not p.hasErrors: # to be sure will not be superseded
       error(UnexpectedToken, p.curr, p.curr.value)
 
-proc parseClass(p: var Parser, scope: ScopeTable = nil): Node =
-  let tk = p.curr
+template handleSelectorConcat(withConcat, withoutConcat: untyped) =
   if unlikely(p.next.kind == TKVarConcat and p.next.line == tk.line):
     walk p
-    var concatNodes: seq[Node] # NTVariable
     while p.curr.line == tk.line:
       # handle selector name + var concatenation
       case p.curr.kind
@@ -382,9 +383,18 @@ proc parseClass(p: var Parser, scope: ScopeTable = nil): Node =
         walk p # todo selector separators
       else:
         break
+    withConcat
+  else:
+    withoutConcat
+  p.ptrNodes[tk.value] = result
+
+proc parseClass(p: var Parser, scope: ScopeTable = nil): Node =
+  let tk = p.curr
+  var concatNodes: seq[Node] # NTVariable
+  handleSelectorConcat:
     p.currentSelector = tk.newClass(concat = concatNodes)
     result = p.parseSelector(p.currentSelector, tk, scope, toWalk = false)
-  else:
+  do:
     p.currentSelector = tk.newClass()
     result = p.parseSelector(p.currentSelector, tk, scope)
   p.ptrNodes[tk.value] = result
