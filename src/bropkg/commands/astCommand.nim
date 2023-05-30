@@ -50,6 +50,5 @@ proc runCommand*(v: Values) =
       writeFile(stylesheetPath.changeFileExt("ast.gzip"), compress(s.data, dataFormat = dfGzip))
     else:
       writeFile(stylesheetPath.changeFileExt("ast"), s.data)
-
     display "Done in " & $(cpuTime() - t)
     QuitSuccess.quit
