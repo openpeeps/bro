@@ -21,11 +21,11 @@ type
     warnings*: seq[Warning]
 
 # forward defintion
-proc write(c: var Compiler, node: Node,
-          scope: OrderedTableRef[string, Node] = nil, data: Node = nil)
-proc writeSelector(c: var Compiler, node: Node,
-          scope: OrderedTableRef[string, Node] = nil, data: Node = nil)
+proc write(c: var Compiler, node: Node, scope: ScopeTable = nil, data: Node = nil)
+proc writeSelector(c: var Compiler, node: Node, scope: ScopeTable = nil, data: Node = nil)
 proc writeClass(c: var Compiler, node: Node)
+proc handleChildNodes(c: var Compiler, node: Node, scope: ScopeTable = nil,
+                      skipped: var bool, length: int)
 
 proc getCSS*(c: Compiler): string =
   result = c.css
@@ -108,7 +108,7 @@ proc getColor(node: Node): string =
 proc getString(node: Node): string =
   result = node.sVal
 
-proc compInfix(c: var Compiler, infixLeft, infixRight: Node, infixOp: InfixOp, scope: OrderedTableRef[string, Node]): bool =
+proc compInfix(c: var Compiler, infixLeft, infixRight: Node, infixOp: InfixOp, scope: ScopeTable): bool =
   case infixOp:
   of EQ:
     if infixLeft.nt == NTCall:
@@ -116,6 +116,7 @@ proc compInfix(c: var Compiler, infixLeft, infixRight: Node, infixOp: InfixOp, s
         return isEqualString(call(infixLeft).getColor, infixRight.getColor)
       elif infixRight.nt == NTBool:
         return isEqualBool(call(infixLeft).bVal, infixRight.bVal)
+
   of NE:
     if infixLeft.nt == NTCall:
       if infixRight.nt == NTColor:
@@ -152,14 +153,14 @@ proc getOtherParents(node: Node, childSelector: string): string =
       add res, parent & childSelector
   result = res.join(",")
 
-proc writeVal(c: var Compiler, val: Node, scope: OrderedTableRef[string, Node], isHexColorStripHash = false) =
+proc writeVal(c: var Compiler, val: Node, scope: ScopeTable, isHexColorStripHash = false) =
   case val.nt
   of NTString:
     add c.css, val.sVal
   of NTFloat:
-    add c.css, val.fVal
+    add c.css, $val.fVal
   of NTInt:
-    add c.css, val.iVal
+    add c.css, $val.iVal
   of NTColor:
     if not isHexColorStripHash:
       add c.css, val.cVal
@@ -175,7 +176,7 @@ proc writeVal(c: var Compiler, val: Node, scope: OrderedTableRef[string, Node], 
   else: discard
 
 proc writeProps(c: var Compiler, n: Node, k: string, i: var int,
-              length: int, scope: OrderedTableRef[string, Node]) =
+              length: int, scope: ScopeTable) =
   var ii = 1
   var vLen = n.pVal.len
   if c.minify:
@@ -193,65 +194,8 @@ proc writeProps(c: var Compiler, n: Node, k: string, i: var int,
     add c.css, "\n"
   inc i
 
-proc handleChildNodes(c: var Compiler, node: Node,
-                  scope: OrderedTableRef[string, Node] = nil,
-                  skipped: var bool, length: int) =
-  var i = 1
-  for k, v in node.props.pairs():
-    case v.nt:
-    of NTProperty:
-      c.writeProps(v, k, i, length, scope)
-    of NTSelectorClass:
-      if not skipped:
-        endCurly()
-        skipped = true
-      c.writeClass(v)
-    of NTPseudoClass:
-      if not skipped:
-        endCurly()
-        skipped = true
-      c.writeSelector(v)
-    of NTExtend:
-      for eKey, eProp in v.extendProps.pairs():
-        var ix = 0
-        c.writeProps(eProp, eKey, ix, v.extendProps.len, scope)
-    of NTCall:
-      discard v.callNode.nt
-    of NTForStmt:
-      let items = node.inItems.callNode.varValue.arrayVal
-    of NTCaseStmt:
-      # echo node
-      discard
-    of NTCondStmt:
-      if c.compInfix(v.ifInfix.infixLeft, v.ifInfix.infixRight, v.ifInfix.infixOp, scope):
-        var ix = 0
-        for ii in 0 .. v.ifBody.high:
-          if v.ifBody[ii].nt == NTProperty:
-            c.writeProps(v.ifBody[ii], v.ifBody[ii].pName, ix, v.ifBody.len, scope)
-          elif v.ifBody[ii].nt == NTCondStmt:
-            discard
-            # echo v.ifBody[ii]
-            # c.handleChildNodes(v.ifBody[ii], scope, skipped, v.ifBody.len)
-          else:
-            # todo handle nested selectors
-            discard
-      elif v.elifNode.len != 0:
-        for elifNode in v.elifNode:
-          if c.compInfix(elifNode.infix.infixLeft, elifNode.infix.infixRight, elifNode.infix.infixOp, scope):
-            var ix = 0
-            for ii in 0 .. elifNode.body.high:
-              if elifNode.body[ii].nt == NTProperty:
-                c.writeProps(elifNode.body[ii], elifNode.body[ii].pName, ix, elifNode.body.len, scope)
-              elif elifNode.body[ii].nt == NTCondStmt:
-                discard
-                # echo elifNode.body[ii]
-                # c.handleChildNodes(elifNode.body[ii], scope, skipped, elifNode.body.len)
-              else:
-                # todo handle nested selectors
-                discard
-    else: discard
-
-proc writeSelector(c: var Compiler, node: Node, scope: OrderedTableRef[string, Node] = nil, data: Node = nil) =
+proc writeSelector(c: var Compiler, node: Node, scope: ScopeTable = nil,
+                   data: Node = nil) =
   var skipped: bool
   let length = node.props.len
   if node.multipleSelectors.len == 0 and node.parents.len == 0:
@@ -292,8 +236,63 @@ proc writeID(c: var Compiler, node: Node) =
 proc writeTag(c: var Compiler, node: Node) =
   c.writeSelector(node)
 
-proc write(c: var Compiler, node: Node,
-            scope: OrderedTableRef[string, Node] = nil, data: Node = nil) =
+proc handleChildNodes(c: var Compiler, node: Node, scope: ScopeTable = nil,
+                      skipped: var bool, length: int) =
+  var i = 1
+  for k, v in node.props.pairs():
+    case v.nt:
+    of NTProperty:
+      c.writeProps(v, k, i, length, scope)
+    of NTSelectorClass:
+      if not skipped:
+        endCurly()
+        skipped = true
+      c.writeClass(v)
+    of NTPseudoClass:
+      if not skipped:
+        endCurly()
+        skipped = true
+      c.writeSelector(v)
+    of NTExtend:
+      for eKey, eProp in v.extendProps.pairs():
+        var ix = 0
+        c.writeProps(eProp, eKey, ix, v.extendProps.len, scope)
+    of NTCall:
+      discard v.callNode.nt
+    of NTForStmt:
+      let items = node.inItems.callNode.varValue.arrayVal
+    of NTCaseStmt:
+      discard
+    of NTCondStmt:
+      if c.compInfix(v.ifInfix.infixLeft, v.ifInfix.infixRight, v.ifInfix.infixOp, scope):
+        var ix = 0
+        for ii in 0 .. v.ifBody.high:
+          if v.ifBody[ii].nt == NTProperty:
+            c.writeProps(v.ifBody[ii], v.ifBody[ii].pName, ix, v.ifBody.len, scope)
+          elif v.ifBody[ii].nt == NTCondStmt:
+            discard
+            # echo v.ifBody[ii]
+            # c.handleChildNodes(v.ifBody[ii], scope, skipped, v.ifBody.len)
+          else:
+            # todo handle nested selectors
+            discard
+      elif v.elifNode.len != 0:
+        for elifNode in v.elifNode:
+          if c.compInfix(elifNode.infix.infixLeft, elifNode.infix.infixRight, elifNode.infix.infixOp, scope):
+            var ix = 0
+            for ii in 0 .. elifNode.body.high:
+              if elifNode.body[ii].nt == NTProperty:
+                c.writeProps(elifNode.body[ii], elifNode.body[ii].pName, ix, elifNode.body.len, scope)
+              elif elifNode.body[ii].nt == NTCondStmt:
+                discard
+                # echo elifNode.body[ii]
+                # c.handleChildNodes(elifNode.body[ii], scope, skipped, elifNode.body.len)
+              else:
+                # todo handle nested selectors
+                discard
+    else: discard
+
+proc write(c: var Compiler, node: Node, scope: ScopeTable = nil, data: Node = nil) =
   case node.nt:
   of NTSelectorClass, NTSelectorTag, NTSelectorID, NTRoot:
     if node.props.len != 0:
@@ -309,8 +308,13 @@ proc write(c: var Compiler, node: Node,
       for i in 0 .. node.ifBody.high:
         c.write(node.ifBody[i], scope)
   of NTCaseStmt:
-    # echo node
-    discard
+    for caseNode in node.caseCond:
+      if c.compInfix(node.caseIdent, caseNode.condOf, EQ, scope):
+        for i in 0 .. caseNode.body.high:
+          c.write(caseNode.body[i], scope)
+        return
+    for i in 0 .. node.caseElse.high:
+      c.write(node.caseElse[i], scope)
   of NTImport:
     for subNode in node.importNodes:
       case subNode.nt:

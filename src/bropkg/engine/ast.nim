@@ -31,6 +31,7 @@ type
     NTObject
     NTAccessor # $myarr[0] $myobj.field
     NTColor
+    NTSize
     NTCall
     NTInfix
     NTImport
@@ -69,6 +70,29 @@ type
     AND         = "and"
     OR          = "or"
     AMP         = "&"   # string concatenation
+
+  Units* = enum
+    # absolute lengths
+    MM = "mm"
+    CM = "cm"
+    IN = "in"
+    PX = "px"
+    PT = "pt"
+    PC = "pc"
+    # relative lengths
+    EM = "em"
+    EX = "ex"
+    CH = "ch"
+    REM = "rem"
+    VW = "vw"
+    VH = "vh"
+    VMIN = "vmin"
+    VMAX = "vmax"
+    PSIZE = "%"     # related to the parent size
+
+  LengthType* = enum
+    Absolute
+    Relative
 
   ArithmeticOperators* {.pure.} = enum
     Invalid
@@ -114,9 +138,9 @@ type
     of NTString:
       sVal*: string
     of NTInt:
-      iVal*: string
+      iVal*: int
     of NTFloat:
-      fVal*: string
+      fVal*: float
     of NTBool:
       bVal*: bool
     of NTColor:
@@ -131,6 +155,10 @@ type
       usedObject*: bool
     of NTAccessor:
       accessorType: NodeType # either NTArray or NTObject
+    of NTSize:
+      sizeVal*: int
+      sizeUnit*: Units
+      lenType*: LengthType
     of NTCall:
       callNode*: Node
     of NTInfix:
@@ -173,7 +201,7 @@ type
       nodes*: seq[Node]
       identConcat*: seq[Node] # NTVariable
     else: discard
-    parent*: Node # when nil is at root level
+    # parent*: Node # when nil is at root level
 
   Program* = ref object
     # info*: tuple[version: string, createdAt: DateTime]
@@ -202,16 +230,23 @@ proc newString*(sVal: string): Node =
   result = Node(nt: NTString, sVal: sVal)
 
 proc newInt*(iVal: string): Node =
-  result = Node(nt: NTInt, iVal: iVal)
+  result = Node(nt: NTInt, iVal: parseInt iVal)
 
 proc newFloat*(fVal: string): Node =
-  result = Node(nt: NTFloat, fVal: fVal)
+  result = Node(nt: NTFloat, fVal: parseFloat fVal)
 
 proc newBool*(bVal: string): Node =
+  assert bVal in ["true", "false"]
   result = Node(nt: NTBool, bVal: parseBool bVal)
 
 proc newColor*(cVal: string): Node =
   result = Node(nt: NTColor, cVal: cVal)
+
+proc newSize*(size: int, unit: Units): Node =
+  let lt = case unit:
+            of EM, EX, CH, REM, VW, VH, VMIN, VMAX, PSIZE: Relative
+            else: Absolute
+  result = Node(nt: NTSize, sizeVal: size, lenType: lt)
 
 proc newObject*(): Node =
   result = Node(nt: NTObject)
@@ -220,15 +255,20 @@ proc newArray*(): Node =
   result = Node(nt: NTArray)
 
 proc newCall*(node: Node): Node =
+  assert node.nt == NTVariable
   result = Node(nt: NTCall, callNode: node)
 
 proc newInfix*(infixLeft, infixRight: Node, infixOp: InfixOp): Node =
+  assert infixLeft.nt in {NTColor, NTString, NTInt, NTBool, NTFloat, NTCall}
+  assert infixRight.nt in {NTColor, NTString, NTInt, NTBool, NTFloat, NTCall}
   result = Node(nt: NTInfix, infixLeft: infixLeft, infixRight: infixRight, infixOp: infixOp)
 
 proc newInfix*(infixLeft: Node): Node =
+  assert infixLeft.nt in {NTColor, NTString, NTInt, NTBool, NTFloat, NTCall}
   result = Node(nt: NTInfix, infixLeft: infixLeft)
 
 proc newIf*(infix: Node): Node =
+  assert infix.nt == NTInfix
   result = Node(nt: NTCondStmt, condOid: genOid(), ifInfix: infix)
 
 proc newImport*(nodes: seq[Node], importPath: string): Node =
@@ -241,9 +281,11 @@ proc newVariable*(tk: TokenTuple): Node =
   result = Node(nt: NTVariable, varName: tk.value, varMeta: (tk.line, tk.col))
 
 proc newValue*(val: Node): Node =
+  assert val.nt in {NTColor, NTString, NTInt, NTBool, NTFloat, NTCall}
   result = Node(nt: NTVariableValue, val: val)
 
 proc newValue*(tk: TokenTuple, valNode: Node): Node =
+  assert valNode.nt in {NTColor, NTString, NTInt, NTBool, NTFloat, NTCall}
   result = Node(nt: NTVariableValue, val: valNode)
 
 proc newComment*(str: string): Node =
