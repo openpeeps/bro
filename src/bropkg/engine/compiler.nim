@@ -175,7 +175,11 @@ proc writeVal(c: var Compiler, val: Node, scope: ScopeTable, isHexColorStripHash
     else: discard # todo compiler error when JObject, JArray
   of NTCall:
     if val.callNode.varValue != nil:
-      c.writeVal(val.callNode.varValue.val, nil, isHexColorStripHash)
+      case val.callNode.varValue.nt:
+      of NTJsonValue:
+        c.writeVal(val.callNode.varValue, nil, isHexColorStripHash)
+      else:
+        c.writeVal(val.callNode.varValue.val, nil, isHexColorStripHash)
     else:
       if scope.hasKey(val.callNode.varName):
         case scope[val.callNode.varName].varValue.nt:
