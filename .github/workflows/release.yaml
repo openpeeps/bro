@@ -10,7 +10,7 @@ env:
   APP_NAME: 'bro'
   NIM_VERSION: 'stable'
   MAINTAINER: 'George Lemon'
-  RELEASE_FILES: APP_NAME LICENSE README.*
+  RELEASE_FILES: bro LICENSE README.*
 
 jobs:
   build-artifact:
