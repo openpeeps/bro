@@ -6,6 +6,7 @@ testresults/
 /tests/*
 !/tests/*.nim
 !/tests/*.nims
+!/tests/stylesheets
 /bin
 /bench
 /cli.md
