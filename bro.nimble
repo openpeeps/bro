@@ -21,6 +21,7 @@ requires "msgpack4nim"
 requires "https://github.com/openpeeps/denim/"
 requires "chroma#head"
 requires "zippy"
+requires "pkginfo"
 
 task dev, "development build":
   exec "nimble build --threads:on -d:useMalloc --gc:arc --deepcopy:on"
