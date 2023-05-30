@@ -1,16 +1,30 @@
-import unittest
+import std/[os, strutils, unittest]
+import bro
 
-test "can init":
-  echo "todo"
+let
+  basicsPath = getCurrentDir() & "/tests/stylesheets/basic.bass"
+  invalidPath = getCurrentDir() & "/tests/stylesheets/invalid.bass"
 
-test "can compress css":
-  echo "todo"
+test "can parse":
+  var p: Parser = parseProgram(basicsPath)
+  check p.hasErrors == false
+  check p.hasWarnings == false
 
-test "can compress ast":
-  echo "todo"
+test "can compile":
+  var p: Parser = parseProgram(basicsPath)
+  check p.hasErrors == false
+  check p.hasWarnings == false
 
-test "can decompress ast":
-  echo "todo"
+  var c: Compiler
+  # unminified
+  c = newCompiler(p.getProgram, basicsPath)
+  check c.getCSS.count("\n") == 3
+  # minified
+  c = newCompiler(p.getProgram, basicsPath, minify = true)
+  check c.getCSS.count("\n") == 0
+  check c.getCSS == ".btn{border:2px #FFF solid}"
 
-test "can compress repr":
-  echo "todo"
+test "can catch errors":
+  var p: Parser = parseProgram(invalidPath)
+  check p.hasErrors == true
+  check p.logger.errorLogs[0].getMessage == InvalidProperty
