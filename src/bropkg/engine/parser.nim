@@ -49,31 +49,6 @@ type
     else: discard
     filePath: string
 
-  ParserErrors* = enum
-    InvalidIndentation = "Invalid indentation"
-    UndeclaredVariable = "Undeclared variable"
-    AssignUndeclaredVar = "Assigning an undeclared variable"
-    MissingAssignmentToken = "Missing assignment token"
-    UndeclaredCSSSelector = "Undeclared CSS selector"
-    ExtendCssSelector = "CSS properties can only be extended from ID or CSS selectors."
-    InvalidProperty = "Invalid CSS property $"
-    DuplicateVarDeclaration = "Duplicate variable declaration"
-    DuplicateSelector = "Duplicated CSS declaration"
-    UnexpectedToken = "Unexpected token"
-    UndefinedValueVariable = "Undefined value for variable"
-    DeclaredEmptySelector = "Declared CSS selector $ has no properties"
-    BadIndentation = "Nestable statement requires indentation"
-    UnstablePropertyStatus = "Use of $ is marked as $"
-    DuplicateExtendStatement = "Cannot be extended more than once"
-    InvalidNestSelector = "Invalid nest for given selector"
-    UnknownPseudoClass = "Unknown pseudo-class"
-    MissingClosingBracketArray = "Missing closing bracket in array"
-    ImportErrorFileNotFound = "Import error file not found"
-    InvalidCaseStmt = "Invalid case statement"
-    InvalidValueCaseStmt = "Invalid value for case statement"
-    RedefineVariableImmutable = "Compile-time variables are immutable"
-    UndefinedPropertyAccessor = "Undefined property accessor $ for object $"
-
   PrefixFunction = proc(p: var Parser, scope: ScopeTable = nil): Node
   InfixFunction = proc(p: var Parser, scope: ScopeTable = nil): Node
   # PartialChannel = tuple[status: string, program: Program]
@@ -185,9 +160,10 @@ const
   tkVars = {TKVarCall, TKVar}
   tkAssignable = {TKString, TKInteger, TKBool, TKColor} + tkVars
   tkComparable = tkAssignable
+  tkAssignableValue = {TKString, TKBool, TKFloat, TKInteger, TKIdentifier, TKVarCall}
   tkOperators = {TK_EQ, TK_NE, TK_GT, TK_GTE, TK_LT, TK_LTE}
   tkConditional = {TKIf, TKElif, TKElse}
-  tkNamedColors = ["aliceblue", "antiquewhite", "aqua", "aquamarine", "azure", "beige",
+var tkNamedColors = ["aliceblue", "antiquewhite", "aqua", "aquamarine", "azure", "beige",
     "bisque", "black", "blanchedalmond", "blue", "blueviolet", "brown",
     "burlywood", "cadetblue", "chartreuse", "chocolate", "coral", "cornflowerblue",
     "cornsilk", "crimson", "cyan", "darkblue", "darkcyan", "darkgoldenrod",
@@ -212,7 +188,7 @@ const
     "salmon", "sandybrown", "seagreen", "seashell", "sienna", "silver", "skyblue",
     "slateblue", "slategray", "snow", "springgreen", "steelblue", "tan",
     "teal", "thistle", "tomato", "turquoise", "violet", "wheat", "white",
-    "whitesmoke", "yellow", "yellowgreen"]
+    "whitesmoke", "yellow", "yellowgreen"].toCritBitTree # todo macro
 
 proc isColor(tk: TokenTuple): bool =
   result = tk.value in tkNamedColors
@@ -268,9 +244,9 @@ proc parseExtend(p: var Parser, scope: ScopeTable = nil): Node =
       # result = newExtend(p.curr, p.ptrNodes[p.curr.value].props)
       walk p
     else:
-      error($UndeclaredCSSSelector, p.curr, p.curr.value)
+      error(UndeclaredCSSSelector, p.curr, p.curr.value)
   else:
-    error($ExtendCssSelector, p.curr)
+    error(ExtendCssSelector, p.curr)
 
 proc parseProperty(p: var Parser, scope: ScopeTable = nil): Node =
   if likely(Properties.hasKey(p.curr.value)):
@@ -286,7 +262,7 @@ proc parseProperty(p: var Parser, scope: ScopeTable = nil): Node =
           let checkValue = property.hasStrictValue(p.curr.value)
           if checkValue.exists:
             if checkValue.status in {Unimplemented, Deprecated, Obsolete, NonStandard}:
-              warn($UnstablePropertyStatus, p.curr, true,
+              warn(UnstablePropertyStatus, p.curr, true,
                       pName.value & ": " & p.curr.value, $checkValue.status)
           result.pVal.add newString(p.curr.value)
           walk p
@@ -320,9 +296,9 @@ proc parseProperty(p: var Parser, scope: ScopeTable = nil): Node =
         result.pRule = propRuleDefault
         walk p
     else:
-      error($MissingAssignmentToken, p.curr)
+      error(MissingAssignmentToken, p.curr)
   else:
-    error($InvalidProperty, p.curr, true, p.curr.value)
+    error(InvalidProperty, p.curr, true, p.curr.value)
 
 proc whileChild(p: var Parser, this: TokenTuple, parentNode: Node, scope: ScopeTable) =
   while p.curr.pos > this.pos and p.curr.kind != TKEOF:
@@ -364,7 +340,7 @@ proc parseSelector(p: var Parser, node: Node, tk: TokenTuple, scope: ScopeTable,
         add multipleSelectors, prefixed(p.curr)
         walk p
       else:
-        error($DuplicateSelector, p.curr, prefixedIdent)
+        error(DuplicateSelector, p.curr, prefixedIdent)
   node.multipleSelectors = multipleSelectors
   
   # parse selector properties or child nodes
@@ -372,10 +348,10 @@ proc parseSelector(p: var Parser, node: Node, tk: TokenTuple, scope: ScopeTable,
     p.whileChild(tk, node, scope)
     result = node
     if unlikely(result.props.len == 0 and result.extends == false):
-      warn($DeclaredEmptySelector, tk, true, node.ident)
+      warn(DeclaredEmptySelector, tk, true, node.ident)
   else:
     if not p.hasErrors:
-      error($UnexpectedToken, p.curr, p.curr.value)
+      error(UnexpectedToken, p.curr, p.curr.value)
 
 proc parseClass(p: var Parser, scope: ScopeTable = nil): Node =
   let tk = p.curr
@@ -415,7 +391,7 @@ proc parseNest(p: var Parser, scope: ScopeTable = nil): Node =
     result = p.parseClass(scope)
     result.nested = true
   else:
-    error($InvalidNestSelector, p.curr, p.curr.value)
+    error(InvalidNestSelector, p.curr, p.curr.value)
 
 proc parsePseudoNest(p: var Parser, scope: ScopeTable = nil): Node =
   if likely(pseudoTable.hasKey(p.next.value)):
@@ -426,20 +402,20 @@ proc parsePseudoNest(p: var Parser, scope: ScopeTable = nil): Node =
     result = p.parseSelector(tk.newPseudoClass, tk, scope)
   else:
     walk p
-    error($UnknownPseudoClass, p.prev, p.curr.value)
+    error(UnknownPseudoClass, p.prev, p.curr.value)
 
 proc parseVariableCall(p: var Parser, scope: ScopeTable = nil): Node = 
   if scope != nil:
     if scope.hasKey(p.curr.value):
       walk p
-      return newCall scope[p.prev.value]
+      return newCall(scope[p.prev.value])
   if likely(p.memtable.hasKey(p.curr.value)):
     let valNode = p.memtable[p.curr.value]
     valNode.markVarUsed()
     result = newCall(valNode)
     walk p
   else:
-    error($UndeclaredVariable, p.curr, "$" & p.curr.value)
+    error(UndeclaredVariable, p.curr, "$" & p.curr.value)
 
 proc parseVariableAccessor(p: var Parser, scope: ScopeTable = nil): Node =
   var tkAccessor = p.curr.value.split(".")
@@ -453,9 +429,9 @@ proc parseVariableAccessor(p: var Parser, scope: ScopeTable = nil): Node =
       if node.callNode.varValue.objectPairs.hasKey(key):
         result = newCall(node.callNode.varValue.objectPairs[key])
       else:
-        error($UndefinedPropertyAccessor, p.curr, true, key, varIdentStr)
+        error(UndefinedPropertyAccessor, p.curr, true, key, varIdentStr)
     else:
-      error("Trying to get property $ on a non-object variable $", p.curr, true, key, varIdentStr)
+      error(TryingAccessNonObject, p.curr, true, key, varIdentStr)
 
 proc parseVariable(p: var Parser, scope: ScopeTable = nil): Node =
   let tk = p.curr
@@ -485,7 +461,7 @@ proc parseVariable(p: var Parser, scope: ScopeTable = nil): Node =
                 if p.memtable.hasKey(p.curr.value):
                   discard # todo
                 else:
-                  error($UndeclaredVariable, p.curr, "$" & p.curr.value)
+                  error(UndeclaredVariable, p.curr, "$" & p.curr.value)
                   return
               add varValue, spaces(p.curr.wsno)
               add varValue, p.curr.value
@@ -504,15 +480,15 @@ proc parseVariable(p: var Parser, scope: ScopeTable = nil): Node =
               if p.curr.kind == TKComma:
                 walk p
               elif p.curr.kind == TKIdentifier and p.curr.line == p.prev.line:
-                error($InvalidIndentation, p.curr)
+                error(InvalidIndentation, p.curr)
                 return
             else:
-              error("Duplicate key in object", p.curr)
+              error(DuplicateObjectKey, p.curr)
               return
           if p.curr.kind == TKRC:
             walk p
           else:
-            error("Missing closing object body", p.curr)
+            error(MissingClosingObjectBody, p.curr)
             return
         else:
           # parse array values
@@ -524,19 +500,19 @@ proc parseVariable(p: var Parser, scope: ScopeTable = nil): Node =
           if p.curr.kind == TKRB:
             walk p
           else:
-            error($MissingClosingBracketArray, p.curr)
+            error(MissingClosingBracketArray, p.curr)
             return
         varNode = newVariable(tk.value, valNode, tk)
       else: 
         if p.memtable.hasKey(p.curr.value):
           varNode = deepCopy p.memtable[p.curr.value]
         else:
-          error($AssignUndeclaredVar, p.curr, "$" & p.curr.value)
+          error(AssignUndeclaredVar, p.curr, "$" & p.curr.value)
       p.memtable[tk.value] = varNode
       return varNode
-    error($UndefinedValueVariable, tk, tk.value)
+    error(UndefinedValueVariable, tk, tk.value)
   else:
-    error($RedefineVariableImmutable, p.curr)
+    error(RedefineVariableImmutable, p.curr)
     # if p.next.kind in {TKIdentifier, TKColor, TKString, TKFloat, TKInteger}: 
     #   walk p
     #   p.memtable[tk.value].varValue.val = newString(p.curr.value)
@@ -547,7 +523,7 @@ proc parseVariable(p: var Parser, scope: ScopeTable = nil): Node =
     #   let node = p.parseVariableCall()
     #   p.memtable[tk.value] = deepCopy node.callNode
     # else:
-    #   error($UndefinedValueVariable, tk, tk.value)
+    #   error(UndefinedValueVariable, tk, tk.value)
 
 proc inLoop(fpath: string, lastModified: Time): Parser =
   result = ^ spawn(partialThread(fpath, lastModified))
@@ -581,12 +557,12 @@ proc parseImport(p: var Parser, scope: ScopeTable = nil): Node =
         if not p.memtable.hasKey(k):
           p.memtable[k] = v
         else:
-          error($DuplicateVarDeclaration, p.curr, "$" & k)
+          error(DuplicateVarDeclaration, p.curr, "$" & k)
           return
     result = newImport(pp.program.nodes, fpath)
     walk p
   else:
-    error($ImportErrorFileNotFound, p.curr, p.curr.value)
+    error(ImportErrorFileNotFound, p.curr, p.curr.value)
 
 proc getNil(p: var Parser): Node =
   result = nil
@@ -619,7 +595,7 @@ proc parseForStmt(p: var Parser, scope: ScopeTable = nil): Node =
           if not scope.hasKey(item.varName):
             forNode.forScopes = scope
           else:
-            error($DuplicateVarDeclaration, tkNext)
+            error(DuplicateVarDeclaration, tkNext)
         forNode.forScopes[item.varName] = item
         while p.curr.col > tk.col:
           if p.curr.kind == TK_EOF: break
@@ -628,10 +604,10 @@ proc parseForStmt(p: var Parser, scope: ScopeTable = nil): Node =
             forNode.forBody.add forBodyNode
           else: return
         return forNode
-      error($InvalidIndentation, p.curr)
+      error(InvalidIndentation, p.curr)
     else:
-      error($UnexpectedToken, p.curr)
-  else: error("Invalid loop statement", p.curr)
+      error(UnexpectedToken, p.curr)
+  else: error(SyntaxInvalidLoop, p.curr)
 
 proc getInfixOp(kind: TokenKind, isInfixInfix: bool): InfixOp =
   case kind:
@@ -661,9 +637,9 @@ proc parseInfixNode(p: var Parser, scope: ScopeTable, infixInfixNode: Node = nil
         assert assignRight != nil # todo error msg
         infixNode.infixRight = assignRight
         return infixNode
-      else: error("Invalid infix missing assignable token", p.curr)
-    else: error("Invalid infix missing operator", p.curr)
-  else: error("Invalid infix", p.curr)
+      else: error(InvalidInfixMissingValue, p.curr)
+    else: error(InvalidInfixOperator, p.curr)
+  else: error(InvalidInfixMissingValue, p.curr)
 
 proc parseInfix(p: var Parser, scope: ScopeTable = nil): Node =
   result = p.parseInfixNode(scope)
@@ -713,9 +689,9 @@ proc parseCondStmt(p: var Parser, scope: ScopeTable = nil): Node =
               else: break
           result.elifNode.add (infixElifNode, elifBody)
       else:
-        error($BadIndentation, p.curr)
+        error(BadIndentation, p.curr)
         break
-  else: error("Invalid conditional statement", p.curr)
+  else: error(SyntaxInvalidCondition, p.curr)
 
 proc parseCaseStmt(p: var Parser, scope: ScopeTable = nil): Node =
   # Parse a `case` block statement
@@ -731,12 +707,11 @@ proc parseCaseStmt(p: var Parser, scope: ScopeTable = nil): Node =
       var tkOf = p.curr
       while p.curr.kind == TKOF and p.curr.pos == tkOf.pos:
         tkOf = p.curr
-        if p.next.kind in {TKString, TKVarCall}:
+        if p.next.kind in tkAssignableValue:
           walk p
-          while p.curr.kind in {TKString, TKVarCall} and p.curr.kind != TKEOF:
+          while p.curr.kind in tkAssignableValue and p.curr.kind != TKEOF:
             var caseCondTuple: CaseCondTuple
-            caseCondTuple.condOf = newString(p.curr.value)
-            walk p
+            caseCondTuple.condOf = p.getAssignableNode(scope)
             while p.curr.pos > tkOf.pos and p.curr.kind != TKEOF:
               var subNode: Node
               case p.curr.kind
@@ -749,10 +724,10 @@ proc parseCaseStmt(p: var Parser, scope: ScopeTable = nil): Node =
               else: return
             result.caseCond.add caseCondTuple
             if caseCondTuple.body.len == 0:
-              error($InvalidIndentation, p.curr)
+              error(InvalidIndentation, p.curr)
               return
         else:
-          error($InvalidValueCaseStmt, p.curr)
+          error(InvalidValueCaseStmt, p.curr)
           return
       # handle `else` statement
       if p.curr.kind == TKElse:
@@ -769,9 +744,9 @@ proc parseCaseStmt(p: var Parser, scope: ScopeTable = nil): Node =
             if subNode != nil:
               result.caseElse.add(subNode)
           if result.caseElse.len == 0:
-            error($InvalidIndentation, p.curr)
-    else: error($InvalidValueCaseStmt, p.curr)
-  else: error($InvalidCaseStmt, p.curr)
+            error(InvalidIndentation, p.curr)
+    else: error(InvalidValueCaseStmt, p.curr)
+  else: error(InvalidCaseStmt, p.curr)
 
 proc parsePreview(p: var Parser, scope: ScopeTable = nil): Node =
   result = newPreview(p.curr)
@@ -831,21 +806,20 @@ proc parse(p: var Parser, scope: ScopeTable = nil, excludeOnly, includeOnly: set
   if excludeOnly.len != 0 and includeOnly.len == 0:
     # check if any `excludeOnly` TokenKind to look for
     if p.curr.kind in excludeOnly:
-      error($UnexpectedToken, p.curr, p.curr.value)
+      error(UnexpectedToken, p.curr, p.curr.value)
       return
   elif includeOnly.len != 0 and excludeOnly.len == 0:
     # check if any `includeOnly` TokenKind to look for
     if p.curr.kind notin includeOnly:
-      error($UnexpectedToken, p.curr, p.curr.value)
+      error(UnexpectedToken, p.curr, p.curr.value)
       return
-
   let callFunction = p.getPrefix(p.curr.kind)
   if callFunction != nil:
     let node = p.callFunction(scope)
     result = node
   else:
     if not p.hasErrors:
-      error("Unrecognized token", p.curr)
+      error(UnrecognizedToken, p.curr)
 
 proc getProgram*(p: Parser): Program =
   ## Return current AST as `Program`
@@ -874,13 +848,13 @@ template initParser(fpath: string) =
     case v.varValue.nt:
     of NTArray:
       if unlikely(v.varValue.usedArray == false):
-        result.logger.warn("Declared array and not used", v.varMeta.line, v.varMeta.col, "$" & k)
+        result.logger.warn(DeclaredVariableUnused, v.varMeta.line, v.varMeta.col, true, "$" & k)
     of NTObject:
       if unlikely(v.varValue.usedObject == false):
-        result.logger.warn("Declared object and not used", v.varMeta.line, v.varMeta.col, "$" & k)
+        result.logger.warn(DeclaredVariableUnused, v.varMeta.line, v.varMeta.col, true, "$" & k)
     else:
       if unlikely(v.varValue.used == false):
-        result.logger.warn("Declared and not used", v.varMeta.line, v.varMeta.col, "$" & k)
+        result.logger.warn(DeclaredVariableUnused, v.varMeta.line, v.varMeta.col, true, "$" & k)
   # result.program.info = ("0.1.0", now())
 
 proc partialThread(fpath: string, lastModified: Time): Parser {.thread.} =

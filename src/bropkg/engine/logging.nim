@@ -11,6 +11,40 @@ when compileOption("app", "console"):
   import pkg/kapsis/cli
 
 type
+  Message* = enum
+    InvalidIndentation = "Invalid indentation"
+    UnrecognizedToken = "Unrecognized token"
+    UndeclaredVariable = "Undeclared variable"
+    AssignUndeclaredVar = "Assigning an undeclared variable"
+    MissingAssignmentToken = "Missing assignment token"
+    UndeclaredCSSSelector = "Undeclared CSS selector"
+    ExtendCssSelector = "CSS properties can only be extended from ID or CSS selectors."
+    InvalidProperty = "Invalid CSS property $"
+    DuplicateVarDeclaration = "Duplicate variable declaration"
+    DuplicateSelector = "Duplicated CSS declaration"
+    UnexpectedToken = "Unexpected token"
+    UndefinedValueVariable = "Undefined value for variable"
+    DeclaredEmptySelector = "Declared CSS selector $ has no properties"
+    BadIndentation = "Nestable statement requires indentation"
+    UnstablePropertyStatus = "Use of $ is marked as $"
+    DuplicateExtendStatement = "Cannot be extended more than once"
+    InvalidNestSelector = "Invalid nest for given selector"
+    UnknownPseudoClass = "Unknown pseudo-class"
+    MissingClosingBracketArray = "Missing closing bracket in array"
+    ImportErrorFileNotFound = "Import error file not found"
+    InvalidCaseStmt = "Invalid case statement"
+    InvalidValueCaseStmt = "Invalid value for case statement"
+    RedefineVariableImmutable = "Compile-time variables are immutable"
+    UndefinedPropertyAccessor = "Undefined property accessor $ for object $"
+    InvalidInfixMissingValue = "Invalid infix missing assignable token"
+    InvalidInfixOperator = "Invalid infix operator"
+    DeclaredVariableUnused = "Declared and not used $"
+    TryingAccessNonObject = "Trying to get property $ on a non-object variable $"
+    DuplicateObjectKey = "Duplicate key in object"
+    MissingClosingObjectBody = "Missing closing object body"
+    SyntaxInvalidLoop = "Invalid loop syntax"
+    SyntaxInvalidCondition = "Invalid conditional statement"
+
   Level* = enum
     lvlInfo
     lvlNotice
@@ -27,9 +61,9 @@ type
     filePath*: string
     infoLogs*, noticeLogs*, warnLogs*, errorLogs*: seq[Log]
 
-proc add(logger: Logger, lvl: Level, msg: string,
-                line, col: int, useFmt: bool, args: varargs[string]) =
-  let log = Log(msg: msg, args: args.toSeq(),
+proc add(logger: Logger, lvl: Level, msg: Message, line, col: int,
+        useFmt: bool, args: varargs[string]) =
+  let log = Log(msg: $msg, args: args.toSeq(),
                 line: line, col: col + 1, useFmt: useFmt)
   case lvl:
     of lvlInfo:
@@ -41,14 +75,13 @@ proc add(logger: Logger, lvl: Level, msg: string,
     of lvlError:
       logger.errorLogs.add(log)
 
-proc add(logger: Logger, lvl: Level, msg: string,
-                line, col: int, useFmt: bool,
-                extraLines: seq[string], extraLabel: string, args: varargs[string]) =
+proc add(logger: Logger, lvl: Level, msg: Message, line, col: int, useFmt: bool,
+        extraLines: seq[string], extraLabel: string, args: varargs[string]) =
   let log = Log(
-    msg: msg,
+    msg: $msg,
     args: args.toSeq(),
     line: line,
-    col: col,
+    col: col + 1,
     useFmt: useFmt,
     extraLines: extraLines,
     extraLabel: extraLabel
@@ -63,62 +96,58 @@ proc add(logger: Logger, lvl: Level, msg: string,
     of lvlError:
       logger.errorLogs.add(log)
 
-proc newInfo*(logger: Logger, msg: string, line, col: int,
+proc newInfo*(logger: Logger, msg: Message, line, col: int,
               useFmt: bool, args:varargs[string]) =
   logger.add(lvlInfo, msg, line, col, useFmt, args)
 
-proc newNotice*(logger: Logger, msg: string, line, col: int,
-                useFmt: bool, args:varargs[string]) =
+proc newNotice*(logger: Logger, msg: Message, line, col: int, useFmt: bool, args:varargs[string]) =
   logger.add(lvlNotice, msg, line, col, useFmt, args)
 
-proc newWarn*(logger: Logger, msg: string, line, col: int,
-              useFmt: bool, args:varargs[string]) =
+proc newWarn*(logger: Logger, msg: Message, line, col: int, useFmt: bool, args:varargs[string]) =
   logger.add(lvlWarn, msg, line, col, useFmt, args)
 
-proc newError*(logger: Logger, msg: string, line, col: int,
-              useFmt: bool, args:varargs[string]) =
+proc newError*(logger: Logger, msg: Message, line, col: int, useFmt: bool, args:varargs[string]) =
   logger.add(lvlError, msg, line, col, useFmt, args)
 
-proc newErrorMultiLines*(logger: Logger, msg: string, line, col: int,
-              useFmt: bool, extraLines: seq[string],
-              extraLabel: string, args:varargs[string]) =
-  logger.add(lvlError, msg, line, col, useFmt,
-            extraLines, extraLabel, args)
+proc newErrorMultiLines*(logger: Logger, msg: Message, line, col: int, 
+                            useFmt: bool, extraLines: seq[string],
+                            extraLabel: string, args:varargs[string]) =
+  logger.add(lvlError, msg, line, col, useFmt, extraLines, extraLabel, args)
 
-template warn*(msg: string, tk: TokenTuple, args: varargs[string]) =
-  let pos = if tk.pos == 0: 0 else: tk.pos + 1
-  p.logger.newWarn(msg, tk.line, pos, false, args)
+proc newWarningMultiLines*(logger: Logger, msg: Message, line, col: int,
+                          useFmt: bool, extraLines: seq[string],
+                          extraLabel: string, args:varargs[string]) =
+  logger.add(lvlWarn, msg, line, col, useFmt, extraLines, extraLabel, args)
 
-template warn*(msg: string, tk: TokenTuple, strFmt: bool, args: varargs[string]) =
-  let pos = if tk.pos == 0: 0 else: tk.pos + 1
-  p.logger.newWarn(msg, tk.line, pos, true, args)  
+template warn*(msg: Message, tk: TokenTuple, args: varargs[string]) =
+  p.logger.newWarn(msg, tk.line, tk.pos, false, args)
 
-proc warn*(logger: Logger, msg: string, line, col: int, args: varargs[string]) =
+template warn*(msg: Message, tk: TokenTuple, strFmt: bool, args: varargs[string]) =
+  p.logger.newWarn(msg, tk.line, tk.pos, true, args)  
+
+proc warn*(logger: Logger, msg: Message, line, col: int, args: varargs[string]) =
   logger.add(lvlWarn, msg, line, col, false, args)
 
-template error*(msg: string, tk: TokenTuple, args: varargs[string]) =
-  let pos = if tk.pos == 0: 0 else: tk.pos + 1
-  p.logger.newError(msg, tk.line, pos, false, args)
-  p.hasErrors = true
-  return # block code exection
+proc warn*(logger: Logger, msg: Message, line, col: int, strFmt: bool, args: varargs[string]) =
+  logger.add(lvlWarn, msg, line, col, true, args)
 
-template error*(msg: string, tk: TokenTuple, strFmt: bool,
-            extraLines: seq[string], extraLabel: string,
-            args: varargs[string]) =
-  let pos = if tk.pos == 0: 0 else: tk.pos + 1
-  newErrorMultiLines(
-    p.logger, msg, tk.line, pos, strFmt,
-    extraLines, extraLabel, args)
+template error*(msg: Message, tk: TokenTuple, args: varargs[string]) =
+  p.logger.newError(msg, tk.line, tk.pos, false, args)
   p.hasErrors = true
-  return # block code exection
+  return # block code execution
 
-template error*(msg: string, tk: TokenTuple, strFmt: bool, args: varargs[string]) =
-  let pos = if tk.pos == 0: 0 else: tk.pos + 1
-  p.logger.newError(msg, tk.line, pos, true, args)
+template error*(msg: Message, tk: TokenTuple, strFmt: bool,
+            extraLines: seq[string], extraLabel: string, args: varargs[string]) =
+  newErrorMultiLines(p.logger, msg, tk.line, tk.pos, strFmt, extraLines, extraLabel, args)
   p.hasErrors = true
-  return # block code exection
+  return # block code execution
 
-proc error*(logger: Logger, msg: string, line, col: int, args: varargs[string]) =
+template error*(msg: Message, tk: TokenTuple, strFmt: bool, args: varargs[string]) =
+  p.logger.newError(msg, tk.line, tk.pos, true, args)
+  p.hasErrors = true
+  return # block code execution
+
+proc error*(logger: Logger, msg: Message, line, col: int, args: varargs[string]) =
   logger.add(lvlError, msg, line, col, false, args)
 
 proc runIterator(i: Log, label: string, fgColor: ForegroundColor): Row =
