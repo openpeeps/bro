@@ -5,11 +5,11 @@
 #          https://github.com/openpeeps/bro
 
 
-import std/[tables, strutils, macros]
+import std/[tables, strutils, macros, json]
 import ./ast, ./sourcemap, ./logging
 
 when not defined release:
-  import std/[json, jsonutils]
+  import std/jsonutils
 
 type
   Warning* = tuple[msg: string, line, col: int]
@@ -166,12 +166,23 @@ proc writeVal(c: var Compiler, val: Node, scope: ScopeTable, isHexColorStripHash
       add c.css, val.cVal
     else:
       add c.css, val.cVal[1..^1]
+  of NTJsonValue:
+    case val.jsonVal.kind:
+    of JString:
+      add c.css, val.jsonVal.getStr
+    of JInt:
+      add c.css, $(val.jsonVal.getInt)
+    else: discard # todo compiler error when JObject, JArray
   of NTCall:
     if val.callNode.varValue != nil:
       c.writeVal(val.callNode.varValue.val, nil, isHexColorStripHash)
     else:
       if scope.hasKey(val.callNode.varName):
-        c.writeVal(scope[val.callNode.varName].varValue.val, nil, isHexColorStripHash)
+        case scope[val.callNode.varName].varValue.nt:
+        of NTJsonValue:
+          c.writeVal(scope[val.callNode.varName].varValue, nil, isHexColorStripHash)
+        else:
+          c.writeVal(scope[val.callNode.varName].varValue.val, nil, isHexColorStripHash)
     discard
   else: discard
 
@@ -260,7 +271,12 @@ proc handleChildNodes(c: var Compiler, node: Node, scope: ScopeTable = nil,
     of NTCall:
       discard v.callNode.nt
     of NTForStmt:
-      let items = node.inItems.callNode.varValue.arrayVal
+      case node.inItems.callNode.nt:
+      of NTVariableValue:
+        let items = node.inItems.callNode.varValue.arrayVal
+      of NTJsonValue:
+        let items = node.inItems.callNode.jsonVal
+      else: discard
     of NTCaseStmt:
       discard
     of NTCondStmt:
@@ -298,11 +314,19 @@ proc write(c: var Compiler, node: Node, scope: ScopeTable = nil, data: Node = ni
     if node.props.len != 0:
       c.writeSelector(node, scope, data)
   of NTForStmt:
-    let items = node.inItems.callNode.varValue.arrayVal
-    for i in 0 .. items.high:
-      for n in node.forBody:
-        node.forScopes[node.forItem.varName].varValue = items[i]
-        c.write(n, node.forScopes, items[i])
+    case node.inItems.callNode.nt:
+    of NTVariableValue:
+      let items = node.inItems.callNode.varValue.arrayVal
+      for i in 0 .. items.high:
+        for n in node.forBody:
+          node.forScopes[node.forItem.varName].varValue = items[i]
+          c.write(n, node.forScopes, items[i])
+    of NTJsonValue:
+      for item in items(node.inItems.callNode.jsonVal):
+        for n in node.forBody:
+          node.forScopes[node.forItem.varName].varValue = newJson item
+          c.write(n, node.forScopes, newJson item)
+    else: discard
   of NTCondStmt:
     if c.compInfix(node.ifInfix.infixLeft, node.ifInfix.infixRight, node.ifInfix.infixOp, scope):
       for i in 0 .. node.ifBody.high:

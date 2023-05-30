@@ -6,6 +6,7 @@
 
 import std/[tables, strutils, times, oids]
 from ./tokens import TokenKind, TokenTuple
+from std/json import JsonNode
 
 type
   NodeType* = enum
@@ -32,6 +33,7 @@ type
     NTAccessor # $myarr[0] $myobj.field
     NTColor
     NTSize
+    NTJsonValue
     NTCall
     NTInfix
     NTImport
@@ -159,6 +161,9 @@ type
       sizeVal*: int
       sizeUnit*: Units
       lenType*: LengthType
+    of NTJsonValue:
+      jsonVal*: JsonNode
+      usedJson*: bool
     of NTCall:
       callNode*: Node
     of NTInfix:
@@ -220,6 +225,8 @@ proc markVarUsed*(node: Node) =
     node.varValue.usedArray = true
   of NTObject:
     node.varValue.usedObject = true
+  of NTJsonValue:
+    node.varValue.usedJson = true
   else:
     node.varValue.used = true
 
@@ -248,6 +255,9 @@ proc newSize*(size: int, unit: Units): Node =
             else: Absolute
   result = Node(nt: NTSize, sizeVal: size, lenType: lt)
 
+proc newJson*(jsonVal: JsonNode): Node =
+  result = Node(nt: NTJsonValue, jsonVal: jsonVal)
+
 proc newObject*(): Node =
   result = Node(nt: NTObject)
 
@@ -255,7 +265,7 @@ proc newArray*(): Node =
   result = Node(nt: NTArray)
 
 proc newCall*(node: Node): Node =
-  assert node.nt == NTVariable
+  assert node.nt in {NTVariable, NTJsonValue}
   result = Node(nt: NTCall, callNode: node)
 
 proc newInfix*(infixLeft, infixRight: Node, infixOp: InfixOp): Node =

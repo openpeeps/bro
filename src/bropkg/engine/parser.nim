@@ -5,14 +5,14 @@
 #          https://github.com/openpeeps/bro
 
 import pkg/kapsis/cli
-import std/[os, strutils, sequtils, macros, tables,
+import std/[os, strutils, sequtils, macros, tables, json,
             memfiles, critbits, threadpool, times, oids]
 
 import ./tokens, ./ast, ./memtable, ./logging
 import ./properties
 
 when not defined release:
-  import std/[json, jsonutils] 
+  import std/[jsonutils] 
 
 export logging
 
@@ -160,6 +160,7 @@ const
   tkVars = {TKVarCall, TKVar}
   tkAssignable = {TKString, TKInteger, TKBool, TKColor} + tkVars
   tkComparable = tkAssignable
+  tkAssignableFn = {TKJSON}
   tkAssignableValue = {TKString, TKBool, TKFloat, TKInteger, TKIdentifier, TKVarCall}
   tkOperators = {TK_EQ, TK_NE, TK_GT, TK_GTE, TK_LT, TK_LTE}
   tkConditional = {TKIf, TKElif, TKElse}
@@ -194,19 +195,20 @@ proc isColor(tk: TokenTuple): bool =
   result = tk.value in tkNamedColors
 
 proc getAssignableNode(p: var Parser, scope: ScopeTable): Node =
-  if p.curr.kind == TKColor:
+  case p.curr.kind:
+  of TKColor:
     result = newColor p.curr.value
     walk p
-  elif p.curr.kind == TKString:
+  of TKString:
     result = newString p.curr.value
     walk p
-  elif p.curr.kind == TKInteger:
+  of TKInteger:
     result = newInt p.curr.value
     walk p
-  elif p.curr.kind == TKBool:
+  of TKBool:
     result = newBool p.curr.value
     walk p
-  elif p.curr.kind == TKVarCall:
+  of TKVarCall:
     result = p.parseVariableCall(scope)
   else:
     if p.curr.isColor:
@@ -237,7 +239,8 @@ proc getVNode(tk: TokenTuple): TokenTuple =
 
 proc parseExtend(p: var Parser, scope: ScopeTable = nil): Node =
   walk p
-  if p.curr.kind in {TKClass, TKID}:
+  case p.curr.kind
+  of TKClass, TKID:
     if p.ptrNodes.hasKey(p.curr.value):
       p.currentSelector.extends = true
       p.ptrNodes[p.curr.value].multipleSelectors.add(p.currentSelector.ident)
@@ -256,7 +259,8 @@ proc parseProperty(p: var Parser, scope: ScopeTable = nil): Node =
       walk p
       result = newProperty(pName.value)
       while p.curr.line == pName.line:
-        if p.curr.kind in {TKIdentifier, TKColor, TKString, TKCenter} + tkPropsName:
+        case p.curr.kind
+        of {TKIdentifier, TKColor, TKString, TKCenter} + tkPropsName:
           let property = Properties[pName.value]
           let propValue = getVNode(p.curr)
           let checkValue = property.hasStrictValue(p.curr.value)
@@ -274,13 +278,13 @@ proc parseProperty(p: var Parser, scope: ScopeTable = nil): Node =
           #     extraLabel = "Available values:",
           #     pName.value & ": " & p.prev.value
           #   )
-        elif p.curr.kind == TKInteger:
+        of TKInteger:
           result.pVal.add newInt(p.curr.value)
           walk p
-        elif p.curr.kind == TKFloat:
+        of TKFloat:
           result.pVal.add newFloat(p.curr.value)
           walk p
-        elif p.curr.kind == TKVarCall:
+        of TKVarCall:
           let callNode = p.parseVariableCall(scope)
           if callNode != nil:
             result.pVal.add(deepCopy(callNode))
@@ -289,12 +293,14 @@ proc parseProperty(p: var Parser, scope: ScopeTable = nil): Node =
             return
         else:
           break # TODO error
-      if p.curr.kind == TKImportant:
+      case p.curr.kind:
+      of TKImportant:
         result.pRule = propRuleImportant
         walk p
-      elif p.curr.kind == TKDefault:
+      of TKDefault:
         result.pRule = propRuleDefault
         walk p
+      else: discard
     else:
       error(MissingAssignmentToken, p.curr)
   else:
@@ -314,11 +320,12 @@ proc whileChild(p: var Parser, this: TokenTuple, parentNode: Node, scope: ScopeT
         continue
       let node = p.parse(scope, excludeOnly = {TKImport})
       if node != nil:
-        if node.nt == NTForStmt:
+        case node.nt
+        of NTForStmt:
           parentNode.props[$node.forOid] = node
-        elif node.nt == NTCondStmt:
+        of NTCondStmt:
           parentNode.props[$node.condOid] = node
-        elif node.nt == NTCaseStmt:
+        of NTCaseStmt:
           parentNode.props[$node.caseOid] = node
         else:
           node.parents = concat(@[parentNode.ident], parentNode.multipleSelectors)
@@ -360,17 +367,18 @@ proc parseClass(p: var Parser, scope: ScopeTable = nil): Node =
     var concatNodes: seq[Node] # NTVariable
     while p.curr.line == tk.line:
       # handle selector name + var concatenation
-      if p.curr.kind == TKVarConcat:
+      case p.curr.kind
+      of TKVarConcat:
         let concatVarCall = p.parseVariableCall(scope)
         if concatVarCall != nil:
           concatNodes.add(concatVarCall)
         else: return # UndeclaredVariable
-      elif p.curr.kind == TKIdentifier:
+      of TKIdentifier:
         concatNodes.add(newString(p.curr.value))
         walk p
-      elif p.curr.kind == TKRC:
+      of TKRC:
         walk p
-      elif p.curr.kind == TKMinus:
+      of TKMinus:
         walk p # todo selector separators
       else:
         break
@@ -387,7 +395,8 @@ proc parseID(p: var Parser, scope: ScopeTable = nil): Node =
 
 proc parseNest(p: var Parser, scope: ScopeTable = nil): Node =
   walk p
-  if p.curr.kind in {TKClass, TKID, TKPseudoClass}:
+  case p.curr.kind
+  of TKClass, TKID, TKPseudoClass:
     result = p.parseClass(scope)
     result.nested = true
   else:
@@ -425,28 +434,40 @@ proc parseVariableAccessor(p: var Parser, scope: ScopeTable = nil): Node =
   var key = tkAccessor[0]
   let node = p.parseVariableCall(scope)
   if node.callNode != nil:
-    if node.callNode.varValue.nt == NTObject:
+    case node.callNode.varValue.nt
+    of NTObject:
       if node.callNode.varValue.objectPairs.hasKey(key):
         result = newCall(node.callNode.varValue.objectPairs[key])
+      else:
+        error(UndefinedPropertyAccessor, p.curr, true, key, varIdentStr)
+    of NTJsonValue:
+      if node.callNode.varValue.jsonVal.hasKey(key):
+        let jsonNode = newJson node.callNode.varValue.jsonVal[key]
+        result = newCall(jsonNode)
       else:
         error(UndefinedPropertyAccessor, p.curr, true, key, varIdentStr)
     else:
       error(TryingAccessNonObject, p.curr, true, key, varIdentStr)
 
 proc parseVariable(p: var Parser, scope: ScopeTable = nil): Node =
+  ## Parse variable declaration
   let tk = p.curr
   var inArray, inObject: bool
   walk p # TKAssign
-  if p.next.kind == TKLB:
+  case p.next.kind
+  of TKLB:
     # Handle array values
     walk p # TKLB
     inArray = true
-  elif p.next.kind == TKLC:
+  of TKLC:
     # Handle object values
     walk p # TKLC
     inObject = true
+  else: discard
+
   if likely(p.memtable.hasKey(tk.value) == false):
-    if p.next.kind in {TKIdentifier, TKColor, TKString, TKFloat, TKInteger, TKBool, TKVarCall}:
+    case p.next.kind
+    of tkAssignableValue:
       walk p
       var varNode, valNode: Node
       if p.curr.kind != TKVarCall:
@@ -455,7 +476,7 @@ proc parseVariable(p: var Parser, scope: ScopeTable = nil): Node =
           if p.curr.kind == TKBool:
             valNode = newValue(p.getAssignableNode(scope))
           else:
-            while p.curr.line == tk.line:
+            while p.curr.line == tk.line: # todo check token kind
               if p.curr.kind == TKComment: break
               if p.curr.kind == TKVarCall:
                 if p.memtable.hasKey(p.curr.value):
@@ -510,20 +531,27 @@ proc parseVariable(p: var Parser, scope: ScopeTable = nil): Node =
           error(AssignUndeclaredVar, p.curr, "$" & p.curr.value)
       p.memtable[tk.value] = varNode
       return varNode
-    error(UndefinedValueVariable, tk, tk.value)
+    of tkAssignableFn:
+      walk p
+      if p.next.kind == TKString:
+        walk p
+        try:
+          # temporary
+          let filePath = normalizedPath(p.filePath.parentDir / p.curr.value)
+          let strContents = readFile(filePath)
+          var varNode = newVariable(tk.value, newJson(parseJSON(strContents)), tk)
+          p.memtable[tk.value] = varNode
+          walk p
+          return varNode
+        except IOError:
+          error(ConfigLoadingError, tk)
+        except JsonParsingError as jsonError:
+          error(InternalError, tk, true, "JSON parsing error: " & jsonError.msg)
+        return
+    else:
+      error(UndefinedValueVariable, tk, "$" & tk.value)
   else:
-    error(RedefineVariableImmutable, p.curr)
-    # if p.next.kind in {TKIdentifier, TKColor, TKString, TKFloat, TKInteger}: 
-    #   walk p
-    #   p.memtable[tk.value].varValue.val = newString(p.curr.value)
-    #   result = p.memtable[tk.value]
-    #   walk p
-    # if p.next.kind == TKVarCall:
-    #   walk p
-    #   let node = p.parseVariableCall()
-    #   p.memtable[tk.value] = deepCopy node.callNode
-    # else:
-    #   error(UndefinedValueVariable, tk, tk.value)
+    error(VariableRedefinition, p.curr)
 
 proc inLoop(fpath: string, lastModified: Time): Parser =
   result = ^ spawn(partialThread(fpath, lastModified))
@@ -581,11 +609,12 @@ proc parseForStmt(p: var Parser, scope: ScopeTable = nil): Node =
   let tkNext = p.next
   item = newVariable(tkNext)
   walk p, 2
-  if p.curr.kind == TKIn and p.next.kind == TKVarCall:
+  if p.curr.kind == TKIn and p.next.kind in {TKVarCall, TKVarCallAccessor}:
     walk p # in
-    var items = p.parseVariableCall() # raise "UndeclaredVariable"
+    var items = p.parse()
     if items == nil: return
-    if p.curr.kind == TKColon:
+    case p.curr.kind
+    of TKColon:
       walk p
       if p.curr.line > tk.line and p.curr.col > tk.col:
         var forNode = newForStmt(item, items)
@@ -607,7 +636,7 @@ proc parseForStmt(p: var Parser, scope: ScopeTable = nil): Node =
       error(InvalidIndentation, p.curr)
     else:
       error(UnexpectedToken, p.curr)
-  else: error(SyntaxInvalidLoop, p.curr)
+  else: error(InvalidSyntaxLoopStmt, p.curr)
 
 proc getInfixOp(kind: TokenKind, isInfixInfix: bool): InfixOp =
   case kind:
@@ -619,10 +648,12 @@ proc getInfixOp(kind: TokenKind, isInfixInfix: bool): InfixOp =
   of TK_GTE: result = GTE
   else:
     if isInfixInfix:
-      if kind in {TK_ANDAND, TKAltAnd}:
+      case kind
+      of TK_ANDAND, TKAltAnd:
         result = AND
-      elif kind in {TK_OR, TKAltOr}:
+      of TK_OR, TKAltOr:
         result = OR
+      else: discard
 
 proc parseInfixNode(p: var Parser, scope: ScopeTable, infixInfixNode: Node = nil): Node =
   if p.curr.kind in tkComparable or p.curr.isColor:
@@ -643,11 +674,13 @@ proc parseInfixNode(p: var Parser, scope: ScopeTable, infixInfixNode: Node = nil
 
 proc parseInfix(p: var Parser, scope: ScopeTable = nil): Node =
   result = p.parseInfixNode(scope)
-  if p.curr.kind in {TK_OR, TKAltOr, TKAndAnd, TKAltAnd}:
+  case p.curr.kind
+  of TK_OR, TKAltOr, TKAndAnd, TKAltAnd:
     while p.curr.kind in {TK_OR, TKAltOr, TKAndAnd, TKAltAnd}:
       let logicalOp = getInfixOp(p.curr.kind, true)
       walk p
       result = newInfix(result, p.parseInfix(scope), logicalOp)
+  else: discard
 
 proc parseCondStmt(p: var Parser, scope: ScopeTable = nil): Node =
   ## Parse a conditional statement
@@ -660,7 +693,8 @@ proc parseCondStmt(p: var Parser, scope: ScopeTable = nil): Node =
     # Handle `if` statement
     while p.curr.col > tk.col and p.curr.kind != TKEOF:
       var subNode: Node
-      if p.curr.kind == TKIdentifier:
+      case p.curr.kind
+      of TKIdentifier:
         subNode = p.parseProperty(scope)
       else:
         subNode = p.parse(scope)
@@ -691,7 +725,7 @@ proc parseCondStmt(p: var Parser, scope: ScopeTable = nil): Node =
       else:
         error(BadIndentation, p.curr)
         break
-  else: error(SyntaxInvalidCondition, p.curr)
+  else: error(InvalidSyntaxCondStmt, p.curr)
 
 proc parseCaseStmt(p: var Parser, scope: ScopeTable = nil): Node =
   # Parse a `case` block statement
@@ -746,7 +780,7 @@ proc parseCaseStmt(p: var Parser, scope: ScopeTable = nil): Node =
           if result.caseElse.len == 0:
             error(InvalidIndentation, p.curr)
     else: error(InvalidValueCaseStmt, p.curr)
-  else: error(InvalidCaseStmt, p.curr)
+  else: error(InvalidSyntaxCaseStmt, p.curr)
 
 proc parsePreview(p: var Parser, scope: ScopeTable = nil): Node =
   result = newPreview(p.curr)
@@ -844,17 +878,22 @@ template initParser(fpath: string) =
     else: break
 
   result.lex.close()
+  proc warnUnusedVar(p: var Parser, k: string, v: Node) =
+    p.logger.warn(DeclaredVariableUnused, v.varMeta.line, v.varMeta.col, true, "$" & k)
   for k, v in result.memtable.pairs():
     case v.varValue.nt:
     of NTArray:
       if unlikely(v.varValue.usedArray == false):
-        result.logger.warn(DeclaredVariableUnused, v.varMeta.line, v.varMeta.col, true, "$" & k)
+        result.warnUnusedVar(k, v)
     of NTObject:
       if unlikely(v.varValue.usedObject == false):
-        result.logger.warn(DeclaredVariableUnused, v.varMeta.line, v.varMeta.col, true, "$" & k)
+        result.warnUnusedVar(k, v)
+    of NTJsonValue:
+      if unlikely(v.varValue.usedJson == false):
+        result.warnUnusedVar(k, v)
     else:
       if unlikely(v.varValue.used == false):
-        result.logger.warn(DeclaredVariableUnused, v.varMeta.line, v.varMeta.col, true, "$" & k)
+        result.warnUnusedVar(k, v)
   # result.program.info = ("0.1.0", now())
 
 proc partialThread(fpath: string, lastModified: Time): Parser {.thread.} =
@@ -865,7 +904,7 @@ proc partialThread(fpath: string, lastModified: Time): Parser {.thread.} =
 
 proc parseProgram*(fpath: string): Parser =
   ## Parse program and return `Parser` instance
-  result = Parser(ptype: Main)
+  result = Parser(ptype: Main, filePath: fpath)
   result.projectDirectory = fpath.parentDir()
   initParser(fpath)
 

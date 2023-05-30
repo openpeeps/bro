@@ -32,9 +32,8 @@ type
     UnknownPseudoClass = "Unknown pseudo-class"
     MissingClosingBracketArray = "Missing closing bracket in array"
     ImportErrorFileNotFound = "Import error file not found"
-    InvalidCaseStmt = "Invalid case statement"
     InvalidValueCaseStmt = "Invalid value for case statement"
-    RedefineVariableImmutable = "Compile-time variables are immutable"
+    VariableRedefinition = "Compile-time variables are immutable"
     UndefinedPropertyAccessor = "Undefined property accessor $ for object $"
     InvalidInfixMissingValue = "Invalid infix missing assignable token"
     InvalidInfixOperator = "Invalid infix operator"
@@ -42,8 +41,12 @@ type
     TryingAccessNonObject = "Trying to get property $ on a non-object variable $"
     DuplicateObjectKey = "Duplicate key in object"
     MissingClosingObjectBody = "Missing closing object body"
-    SyntaxInvalidLoop = "Invalid loop syntax"
-    SyntaxInvalidCondition = "Invalid conditional statement"
+    
+    InvalidSyntaxCaseStmt = "Invalid syntax for case statement"
+    InvalidSyntaxLoopStmt = "Invalid syntax for loop statement"
+    InvalidSyntaxCondStmt = "Invalid syntax for conditional statement"
+    ConfigLoadingError = "Could not open json config file"
+    InternalError = "$"
 
   Level* = enum
     lvlInfo

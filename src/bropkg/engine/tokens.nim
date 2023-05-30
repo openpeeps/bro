@@ -249,12 +249,6 @@ tokens:
   Video        > "video"
   WBR          > "wbr"
   Root         > "root"
-
-  stdStartsWith  > "startsWith"
-  stdEndsWith    > "endsWith"
-  stdCount       > "count"
-  stdLowercase   > "lowercase"
-  stdUppercase   > "uppercase"
   Case        > "case"
   Of          > "of"
   AltAnd      > "and"
@@ -293,10 +287,16 @@ tokens:
   Divide      > '/':
     Comment   > '/' .. EOL
   AtRule      > '@':
-    Import    > "import"
-    Extend    > "extend"
-    Use       > "use"
-    Mixin     > "mixin"
+    Import    ? "import"
+    Extend    ? "extend"
+    Use       ? "use"
+    Mixin     ? "mixin"
+    # StartsWith  ? "startsWith"
+    # EndsWith    ? "endsWith"
+    # Count       ? "count"
+    # Lowercase   ? "lowercase"
+    # Uppercase   ? "uppercase"
+    JSON        ? "json"
   ID
   Color
   Important
