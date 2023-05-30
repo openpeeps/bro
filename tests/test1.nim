@@ -1,9 +1,14 @@
 import std/[os, strutils, unittest]
 import bro
 
+proc path(append: string): string =
+  result = getCurrentDir() / "tests/stylesheets" / append
+
 let
-  basicsPath = getCurrentDir() & "/tests/stylesheets/basic.bass"
-  invalidPath = getCurrentDir() & "/tests/stylesheets/invalid.bass"
+  basicsPath = path "basic.bass"
+  invalidPath = path "invalid.bass"
+  forPath = path "for.bass"
+  forJsonPath = path "forjson.bass"
 
 test "can parse":
   var p: Parser = parseProgram(basicsPath)
@@ -28,3 +33,17 @@ test "can catch errors":
   var p: Parser = parseProgram(invalidPath)
   check p.hasErrors == true
   check p.logger.errorLogs[0].getMessage == InvalidProperty
+
+test "can compile `for` blocks":
+  var p: Parser = parseProgram(forPath)
+  check p.hasErrors == false
+  check p.hasWarnings == false
+  let c = newCompiler(p.getProgram, basicsPath)
+  echo c.getCSS
+
+test "can compile `for` blocks w/ @json":
+  var p: Parser = parseProgram(forJsonPath)
+  check p.hasErrors == false
+  check p.hasWarnings == false
+  let c = newCompiler(p.getProgram, basicsPath)
+  echo c.getCSS
