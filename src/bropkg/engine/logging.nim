@@ -18,7 +18,7 @@ type
     AssignUndeclaredVar = "Assigning an undeclared variable"
     MissingAssignmentToken = "Missing assignment token"
     UndeclaredCSSSelector = "Undeclared CSS selector"
-    ExtendRedundancyError = "Selector $ extends $ more than once. This generate redundant CSS"
+    ExtendRedundancyError = "Selector $ extends $ multiple times"
     InvalidProperty = "Invalid CSS property $"
     DuplicateVarDeclaration = "Duplicate variable declaration"
     DuplicateSelector = "Duplicated CSS declaration"

@@ -15,7 +15,7 @@ static:
 handlers:
 
   proc handleClassSelector(lex: var Lexer, kind: TokenKind) =
-    ready lex
+    lexReady lex
     inc lex
     while true:
       if lex.hasLetters(lex.bufpos) or lex.hasNumbers(lex.bufpos):
@@ -25,7 +25,7 @@ handlers:
     lex.kind = TKClass 
 
   proc handleHash(lex: var Lexer, kind: TokenKind) =
-    ready lex
+    lexReady lex
     inc lex
     while true:
       if lex.hasLetters(lex.bufpos) or lex.hasNumbers(lex.bufpos):
@@ -38,10 +38,10 @@ handlers:
       lex.kind = TkID 
 
   proc handleVariable(lex: var Lexer, kind: TokenKind) =
-    ready lex
+    lexReady lex
     inc(lex) # $
     while true:
-      if lex.hasLetters(lex.bufpos) or lex.hasNumbers(lex.bufpos) or token(lex) == '.':
+      if lex.hasLetters(lex.bufpos) or lex.hasNumbers(lex.bufpos) or current(lex) == '.':
         add lex
       else: break
     while lex.buf[lex.bufpos] == ' ':
@@ -56,11 +56,11 @@ handlers:
       lex.kind = TKVarCall
 
   proc handleCurlyVar(lex: var Lexer, kind: TokenKind) =
-    ready lex
+    lexReady lex
     inc lex
-    if token(lex) == '$':
+    if current(lex) == '$':
       lex.handleVariable(kind)
-      if token(lex) == '}':
+      if current(lex) == '}':
         inc lex
         lex.kind = TKVarConcat
       else:
@@ -69,7 +69,7 @@ handlers:
       lex.kind = TKLC
 
   proc handleExclamation(lex: var Lexer, kind: TokenKind) =
-    ready lex
+    lexReady lex
     inc lex
     while true:
       if lex.hasLetters(lex.bufpos) or lex.hasNumbers(lex.bufpos):
@@ -97,7 +97,7 @@ handlers:
       lex.setError("Unknown markup. Use either `html` or `timl`")
       return
     while true:
-      case token lex:
+      case current(lex):
       of '`':
         if lex.next("``"):
           lex.kind = k
@@ -114,12 +114,12 @@ handlers:
       lex.startPos = lex.getColNumber(lex.bufpos)
 
   proc handleAnd(lex: var Lexer, kind: TokenKind) =
-    ready lex
+    lexReady lex
     add lex
-    if token(lex) == ':':
+    if current(lex) == ':':
       lex.kind = TKPseudoClass
       add lex
-    elif token(lex) == '&':
+    elif current(lex) == '&':
       lex.kind = TKAndAnd
       add lex
     else:
@@ -297,6 +297,7 @@ tokens:
     # Lowercase   ? "lowercase"
     # Uppercase   ? "uppercase"
     JSON        ? "json"
+  Echo        ? "echo"
   ID
   Color
   Important

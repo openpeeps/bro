@@ -4,7 +4,7 @@
 #          Made by Humans from OpenPeeps
 #          https://github.com/openpeeps/bro
 
-import std/[tables, strutils, times, oids]
+import std/[tables, critbits, strutils, times, oids]
 from ./tokens import TokenKind, TokenTuple
 from std/json import JsonNode
 
@@ -43,6 +43,7 @@ type
     NTCondStmt
     NTMathStmt
     NTCaseStmt
+    NTCommand
 
   PropertyRule* = enum
     propRuleNone
@@ -104,16 +105,8 @@ type
     Div = "/"
     Modulo = "%"
 
-  # Value
-  # VNodeType* = enum
-  #   vntColor,
-  #   vntPercentage
-
-  # VNode* = ref object
-  #   case vnt*: VNodeType
-  #   of vntColor:
-  #     colorValue: 
-  #   of vntPercentage:
+  CommandType* = enum
+    cmdEcho
 
   CaseCondTuple* = tuple[condOf: Node, body: seq[Node]]
   ScopeTable* = OrderedTableRef[string, Node]
@@ -201,16 +194,22 @@ type
       ident*: string
       parents*: seq[string]
       multipleSelectors*: seq[string]
-      nested*, extends*: bool
+      nested*: bool
       props*, pseudo*: KeyValueTable
       nodes*: seq[Node]
+      extends*: bool
+      extendFrom*, extendBy*: seq[string]
       identConcat*: seq[Node] # NTVariable
+    of NTCommand:
+      cmdIdent*: CommandType 
+      cmdValue*: Node
     else: discard
-    # parent*: Node # when nil is at root level
+    aotStmts*: seq[Node]
 
   Program* = ref object
     # info*: tuple[version: string, createdAt: DateTime]
     nodes*: seq[Node]
+    selectors*: Table[string, Node]
 
 proc prefixed*(tk: TokenTuple): string =
   result = case tk.kind
@@ -218,6 +217,23 @@ proc prefixed*(tk: TokenTuple): string =
             of TKID: "#"
             else: ""
   add result, tk.value
+
+proc getInfixOp*(kind: TokenKind, isInfixInfix: bool): InfixOp =
+  case kind:
+  of TK_EQ: result = EQ
+  of TK_NE: result = NE
+  of TK_LT: result = LT
+  of TK_LTE: result = LTE
+  of TK_GT: result = GT
+  of TK_GTE: result = GTE
+  else:
+    if isInfixInfix:
+      case kind
+      of TK_ANDAND, TKAltAnd:
+        result = AND
+      of TK_OR, TKAltOr:
+        result = OR
+      else: discard
 
 proc markVarUsed*(node: Node) =
   case node.varValue.nt
@@ -229,6 +245,17 @@ proc markVarUsed*(node: Node) =
     node.varValue.usedJson = true
   else:
     node.varValue.used = true
+
+proc call*(node: Node): Node = 
+  result = node.callNode.varValue.val
+
+proc getColor*(node: Node): string =
+  result = node.cVal
+
+proc getString*(node: Node): string =
+  result = node.sVal
+
+# API
 
 proc newProperty*(pName: string): Node =
   result = Node(nt: NTProperty, pName: pName)
@@ -324,10 +351,13 @@ proc newPreview*(tk: TokenTuple): Node =
 proc newExtend*(tk: TokenTuple, keyValueTable: KeyValueTable): Node =
   result = Node(nt: NTExtend, extendIdent: tk.value, extendProps: keyValueTable)
 
-proc newForStmt*(item, items: Node): Node =
+proc newForStmt*(item, items: Node, toPairs = false): Node =
   ## Create a new `for` block statement
   result = Node(nt: NTForStmt, forOid: genOid(), forItem: item, inItems: items)
 
 proc newCaseStmt*(caseIdent: Node): Node =
   ## Create a new `case` block statement
   result = Node(nt: NTCaseStmt, caseIdent: caseIdent)
+
+proc newEcho*(cmdValue: Node): Node =
+  result = Node(nt: NTCommand, cmdIdent: cmdEcho, cmdValue: cmdValue)

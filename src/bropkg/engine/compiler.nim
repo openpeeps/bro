@@ -6,7 +6,7 @@
 
 
 import std/[tables, strutils, macros, json]
-import ./ast, ./sourcemap, ./logging
+import ./ast, ./sourcemap, ./logging, ./eval
 
 when not defined release:
   import std/jsonutils
@@ -36,91 +36,6 @@ when not defined release:
   proc `$`(node: Node): string =
     # print nodes while in dev mode
     result = pretty(node.toJson(), 2)
-
-macro isEqualBool*(a, b: bool): untyped =
-  result = quote:
-    `a` == `b`
-
-macro isNotEqualBool*(a, b: bool): untyped =
-  result = quote:
-    `a` != `b`
-
-macro isEqualInt*(a, b: int): untyped =
-  result = quote:
-    `a` == `b`
-
-macro isNotEqualInt*(a, b: int): untyped =
-  result = quote:
-    `a` != `b`
-
-macro isGreaterInt*(a, b: int): untyped =
-  result = quote:
-    `a` > `b`
-
-macro isGreaterEqualInt*(a, b: int): untyped =
-  result = quote:
-    `a` >= `b`
-
-macro isLessInt*(a, b: int): untyped =
-  result = quote:
-    `a` < `b`
-
-macro isLessEqualInt*(a, b: int): untyped =
-  result = quote:
-    `a` <= `b`
-
-macro isEqualFloat*(a, b: float64): untyped =
-  result = quote:
-    `a` == `b`
-
-macro isNotEqualFloat*(a, b: float64): untyped =
-  result = quote:
-    `a` != `b`
-
-macro isEqualString*(a, b: string): untyped =
-  result = quote:
-    `a` == `b`
-
-macro isNotEqualString*(a, b: string): untyped =
-  result = quote:
-    `a` != `b`
-
-proc call(node: Node): Node = 
-  result = node.callNode.varValue.val
-
-proc getColor(node: Node): string =
-  result = node.cVal
-
-proc getString(node: Node): string =
-  result = node.sVal
-
-proc compInfix(c: var Compiler, infixLeft, infixRight: Node, infixOp: InfixOp, scope: ScopeTable): bool =
-  case infixOp:
-  of EQ:
-    if infixLeft.nt == NTCall:
-      if infixRight.nt == NTColor:
-        return isEqualString(call(infixLeft).getColor, infixRight.getColor)
-      elif infixRight.nt == NTBool:
-        return isEqualBool(call(infixLeft).bVal, infixRight.bVal)
-
-  of NE:
-    if infixLeft.nt == NTCall:
-      if infixRight.nt == NTColor:
-        return isNotEqualString(call(infixLeft).getColor, infixRight.getColor)
-      elif infixRight.nt == NTBool:
-        return isNotEqualBool(call(infixLeft).bVal, infixRight.bVal)
-  of AND:
-    result =
-      c.compInfix(infixLeft.infixLeft,infixLeft.infixRight,
-                infixLeft.infixOp, scope) and
-      c.compInfix(infixRight.infixLeft, infixRight.infixRight,
-                infixRight.infixOp, scope)
-  of OR:
-    result =
-      c.compInfix(infixLeft.infixLeft, infixLeft.infixRight, infixLeft.infixOp, scope) or
-      c.compInfix(infixRight.infixLeft, infixRight.infixRight, infixRight.infixOp, scope)
-  else: discard
-
 
 template writeKeyValue(val: string, i: int) =
   add c.css, k & ":" & val
@@ -194,11 +109,67 @@ proc writeProps(c: var Compiler, n: Node, k: string, i: var int,
   add c.css, strNL # if not minifying
   inc i
 
+proc handleForStmt(c: var Compiler, node: Node, scope: ScopeTable) =
+  case node.inItems.callNode.nt:
+  of NTVariable:
+    let items = node.inItems.callNode.varValue.arrayVal
+    for i in 0 .. items.high:
+      node.forScopes[node.forItem.varName].varValue = items[i]
+      for ii in 0 .. node.forBody.high:
+        c.write(node.forBody[ii], node.forScopes, items[i])
+  of NTJsonValue:
+    for item in items(node.inItems.callNode.jsonVal):
+      node.forScopes[node.forItem.varName].varValue = newJson item
+      for i in 0 .. node.forBody.high:
+        c.write(node.forBody[i], node.forScopes, newJson item)
+  else: discard
+
+proc handleCondStmt(c: var Compiler, node: Node, scope: ScopeTable) =
+  if evalInfix(node.ifInfix.infixLeft, node.ifInfix.infixRight, node.ifInfix.infixOp, scope):
+    var ix = 0
+    for ii in 0 .. node.ifBody.high:
+      case node.ifBody[ii].nt:
+      of NTProperty:
+        c.writeProps(node.ifBody[ii], node.ifBody[ii].pName, ix, node.ifBody.len, scope)
+      of NTCondStmt:
+        discard
+      else:
+        # todo handle nested selectors
+        discard
+  elif node.elifNode.len != 0:
+    for elifNode in node.elifNode:
+      if evalInfix(elifNode.infix.infixLeft, elifNode.infix.infixRight, elifNode.infix.infixOp, scope):
+        var ix = 0
+        for ii in 0 .. elifNode.body.high:
+          case elifNode.body[ii].nt
+          of NTProperty:
+            c.writeProps(elifNode.body[ii], elifNode.body[ii].pName, ix, elifNode.body.len, scope)
+          of NTCondStmt:
+            discard
+          else:
+            # todo handle nested selectors
+            discard
+
+proc handleAheadOfTimeComputation(c: var Compiler, node: Node, scope: ScopeTable) =
+  ## TODO collect scope data
+  for childSelector in node.extendBy:
+    for aot in c.program.selectors[childSelector].aotStmts:
+      case aot.nt:
+      of NTInfix:
+        if not evalInfix(aot.infixLeft, aot.infixRight, aot.infixOp, scope):
+          node.extendBy.delete(node.extendBy.find(childSelector))
+      of NTForStmt:
+        discard # todo
+      else: discard
+
 proc writeSelector(c: var Compiler, node: Node, scope: ScopeTable = nil,
                    data: Node = nil) =
   var skipped: bool
   let length = node.props.len
-  if node.multipleSelectors.len == 0 and node.parents.len == 0:
+  if node.extendBy.len != 0:
+    c.handleAheadOfTimeComputation(node, scope)
+    add c.css, node.ident & "," & node.extendBy.join(",")
+  elif node.multipleSelectors.len == 0 and node.parents.len == 0:
     add c.css, node.ident
     for identConcat in node.identConcat:
       case identConcat.nt
@@ -209,9 +180,9 @@ proc writeSelector(c: var Compiler, node: Node, scope: ScopeTable = nil,
         else:
           scopeVar = scope[identConcat.callNode.varName]
           var varValue = scopeVar.varValue
-          if unlikely(varValue.val.nt == NTColor):
-            # check if given variable contains a hex based color,
-            # in this case will remove the hash ta
+          case varValue.val.nt
+          of NTColor:
+            # todo handle colors at parser level
             identConcat.callNode.varValue = varValue
             c.writeVal(identConcat, nil, varValue.val.cVal[0] == '#')
           else:
@@ -271,34 +242,7 @@ proc handleChildNodes(c: var Compiler, node: Node, scope: ScopeTable = nil,
     of NTCaseStmt:
       discard
     of NTCondStmt:
-      if c.compInfix(v.ifInfix.infixLeft, v.ifInfix.infixRight, v.ifInfix.infixOp, scope):
-        var ix = 0
-        for ii in 0 .. v.ifBody.high:
-          case v.ifBody[ii].nt:
-          of NTProperty:
-            c.writeProps(v.ifBody[ii], v.ifBody[ii].pName, ix, v.ifBody.len, scope)
-          of NTCondStmt:
-            discard
-            # echo v.ifBody[ii]
-            # c.handleChildNodes(v.ifBody[ii], scope, skipped, v.ifBody.len)
-          else:
-            # todo handle nested selectors
-            discard
-      elif v.elifNode.len != 0:
-        for elifNode in v.elifNode:
-          if c.compInfix(elifNode.infix.infixLeft, elifNode.infix.infixRight, elifNode.infix.infixOp, scope):
-            var ix = 0
-            for ii in 0 .. elifNode.body.high:
-              case elifNode.body[ii].nt
-              of NTProperty:
-                c.writeProps(elifNode.body[ii], elifNode.body[ii].pName, ix, elifNode.body.len, scope)
-              of NTCondStmt:
-                discard
-                # echo elifNode.body[ii]
-                # c.handleChildNodes(elifNode.body[ii], scope, skipped, elifNode.body.len)
-              else:
-                # todo handle nested selectors
-                discard
+      c.handleCondStmt(v, scope)
     else: discard
 
 proc write(c: var Compiler, node: Node, scope: ScopeTable = nil, data: Node = nil) =
@@ -307,26 +251,14 @@ proc write(c: var Compiler, node: Node, scope: ScopeTable = nil, data: Node = ni
     if node.props.len != 0:
       c.writeSelector(node, scope, data)
   of NTForStmt:
-    case node.inItems.callNode.nt:
-    of NTVariable:
-      let items = node.inItems.callNode.varValue.arrayVal
-      for i in 0 .. items.high:
-        node.forScopes[node.forItem.varName].varValue = items[i]
-        for ii in 0 .. node.forBody.high:
-          c.write(node.forBody[ii], node.forScopes, items[i])
-    of NTJsonValue:
-      for item in items(node.inItems.callNode.jsonVal):
-        node.forScopes[node.forItem.varName].varValue = newJson item
-        for i in 0 .. node.forBody.high:
-          c.write(node.forBody[i], node.forScopes, newJson item)
-    else: discard
+    c.handleForStmt(node, scope)
   of NTCondStmt:
-    if c.compInfix(node.ifInfix.infixLeft, node.ifInfix.infixRight, node.ifInfix.infixOp, scope):
+    if evalInfix(node.ifInfix.infixLeft, node.ifInfix.infixRight, node.ifInfix.infixOp, scope):
       for i in 0 .. node.ifBody.high:
         c.write(node.ifBody[i], scope)
   of NTCaseStmt:
     for i in 0 .. node.caseCond.high:
-      if c.compInfix(node.caseIdent, node.caseCond[i].condOf, EQ, scope):
+      if evalInfix(node.caseIdent, node.caseCond[i].condOf, EQ, scope):
         for ii in 0 .. node.caseCond[i].body.high:
           c.write(node.caseCond[i].body[ii], scope)
         return
@@ -337,7 +269,12 @@ proc write(c: var Compiler, node: Node, scope: ScopeTable = nil, data: Node = ni
       case node.importNodes[i].nt:
       of NTSelectorClass, NTSelectorTag, NTSelectorID, NTRoot:
         c.writeSelector(node.importNodes[i])
-      else: discard 
+      else: discard
+  of NTCommand:
+    case node.cmdIdent
+    of cmdEcho:
+      discard # todo
+      # echo node
   else: discard
 
 proc newCompiler*(p: Program, outputPath: string, minify = false): Compiler =
