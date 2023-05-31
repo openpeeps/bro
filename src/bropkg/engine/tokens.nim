@@ -10,7 +10,7 @@ import toktok
 export lexbase.close
 
 static:
-  Program.settings(true, "TK")
+  Program.settings(true, "TK", keepUnknownChars = true)
 
 handlers:
 
@@ -245,7 +245,7 @@ tokens:
   TT           > "tt"
   Underline    > "u"  
   UL           > "ul"
-  Var          > "var"
+  # Var          > "var"
   Video        > "video"
   WBR          > "wbr"
   Root         > "root"
@@ -297,7 +297,24 @@ tokens:
     # Lowercase   ? "lowercase"
     # Uppercase   ? "uppercase"
     JSON        ? "json"
-  Echo        ? "echo"
+  Echo        > "echo"
+  CSSCalc     > "calc"
+  CSSAttr     > "attr"
+  CSSConicGradient > "conic-gradient"
+  CSSCounter > "counter"
+  CSSCubicBezier > "cubic-bezier"
+  CSSHSL  > "hsl"
+  CSSHSLA > "hsla"
+  CSSLinearGradient > "linear-gradient"
+  CSSMax > "max"
+  CSSmin > "min"
+  CSSRadialGradient > "radial-gradient"
+  CSSRepeatingConicGradient > "repeating-conic-gradient"
+  CSSRepeatingLinearGradient > "repeating-linear-gradient"
+  CSSRepeatingRadialGradient > "repeating-radial-gradient"
+  CSSRGB > "rgb"
+  CSSRGBA > "rgba"
+  CSSVar > "var"
   ID
   Color
   Important
