@@ -285,23 +285,16 @@ proc parseProperty(p: var Parser, scope: ScopeTable = nil): Node =
       while p.curr.line == pName.line:
         case p.curr.kind
         of {TKIdentifier, TKColor, TKString, TKCenter} + tkPropsName:
-          let property = Properties[pName.value]
-          let propValue = getVNode(p.curr)
-          let checkValue = property.hasStrictValue(p.curr.value)
+          let
+            property = Properties[pName.value]
+            propValue = getVNode(p.curr)
+            checkValue = property.hasStrictValue(p.curr.value)
           if checkValue.exists:
             if checkValue.status in {Unimplemented, Deprecated, Obsolete, NonStandard}:
               warn(UnstablePropertyStatus, p.curr, true,
                       pName.value & ": " & p.curr.value, $checkValue.status)
           result.pVal.add newString(p.curr.value)
           walk p
-          # else:
-          #   walk p
-          #   error("Invalid value $",
-          #     p.prev, true,
-          #     extraLines = property.getValues(),
-          #     extraLabel = "Available values:",
-          #     pName.value & ": " & p.prev.value
-          #   )
         of TKInteger:
           result.pVal.add newInt(p.curr.value)
           walk p
@@ -423,7 +416,14 @@ proc parseClass(p: var Parser, scope: ScopeTable = nil): Node =
 
 proc parseID(p: var Parser, scope: ScopeTable = nil): Node =
   let tk = p.curr
-  result = p.parseSelector(tk.newID, tk, scope)
+  var concatNodes: seq[Node] # NTVariable
+  handleSelectorConcat:
+    p.currentSelector = tk.newID(concat = concatNodes)
+    result = p.parseSelector(p.currentSelector, tk, scope, toWalk = false)
+  do:
+    p.currentSelector = tk.newID()
+    result = p.parseSelector(p.currentSelector, tk, scope)
+  p.program.selectors[prefixed(tk)] = result
 
 proc parseNest(p: var Parser, scope: ScopeTable = nil): Node =
   walk p

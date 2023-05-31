@@ -46,7 +46,7 @@ proc getOtherParents(node: Node, childSelector: string): string =
   var res: seq[string]
   for parent in node.parents:
     if likely(node.nested == false):
-      if unlikely(node.nt == NTPseudoClass):
+      if unlikely(node.nt == NTPseudoClassSelector):
         add res, parent & ":" & childSelector
       else:
         add res, parent & " " & childSelector
@@ -216,12 +216,12 @@ proc handleChildNodes(c: var Compiler, node: Node, scope: ScopeTable = nil,
     case v.nt:
     of NTProperty:
       c.writeProps(v, k, i, length, scope)
-    of NTSelectorClass:
+    of NTClassSelector:
       if not skipped:
         add c.css, strCR
         skipped = true
       c.writeClass(v)
-    of NTPseudoClass:
+    of NTPseudoClassSelector:
       if not skipped:
         add c.css, strCR
         skipped = true
@@ -247,7 +247,7 @@ proc handleChildNodes(c: var Compiler, node: Node, scope: ScopeTable = nil,
 
 proc write(c: var Compiler, node: Node, scope: ScopeTable = nil, data: Node = nil) =
   case node.nt:
-  of NTSelectorClass, NTSelectorTag, NTSelectorID, NTRoot:
+  of NTClassSelector, NTTagSelector, NTIDSelector, NTRoot:
     if node.props.len != 0:
       c.writeSelector(node, scope, data)
   of NTForStmt:
@@ -267,7 +267,7 @@ proc write(c: var Compiler, node: Node, scope: ScopeTable = nil, data: Node = ni
   of NTImport:
     for i in 0 .. node.importNodes.high:
       case node.importNodes[i].nt:
-      of NTSelectorClass, NTSelectorTag, NTSelectorID, NTRoot:
+      of NTClassSelector, NTTagSelector, NTIDSelector, NTRoot:
         c.writeSelector(node.importNodes[i])
       else: discard
   of NTCommand:
