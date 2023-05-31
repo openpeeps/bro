@@ -25,7 +25,8 @@ proc runCommand*(v: Values) =
     QuitFailure.quit
 
   let cssPath = stylesheetPath.changeFileExt("css")
-  display("✨ Building...", br="after")
+  if not v.flag("stdout"):
+    display("✨ Building...", br="after")
   let
     t = cpuTime()
     p = parser.parseProgram(stylesheetPath)
@@ -40,19 +41,15 @@ proc runCommand*(v: Values) =
       display(error)
     display(" 👉 " & p.logger.filePath)
   else:
-  #   if p.hasWarnings:
-  #     for warning in p.warnings:
-  #       display(
-  #         span("Warning", fgYellow),
-  #         span("($1:$2):" % [$warning.line, $warning.col]),
-  #         span("Declared and not used"),
-  #         span("$1\n" % [warning.msg], fgBlue),
-  #         span(stylesheetPath & "\n"),
-  #       )
     let c = newCompiler(p.getProgram, cssPath, minify = v.flag("minify"))
     if likely(not v.flag("gzip")):
-      writeFile(cssPath, c.getCSS)
+      if not v.flag("stdout"):
+        writeFile(cssPath, c.getCSS)
+      else:
+        display(c.getCSS)
     else:
-      writeFile(cssPath.changeFileExt(".css.gzip"), compress(c.getCSS, dataFormat = dfGzip))
-    display "Done in " & $(cpuTime() - t)
+      if not v.flag("stdout"):
+        writeFile(cssPath.changeFileExt(".css.gzip"), compress(c.getCSS, dataFormat = dfGzip))
+    if not v.flag("stdout"):
+      display "Done in " & $(cpuTime() - t)
     QuitSuccess.quit

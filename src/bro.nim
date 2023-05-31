@@ -32,11 +32,12 @@ else:
         "   https://github.com/openpeeps/bro"
       
       commands:
-        $ "c" `style` ["minify", "map", "gzip"]:
+        $ "c" `style` ["minify", "map", "gzip", "stdout"]:
           ?         "Compiles a stylesheet to CSS"
-          ? style   "Provide a stylesheet path"
-          ? minify  "Output minified CSS code"
-          ? gzip    "Compress the final CSS output using gzip"
+          ? style   "A stylesheet path"
+          ? minify  "Minify CSS code"
+          ? gzip    "Compress CSS using gzip"
+          ? stdout  "Return CSS to stdout"
         
         --- "Development"
         $ "watch" `style` `delay`:
