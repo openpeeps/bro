@@ -1,14 +1,4 @@
-# import std/math
-# # abs, floor
-
-# # TODO implement all math functions and more
-# # https://sass-lang.com/documentation/modules/math
-
-# # use
-# # https://nim-lang.org/docs/math.html
-# # https://nim-lang.org/docs/system.html#abs%2Cint
-
-import macros
+import std/[macros, math, fenv]
 import ./ast
 
 macro isEqualBool*(a, b: bool): untyped =
@@ -58,6 +48,59 @@ macro isEqualString*(a, b: string): untyped =
 macro isNotEqualString*(a, b: string): untyped =
   result = quote:
     `a` != `b`
+
+# Math
+macro mathEpsilon*(x: float): untyped =
+  result = quote:
+    fenv.epsilon(x)
+
+macro mathTan*(x: float): untyped =
+  result = quote:
+    math.tan(`x`)
+
+macro mathSin*(x: float): untyped =
+  result = quote:
+    math.sin(`x`)
+
+macro mathCeil*(x: float): untyped =
+  ## Rounds x up to the next highest whole number.
+  result = quote:
+    math.ceil(`x`)
+
+macro mathClamp*(x: float, min, max: int): untyped =
+  ## Restricts x to the given range
+  result = quote:
+    math.clamp(`x`, `min` .. `max`)
+
+macro mathFloor*(x: float): untyped =
+  result = quote:
+    math.floor(x)
+
+# min max
+# https://github.com/nim-lang/RFCs/issues/439
+
+macro mathRound*(x: float): untyped =
+  result = quote:
+    math.round(x)
+
+macro mathAbs*(x: float): untyped =
+  result = quote:
+    abs(x)
+
+macro mathAbs*(x: int): untyped =
+  result = quote:
+    abs(x)
+
+macro mathHypot*(x, y: float64): untyped =
+  ## Computes the length of the hypotenuse of a right-angle
+  ## triangle with x as its base and y as its height
+  result = quote:
+    math.hypot(x, y)
+
+macro mathLog*(x, base: float): untyped =
+  ## Computes the logarithm of `x` to `base`
+  result = quote:
+    math.log(x, base)
 
 proc evalInfix*(infixLeft, infixRight: Node, infixOp: InfixOp, scope: ScopeTable): bool =
   case infixOp:
