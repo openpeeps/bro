@@ -4,16 +4,19 @@
 #          Made by Humans from OpenPeeps
 #          https://github.com/openpeeps/bro
 when defined napibuild:
-  import denim/napi/napibindings
+  import denim
   import bropkg/engine/[parser, compiler]
+  from std/sequtils import toSeq
 
   init proc(module: Module) =
     module.registerFn(1, "compile"):
       let sourcePath = args[0].getStr
       var p = parseProgram(sourcePath)
-      let cssContent = newCompilerStr(p.getProgram, sourcePath)
-      return %* cssContent
-      # return napiCall("JSON.parse", [ %* "[]" ])
+      if not p.hasErrors:
+        return %* newCompiler(p.getProgram, sourcePath).getCSS
+      else:
+        let errors = p.logger.errors.toSeq
+        assert error($(errors[0]), "BroParsingError")
 else:
   when isMainModule:
     import kapsis/commands

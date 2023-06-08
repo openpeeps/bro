@@ -157,24 +157,64 @@ template error*(msg: Message, tk: TokenTuple, strFmt: bool, args: varargs[string
 proc error*(logger: Logger, msg: Message, line, col: int, args: varargs[string]) =
   logger.add(lvlError, msg, line, col, false, args)
 
-proc runIterator(i: Log, label: string, fgColor: ForegroundColor): Row =
-  add result, span(label, fgColor, indentSize = 0)
-  add result, span("(" & $i.line & ":" & $i.col & ")")
-  if i.useFmt:
-    var x: int
-    var str = split($i.msg, "$")
-    let length = count($i.msg, "$") - 1
-    for s in str:
-      add result, span(s.strip())
-      if length >= x:
-        add result, span(i.args[x], fgBlue)
-      inc x
-  else:
-    add result, span($i.msg)
-    for a in i.args:
-      add result, span(a, fgBlue)
+when defined napibuild:
+  proc runIterator(i: Log, label = ""): string =
+      if label.len != 0:
+        add result, label
+      add result, "(" & $i.line & ":" & $i.col & ")" & spaces(1)
+      if i.useFmt:
+        var x: int
+        var str = split($i.msg, "$")
+        let length = count($i.msg, "$") - 1
+        for s in str:
+          add result, s.strip()
+          if length >= x:
+            add result, indent(i.args[x], 1)
+          inc x
+      else:
+        add result, $i.msg
+        for a in i.args:
+          add result, a
 
-when compileOption("app", "console"):
+  proc `$`*(i: Log): string =
+    runIterator(i)
+
+  iterator warnings*(logger: Logger): string =
+    for i in logger.warnLogs:
+      yield runIterator(i, "Warning")
+
+  iterator errors*(logger: Logger): string =
+    for i in logger.errorLogs:
+      yield runIterator(i)
+      if i.extraLines.len != 0:
+        if i.extraLabel.len != 0:
+          var extraLabel = "\n"
+          add extraLabel, indent(i.extraLabel, 6)
+          yield extraLabel
+        for extraLine in i.extraLines:
+          var extra = "\n"
+          add extra, indent(extraLine, 12)
+          yield extra
+
+elif compileOption("app", "console"):
+  proc runIterator(i: Log, label: string, fgColor: ForegroundColor): Row =
+    add result, span(label, fgColor, indentSize = 0)
+    add result, span("(" & $i.line & ":" & $i.col & ")")
+    if i.useFmt:
+      var x: int
+      var str = split($i.msg, "$")
+      let length = count($i.msg, "$") - 1
+      for s in str:
+        add result, span(s.strip())
+        if length >= x:
+          add result, span(i.args[x], fgBlue)
+        inc x
+    else:
+      add result, span($i.msg)
+      for a in i.args:
+        add result, span(a, fgBlue)
+
+
   iterator warnings*(logger: Logger): Row =
     for i in logger.warnLogs:
       yield runIterator(i, "Warning", fgYellow)
