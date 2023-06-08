@@ -1,0 +1,2 @@
+malloc_trim	bropkg/engine/freemem.html#malloc_trim,csize_t	freemem: malloc_trim(size: csize_t): cint	
+freem	bropkg/engine/freemem.html#freem.t,untyped	freemem: freem(obj: untyped)	

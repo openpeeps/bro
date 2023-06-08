@@ -4,7 +4,7 @@ UndeclaredVariable	bropkg/engine/logging.html#UndeclaredVariable	Message.Undecla
 AssignUndeclaredVar	bropkg/engine/logging.html#AssignUndeclaredVar	Message.AssignUndeclaredVar	
 MissingAssignmentToken	bropkg/engine/logging.html#MissingAssignmentToken	Message.MissingAssignmentToken	
 UndeclaredCSSSelector	bropkg/engine/logging.html#UndeclaredCSSSelector	Message.UndeclaredCSSSelector	
-ExtendCssSelector	bropkg/engine/logging.html#ExtendCssSelector	Message.ExtendCssSelector	
+ExtendRedundancyError	bropkg/engine/logging.html#ExtendRedundancyError	Message.ExtendRedundancyError	
 InvalidProperty	bropkg/engine/logging.html#InvalidProperty	Message.InvalidProperty	
 DuplicateVarDeclaration	bropkg/engine/logging.html#DuplicateVarDeclaration	Message.DuplicateVarDeclaration	
 DuplicateSelector	bropkg/engine/logging.html#DuplicateSelector	Message.DuplicateSelector	

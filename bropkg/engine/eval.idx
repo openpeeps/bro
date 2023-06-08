@@ -1,0 +1,24 @@
+isEqualBool	bropkg/engine/eval.html#isEqualBool.m,bool,bool	eval: isEqualBool(a, b: bool): untyped	
+isNotEqualBool	bropkg/engine/eval.html#isNotEqualBool.m,bool,bool	eval: isNotEqualBool(a, b: bool): untyped	
+isEqualInt	bropkg/engine/eval.html#isEqualInt.m,int,int	eval: isEqualInt(a, b: int): untyped	
+isNotEqualInt	bropkg/engine/eval.html#isNotEqualInt.m,int,int	eval: isNotEqualInt(a, b: int): untyped	
+isGreaterInt	bropkg/engine/eval.html#isGreaterInt.m,int,int	eval: isGreaterInt(a, b: int): untyped	
+isGreaterEqualInt	bropkg/engine/eval.html#isGreaterEqualInt.m,int,int	eval: isGreaterEqualInt(a, b: int): untyped	
+isLessInt	bropkg/engine/eval.html#isLessInt.m,int,int	eval: isLessInt(a, b: int): untyped	
+isLessEqualInt	bropkg/engine/eval.html#isLessEqualInt.m,int,int	eval: isLessEqualInt(a, b: int): untyped	
+isEqualFloat	bropkg/engine/eval.html#isEqualFloat.m,float64,float64	eval: isEqualFloat(a, b: float64): untyped	
+isNotEqualFloat	bropkg/engine/eval.html#isNotEqualFloat.m,float64,float64	eval: isNotEqualFloat(a, b: float64): untyped	
+isEqualString	bropkg/engine/eval.html#isEqualString.m,string,string	eval: isEqualString(a, b: string): untyped	
+isNotEqualString	bropkg/engine/eval.html#isNotEqualString.m,string,string	eval: isNotEqualString(a, b: string): untyped	
+mathEpsilon	bropkg/engine/eval.html#mathEpsilon.m,float	eval: mathEpsilon(x: float): untyped	
+mathTan	bropkg/engine/eval.html#mathTan.m,float	eval: mathTan(x: float): untyped	
+mathSin	bropkg/engine/eval.html#mathSin.m,float	eval: mathSin(x: float): untyped	
+mathCeil	bropkg/engine/eval.html#mathCeil.m,float	eval: mathCeil(x: float): untyped	
+mathClamp	bropkg/engine/eval.html#mathClamp.m,float,int,int	eval: mathClamp(x: float; min, max: int): untyped	
+mathFloor	bropkg/engine/eval.html#mathFloor.m,float	eval: mathFloor(x: float): untyped	
+mathRound	bropkg/engine/eval.html#mathRound.m,float	eval: mathRound(x: float): untyped	
+mathAbs	bropkg/engine/eval.html#mathAbs.m,float	eval: mathAbs(x: float): untyped	
+mathAbs	bropkg/engine/eval.html#mathAbs.m,int	eval: mathAbs(x: int): untyped	
+mathHypot	bropkg/engine/eval.html#mathHypot.m,float64,float64	eval: mathHypot(x, y: float64): untyped	
+mathLog	bropkg/engine/eval.html#mathLog.m,float,float	eval: mathLog(x, base: float): untyped	
+evalInfix	bropkg/engine/eval.html#evalInfix,Node,Node,InfixOp,ScopeTable	eval: evalInfix(infixLeft, infixRight: Node; infixOp: InfixOp; scope: ScopeTable): bool	

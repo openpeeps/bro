@@ -5,9 +5,9 @@ LexerException	bropkg/engine/tokens.html#LexerException	tokens: LexerException
 getDefaultToken	bropkg/engine/tokens.html#getDefaultToken,string	tokens: getDefaultToken(strtk: string): TokenKind	
 init	bropkg/engine/tokens.html#init,typedesc[L],string	tokens: init[L: Lexer](lex: typedesc[L]; fileContent: string;\n               allowMultilineStrings = false): L	
 generateIdentCase	bropkg/engine/tokens.html#generateIdentCase,Lexer	tokens: generateIdentCase(lex: var Lexer)	
-ready	bropkg/engine/tokens.html#ready,Lexer	tokens: ready(lex: var Lexer)	
+lexReady	bropkg/engine/tokens.html#lexReady,Lexer	tokens: lexReady(lex: var Lexer)	
 inc	bropkg/engine/tokens.html#inc,Lexer,int	tokens: inc(lex: var Lexer; offset = 1)	
-token	bropkg/engine/tokens.html#token,Lexer	tokens: token(lex: var Lexer): char	
+current	bropkg/engine/tokens.html#current,Lexer	tokens: current(lex: var Lexer): char	
 add	bropkg/engine/tokens.html#add,Lexer	tokens: add(lex: var Lexer)	
 setError	bropkg/engine/tokens.html#setError,Lexer,string	tokens: setError(lex: var Lexer; message: string)	
 hasError	bropkg/engine/tokens.html#hasError,Lexer	tokens: hasError(lex: Lexer): bool	

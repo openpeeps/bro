@@ -1,18 +1,5 @@
 Warning	bropkg/engine/compiler.html#Warning	compiler: Warning	
 Compiler	bropkg/engine/compiler.html#Compiler	compiler: Compiler	
 getCSS	bropkg/engine/compiler.html#getCSS,Compiler	compiler: getCSS(c: Compiler): string	
-isEqualBool	bropkg/engine/compiler.html#isEqualBool.m,bool,bool	compiler: isEqualBool(a, b: bool): untyped	
-isNotEqualBool	bropkg/engine/compiler.html#isNotEqualBool.m,bool,bool	compiler: isNotEqualBool(a, b: bool): untyped	
-isEqualInt	bropkg/engine/compiler.html#isEqualInt.m,int,int	compiler: isEqualInt(a, b: int): untyped	
-isNotEqualInt	bropkg/engine/compiler.html#isNotEqualInt.m,int,int	compiler: isNotEqualInt(a, b: int): untyped	
-isGreaterInt	bropkg/engine/compiler.html#isGreaterInt.m,int,int	compiler: isGreaterInt(a, b: int): untyped	
-isGreaterEqualInt	bropkg/engine/compiler.html#isGreaterEqualInt.m,int,int	compiler: isGreaterEqualInt(a, b: int): untyped	
-isLessInt	bropkg/engine/compiler.html#isLessInt.m,int,int	compiler: isLessInt(a, b: int): untyped	
-isLessEqualInt	bropkg/engine/compiler.html#isLessEqualInt.m,int,int	compiler: isLessEqualInt(a, b: int): untyped	
-isEqualFloat	bropkg/engine/compiler.html#isEqualFloat.m,float64,float64	compiler: isEqualFloat(a, b: float64): untyped	
-isNotEqualFloat	bropkg/engine/compiler.html#isNotEqualFloat.m,float64,float64	compiler: isNotEqualFloat(a, b: float64): untyped	
-isEqualString	bropkg/engine/compiler.html#isEqualString.m,string,string	compiler: isEqualString(a, b: string): untyped	
-isNotEqualString	bropkg/engine/compiler.html#isNotEqualString.m,string,string	compiler: isNotEqualString(a, b: string): untyped	
-clean	bropkg/engine/compiler.html#clean,Compiler	compiler: clean(c: var Compiler)	
 newCompiler	bropkg/engine/compiler.html#newCompiler,Program,string	compiler: newCompiler(p: Program; outputPath: string; minify = false): Compiler	
 newCompilerStr	bropkg/engine/compiler.html#newCompilerStr,Program,string	compiler: newCompilerStr(p: Program; outputPath: string): string	

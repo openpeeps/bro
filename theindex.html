@@ -70,7 +70,7 @@ window.addEventListener('DOMContentLoaded', main);
 <div class="document" id="documentId">
   <div class="container">
     <h1 class="title">Index</h1>
-    Modules: <a href="bropkg/commands/astCommand.html">bropkg/commands/astCommand</a>, <a href="bropkg/commands/cCommand.html">bropkg/commands/cCommand</a>, <a href="bropkg/commands/docCommand.html">bropkg/commands/docCommand</a>, <a href="bropkg/commands/mapCommand.html">bropkg/commands/mapCommand</a>, <a href="bropkg/commands/reprCommand.html">bropkg/commands/reprCommand</a>, <a href="bropkg/commands/watchCommand.html">bropkg/commands/watchCommand</a>, <a href="bropkg/engine/ast.html">bropkg/engine/ast</a>, <a href="bropkg/engine/compiler.html">bropkg/engine/compiler</a>, <a href="bropkg/engine/logging.html">bropkg/engine/logging</a>, <a href="bropkg/engine/memtable.html">bropkg/engine/memtable</a>, <a href="bropkg/engine/parser.html">bropkg/engine/parser</a>, <a href="bropkg/engine/properties.html">bropkg/engine/properties</a>, <a href="bropkg/engine/sourcemap.html">bropkg/engine/sourcemap</a>, <a href="bropkg/engine/tokens.html">bropkg/engine/tokens</a>.<br/><p /><h2>API symbols</h2>
+    Modules: <a href="bropkg/commands/astCommand.html">bropkg/commands/astCommand</a>, <a href="bropkg/commands/cCommand.html">bropkg/commands/cCommand</a>, <a href="bropkg/commands/docCommand.html">bropkg/commands/docCommand</a>, <a href="bropkg/commands/mapCommand.html">bropkg/commands/mapCommand</a>, <a href="bropkg/commands/reprCommand.html">bropkg/commands/reprCommand</a>, <a href="bropkg/commands/watchCommand.html">bropkg/commands/watchCommand</a>, <a href="bropkg/engine/ast.html">bropkg/engine/ast</a>, <a href="bropkg/engine/compiler.html">bropkg/engine/compiler</a>, <a href="bropkg/engine/eval.html">bropkg/engine/eval</a>, <a href="bropkg/engine/freemem.html">bropkg/engine/freemem</a>, <a href="bropkg/engine/logging.html">bropkg/engine/logging</a>, <a href="bropkg/engine/memtable.html">bropkg/engine/memtable</a>, <a href="bropkg/engine/parser.html">bropkg/engine/parser</a>, <a href="bropkg/engine/properties.html">bropkg/engine/properties</a>, <a href="bropkg/engine/sourcemap.html">bropkg/engine/sourcemap</a>, <a href="bropkg/engine/tokens.html">bropkg/engine/tokens</a>.<br/><p /><h2>API symbols</h2>
 <dl><dt><a name="Absolute" href="#Absolute"><span>Absolute:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="LengthType.Absolute" href="bropkg/engine/ast.html#Absolute">LengthType.Absolute</a></li>
@@ -95,6 +95,10 @@ window.addEventListener('DOMContentLoaded', main);
 <li><a class="reference external"
           data-doc-search-tag="Message.BadIndentation" href="bropkg/engine/logging.html#BadIndentation">Message.BadIndentation</a></li>
           </ul></dd>
+<dt><a name="call" href="#call"><span>call:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="ast: call(node: Node): Node" href="bropkg/engine/ast.html#call%2CNode">ast: call(node: Node): Node</a></li>
+          </ul></dd>
 <dt><a name="CaseCondTuple" href="#CaseCondTuple"><span>CaseCondTuple:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="ast: CaseCondTuple" href="bropkg/engine/ast.html#CaseCondTuple">ast: CaseCondTuple</a></li>
@@ -115,13 +119,13 @@ window.addEventListener('DOMContentLoaded', main);
 <li><a class="reference external"
           data-doc-search-tag="ColorType.cHSLA" href="bropkg/engine/ast.html#cHSLA">ColorType.cHSLA</a></li>
           </ul></dd>
-<dt><a name="clean" href="#clean"><span>clean:</span></a></dt><dd><ul class="simple">
-<li><a class="reference external"
-          data-doc-search-tag="compiler: clean(c: var Compiler)" href="bropkg/engine/compiler.html#clean%2CCompiler">compiler: clean(c: var Compiler)</a></li>
-          </ul></dd>
 <dt><a name="CM" href="#CM"><span>CM:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="Units.CM" href="bropkg/engine/ast.html#CM">Units.CM</a></li>
+          </ul></dd>
+<dt><a name="cmdEcho" href="#cmdEcho"><span>cmdEcho:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="CommandType.cmdEcho" href="bropkg/engine/ast.html#cmdEcho">CommandType.cmdEcho</a></li>
           </ul></dd>
 <dt><a name="cNamed" href="#cNamed"><span>cNamed:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -130,6 +134,10 @@ window.addEventListener('DOMContentLoaded', main);
 <dt><a name="ColorType" href="#ColorType"><span>ColorType:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="ast: ColorType" href="bropkg/engine/ast.html#ColorType">ast: ColorType</a></li>
+          </ul></dd>
+<dt><a name="CommandType" href="#CommandType"><span>CommandType:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="ast: CommandType" href="bropkg/engine/ast.html#CommandType">ast: CommandType</a></li>
           </ul></dd>
 <dt><a name="commaSep" href="#commaSep"><span>commaSep:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -150,6 +158,10 @@ window.addEventListener('DOMContentLoaded', main);
 <dt><a name="cRGBA" href="#cRGBA"><span>cRGBA:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="ColorType.cRGBA" href="bropkg/engine/ast.html#cRGBA">ColorType.cRGBA</a></li>
+          </ul></dd>
+<dt><a name="current" href="#current"><span>current:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="tokens: current(lex: var Lexer): char" href="bropkg/engine/tokens.html#current%2CLexer">tokens: current(lex: var Lexer): char</a></li>
           </ul></dd>
 <dt><a name="DeclaredEmptySelector" href="#DeclaredEmptySelector"><span>DeclaredEmptySelector:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -203,6 +215,10 @@ window.addEventListener('DOMContentLoaded', main);
 <li><a class="reference external"
           data-doc-search-tag="logging: errors(logger: Logger): Row" href="bropkg/engine/logging.html#errors.i%2CLogger">logging: errors(logger: Logger): Row</a></li>
           </ul></dd>
+<dt><a name="evalInfix" href="#evalInfix"><span>evalInfix:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="eval: evalInfix(infixLeft, infixRight: Node; infixOp: InfixOp; scope: ScopeTable): bool" href="bropkg/engine/eval.html#evalInfix%2CNode%2CNode%2CInfixOp%2CScopeTable">eval: evalInfix(infixLeft, infixRight: Node; infixOp: InfixOp; scope: ScopeTable): bool</a></li>
+          </ul></dd>
 <dt><a name="EX" href="#EX"><span>EX:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="Units.EX" href="bropkg/engine/ast.html#EX">Units.EX</a></li>
@@ -211,13 +227,21 @@ window.addEventListener('DOMContentLoaded', main);
 <li><a class="reference external"
           data-doc-search-tag="Status.Experimental" href="bropkg/engine/properties.html#Experimental">Status.Experimental</a></li>
           </ul></dd>
-<dt><a name="ExtendCssSelector" href="#ExtendCssSelector"><span>ExtendCssSelector:</span></a></dt><dd><ul class="simple">
+<dt><a name="ExtendRedundancyError" href="#ExtendRedundancyError"><span>ExtendRedundancyError:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="Message.ExtendCssSelector" href="bropkg/engine/logging.html#ExtendCssSelector">Message.ExtendCssSelector</a></li>
+          data-doc-search-tag="Message.ExtendRedundancyError" href="bropkg/engine/logging.html#ExtendRedundancyError">Message.ExtendRedundancyError</a></li>
+          </ul></dd>
+<dt><a name="freem" href="#freem"><span>freem:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="freemem: freem(obj: untyped)" href="bropkg/engine/freemem.html#freem.t%2Cuntyped">freemem: freem(obj: untyped)</a></li>
           </ul></dd>
 <dt><a name="generateIdentCase" href="#generateIdentCase"><span>generateIdentCase:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="tokens: generateIdentCase(lex: var Lexer)" href="bropkg/engine/tokens.html#generateIdentCase%2CLexer">tokens: generateIdentCase(lex: var Lexer)</a></li>
+          </ul></dd>
+<dt><a name="getColor" href="#getColor"><span>getColor:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="ast: getColor(node: Node): string" href="bropkg/engine/ast.html#getColor%2CNode">ast: getColor(node: Node): string</a></li>
           </ul></dd>
 <dt><a name="getCSS" href="#getCSS"><span>getCSS:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -233,6 +257,10 @@ window.addEventListener('DOMContentLoaded', main);
           <li><a class="reference external"
           data-doc-search-tag="tokens: getError(lex: Lexer): string" href="bropkg/engine/tokens.html#getError%2CLexer">tokens: getError(lex: Lexer): string</a></li>
           </ul></dd>
+<dt><a name="getInfixOp" href="#getInfixOp"><span>getInfixOp:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="ast: getInfixOp(kind: TokenKind; isInfixInfix: bool): InfixOp" href="bropkg/engine/ast.html#getInfixOp%2CTokenKind%2Cbool">ast: getInfixOp(kind: TokenKind; isInfixInfix: bool): InfixOp</a></li>
+          </ul></dd>
 <dt><a name="getMemtable" href="#getMemtable"><span>getMemtable:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="parser: getMemtable(p: Parser): Memtable" href="bropkg/engine/parser.html#getMemtable%2CParser">parser: getMemtable(p: Parser): Memtable</a></li>
@@ -244,6 +272,10 @@ window.addEventListener('DOMContentLoaded', main);
 <dt><a name="getProgram" href="#getProgram"><span>getProgram:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="parser: getProgram(p: Parser): Program" href="bropkg/engine/parser.html#getProgram%2CParser">parser: getProgram(p: Parser): Program</a></li>
+          </ul></dd>
+<dt><a name="getString" href="#getString"><span>getString:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="ast: getString(node: Node): string" href="bropkg/engine/ast.html#getString%2CNode">ast: getString(node: Node): string</a></li>
           </ul></dd>
 <dt><a name="getToken" href="#getToken"><span>getToken:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -371,51 +403,51 @@ window.addEventListener('DOMContentLoaded', main);
           </ul></dd>
 <dt><a name="isEqualBool" href="#isEqualBool"><span>isEqualBool:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="compiler: isEqualBool(a, b: bool): untyped" href="bropkg/engine/compiler.html#isEqualBool.m%2Cbool%2Cbool">compiler: isEqualBool(a, b: bool): untyped</a></li>
+          data-doc-search-tag="eval: isEqualBool(a, b: bool): untyped" href="bropkg/engine/eval.html#isEqualBool.m%2Cbool%2Cbool">eval: isEqualBool(a, b: bool): untyped</a></li>
           </ul></dd>
 <dt><a name="isEqualFloat" href="#isEqualFloat"><span>isEqualFloat:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="compiler: isEqualFloat(a, b: float64): untyped" href="bropkg/engine/compiler.html#isEqualFloat.m%2Cfloat64%2Cfloat64">compiler: isEqualFloat(a, b: float64): untyped</a></li>
+          data-doc-search-tag="eval: isEqualFloat(a, b: float64): untyped" href="bropkg/engine/eval.html#isEqualFloat.m%2Cfloat64%2Cfloat64">eval: isEqualFloat(a, b: float64): untyped</a></li>
           </ul></dd>
 <dt><a name="isEqualInt" href="#isEqualInt"><span>isEqualInt:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="compiler: isEqualInt(a, b: int): untyped" href="bropkg/engine/compiler.html#isEqualInt.m%2Cint%2Cint">compiler: isEqualInt(a, b: int): untyped</a></li>
+          data-doc-search-tag="eval: isEqualInt(a, b: int): untyped" href="bropkg/engine/eval.html#isEqualInt.m%2Cint%2Cint">eval: isEqualInt(a, b: int): untyped</a></li>
           </ul></dd>
 <dt><a name="isEqualString" href="#isEqualString"><span>isEqualString:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="compiler: isEqualString(a, b: string): untyped" href="bropkg/engine/compiler.html#isEqualString.m%2Cstring%2Cstring">compiler: isEqualString(a, b: string): untyped</a></li>
+          data-doc-search-tag="eval: isEqualString(a, b: string): untyped" href="bropkg/engine/eval.html#isEqualString.m%2Cstring%2Cstring">eval: isEqualString(a, b: string): untyped</a></li>
           </ul></dd>
 <dt><a name="isGreaterEqualInt" href="#isGreaterEqualInt"><span>isGreaterEqualInt:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="compiler: isGreaterEqualInt(a, b: int): untyped" href="bropkg/engine/compiler.html#isGreaterEqualInt.m%2Cint%2Cint">compiler: isGreaterEqualInt(a, b: int): untyped</a></li>
+          data-doc-search-tag="eval: isGreaterEqualInt(a, b: int): untyped" href="bropkg/engine/eval.html#isGreaterEqualInt.m%2Cint%2Cint">eval: isGreaterEqualInt(a, b: int): untyped</a></li>
           </ul></dd>
 <dt><a name="isGreaterInt" href="#isGreaterInt"><span>isGreaterInt:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="compiler: isGreaterInt(a, b: int): untyped" href="bropkg/engine/compiler.html#isGreaterInt.m%2Cint%2Cint">compiler: isGreaterInt(a, b: int): untyped</a></li>
+          data-doc-search-tag="eval: isGreaterInt(a, b: int): untyped" href="bropkg/engine/eval.html#isGreaterInt.m%2Cint%2Cint">eval: isGreaterInt(a, b: int): untyped</a></li>
           </ul></dd>
 <dt><a name="isLessEqualInt" href="#isLessEqualInt"><span>isLessEqualInt:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="compiler: isLessEqualInt(a, b: int): untyped" href="bropkg/engine/compiler.html#isLessEqualInt.m%2Cint%2Cint">compiler: isLessEqualInt(a, b: int): untyped</a></li>
+          data-doc-search-tag="eval: isLessEqualInt(a, b: int): untyped" href="bropkg/engine/eval.html#isLessEqualInt.m%2Cint%2Cint">eval: isLessEqualInt(a, b: int): untyped</a></li>
           </ul></dd>
 <dt><a name="isLessInt" href="#isLessInt"><span>isLessInt:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="compiler: isLessInt(a, b: int): untyped" href="bropkg/engine/compiler.html#isLessInt.m%2Cint%2Cint">compiler: isLessInt(a, b: int): untyped</a></li>
+          data-doc-search-tag="eval: isLessInt(a, b: int): untyped" href="bropkg/engine/eval.html#isLessInt.m%2Cint%2Cint">eval: isLessInt(a, b: int): untyped</a></li>
           </ul></dd>
 <dt><a name="isNotEqualBool" href="#isNotEqualBool"><span>isNotEqualBool:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="compiler: isNotEqualBool(a, b: bool): untyped" href="bropkg/engine/compiler.html#isNotEqualBool.m%2Cbool%2Cbool">compiler: isNotEqualBool(a, b: bool): untyped</a></li>
+          data-doc-search-tag="eval: isNotEqualBool(a, b: bool): untyped" href="bropkg/engine/eval.html#isNotEqualBool.m%2Cbool%2Cbool">eval: isNotEqualBool(a, b: bool): untyped</a></li>
           </ul></dd>
 <dt><a name="isNotEqualFloat" href="#isNotEqualFloat"><span>isNotEqualFloat:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="compiler: isNotEqualFloat(a, b: float64): untyped" href="bropkg/engine/compiler.html#isNotEqualFloat.m%2Cfloat64%2Cfloat64">compiler: isNotEqualFloat(a, b: float64): untyped</a></li>
+          data-doc-search-tag="eval: isNotEqualFloat(a, b: float64): untyped" href="bropkg/engine/eval.html#isNotEqualFloat.m%2Cfloat64%2Cfloat64">eval: isNotEqualFloat(a, b: float64): untyped</a></li>
           </ul></dd>
 <dt><a name="isNotEqualInt" href="#isNotEqualInt"><span>isNotEqualInt:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="compiler: isNotEqualInt(a, b: int): untyped" href="bropkg/engine/compiler.html#isNotEqualInt.m%2Cint%2Cint">compiler: isNotEqualInt(a, b: int): untyped</a></li>
+          data-doc-search-tag="eval: isNotEqualInt(a, b: int): untyped" href="bropkg/engine/eval.html#isNotEqualInt.m%2Cint%2Cint">eval: isNotEqualInt(a, b: int): untyped</a></li>
           </ul></dd>
 <dt><a name="isNotEqualString" href="#isNotEqualString"><span>isNotEqualString:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="compiler: isNotEqualString(a, b: string): untyped" href="bropkg/engine/compiler.html#isNotEqualString.m%2Cstring%2Cstring">compiler: isNotEqualString(a, b: string): untyped</a></li>
+          data-doc-search-tag="eval: isNotEqualString(a, b: string): untyped" href="bropkg/engine/eval.html#isNotEqualString.m%2Cstring%2Cstring">eval: isNotEqualString(a, b: string): untyped</a></li>
           </ul></dd>
 <dt><a name="KeyValueTable" href="#KeyValueTable"><span>KeyValueTable:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -436,6 +468,10 @@ window.addEventListener('DOMContentLoaded', main);
 <dt><a name="LexerException" href="#LexerException"><span>LexerException:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="tokens: LexerException" href="bropkg/engine/tokens.html#LexerException">tokens: LexerException</a></li>
+          </ul></dd>
+<dt><a name="lexReady" href="#lexReady"><span>lexReady:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="tokens: lexReady(lex: var Lexer)" href="bropkg/engine/tokens.html#lexReady%2CLexer">tokens: lexReady(lex: var Lexer)</a></li>
           </ul></dd>
 <dt><a name="Log" href="#Log"><span>Log:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -461,9 +497,55 @@ window.addEventListener('DOMContentLoaded', main);
 <li><a class="reference external"
           data-doc-search-tag="Level.lvlWarn" href="bropkg/engine/logging.html#lvlWarn">Level.lvlWarn</a></li>
           </ul></dd>
+<dt><a name="malloc_trim" href="#malloc_trim"><span>malloc_trim:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="freemem: malloc_trim(size: csize_t): cint" href="bropkg/engine/freemem.html#malloc_trim%2Ccsize_t">freemem: malloc_trim(size: csize_t): cint</a></li>
+          </ul></dd>
 <dt><a name="markVarUsed" href="#markVarUsed"><span>markVarUsed:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="ast: markVarUsed(node: Node)" href="bropkg/engine/ast.html#markVarUsed%2CNode">ast: markVarUsed(node: Node)</a></li>
+          </ul></dd>
+<dt><a name="mathAbs" href="#mathAbs"><span>mathAbs:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="eval: mathAbs(x: float): untyped" href="bropkg/engine/eval.html#mathAbs.m%2Cfloat">eval: mathAbs(x: float): untyped</a></li>
+          <li><a class="reference external"
+          data-doc-search-tag="eval: mathAbs(x: int): untyped" href="bropkg/engine/eval.html#mathAbs.m%2Cint">eval: mathAbs(x: int): untyped</a></li>
+          </ul></dd>
+<dt><a name="mathCeil" href="#mathCeil"><span>mathCeil:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="eval: mathCeil(x: float): untyped" href="bropkg/engine/eval.html#mathCeil.m%2Cfloat">eval: mathCeil(x: float): untyped</a></li>
+          </ul></dd>
+<dt><a name="mathClamp" href="#mathClamp"><span>mathClamp:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="eval: mathClamp(x: float; min, max: int): untyped" href="bropkg/engine/eval.html#mathClamp.m%2Cfloat%2Cint%2Cint">eval: mathClamp(x: float; min, max: int): untyped</a></li>
+          </ul></dd>
+<dt><a name="mathEpsilon" href="#mathEpsilon"><span>mathEpsilon:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="eval: mathEpsilon(x: float): untyped" href="bropkg/engine/eval.html#mathEpsilon.m%2Cfloat">eval: mathEpsilon(x: float): untyped</a></li>
+          </ul></dd>
+<dt><a name="mathFloor" href="#mathFloor"><span>mathFloor:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="eval: mathFloor(x: float): untyped" href="bropkg/engine/eval.html#mathFloor.m%2Cfloat">eval: mathFloor(x: float): untyped</a></li>
+          </ul></dd>
+<dt><a name="mathHypot" href="#mathHypot"><span>mathHypot:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="eval: mathHypot(x, y: float64): untyped" href="bropkg/engine/eval.html#mathHypot.m%2Cfloat64%2Cfloat64">eval: mathHypot(x, y: float64): untyped</a></li>
+          </ul></dd>
+<dt><a name="mathLog" href="#mathLog"><span>mathLog:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="eval: mathLog(x, base: float): untyped" href="bropkg/engine/eval.html#mathLog.m%2Cfloat%2Cfloat">eval: mathLog(x, base: float): untyped</a></li>
+          </ul></dd>
+<dt><a name="mathRound" href="#mathRound"><span>mathRound:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="eval: mathRound(x: float): untyped" href="bropkg/engine/eval.html#mathRound.m%2Cfloat">eval: mathRound(x: float): untyped</a></li>
+          </ul></dd>
+<dt><a name="mathSin" href="#mathSin"><span>mathSin:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="eval: mathSin(x: float): untyped" href="bropkg/engine/eval.html#mathSin.m%2Cfloat">eval: mathSin(x: float): untyped</a></li>
+          </ul></dd>
+<dt><a name="mathTan" href="#mathTan"><span>mathTan:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="eval: mathTan(x: float): untyped" href="bropkg/engine/eval.html#mathTan.m%2Cfloat">eval: mathTan(x: float): untyped</a></li>
           </ul></dd>
 <dt><a name="Memtable" href="#Memtable"><span>Memtable:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -527,6 +609,10 @@ window.addEventListener('DOMContentLoaded', main);
 <li><a class="reference external"
           data-doc-search-tag="compiler: newCompilerStr(p: Program; outputPath: string): string" href="bropkg/engine/compiler.html#newCompilerStr%2CProgram%2Cstring">compiler: newCompilerStr(p: Program; outputPath: string): string</a></li>
           </ul></dd>
+<dt><a name="newEcho" href="#newEcho"><span>newEcho:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="ast: newEcho(cmdValue: Node): Node" href="bropkg/engine/ast.html#newEcho%2CNode">ast: newEcho(cmdValue: Node): Node</a></li>
+          </ul></dd>
 <dt><a name="newError" href="#newError"><span>newError:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="logging: newError(logger: Logger; msg: Message; line, col: int; useFmt: bool;
@@ -551,11 +637,13 @@ window.addEventListener('DOMContentLoaded', main);
           </ul></dd>
 <dt><a name="newForStmt" href="#newForStmt"><span>newForStmt:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="ast: newForStmt(item, items: Node): Node" href="bropkg/engine/ast.html#newForStmt%2CNode%2CNode">ast: newForStmt(item, items: Node): Node</a></li>
+          data-doc-search-tag="ast: newForStmt(item, items: Node; toPairs = false): Node" href="bropkg/engine/ast.html#newForStmt%2CNode%2CNode">ast: newForStmt(item, items: Node; toPairs = false): Node</a></li>
           </ul></dd>
 <dt><a name="newID" href="#newID"><span>newID:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="ast: newID(tk: TokenTuple; props = KeyValueTable()): Node" href="bropkg/engine/ast.html#newID%2CTokenTuple">ast: newID(tk: TokenTuple; props = KeyValueTable()): Node</a></li>
+          data-doc-search-tag="ast: newID(tk: TokenTuple; props = KeyValueTable(); multipleSelectors = @[&quot;&quot;];
+      concat: seq[Node] = @[]): Node" href="bropkg/engine/ast.html#newID%2CTokenTuple%2Cseq%5BNode%5D">ast: newID(tk: TokenTuple; props = KeyValueTable(); multipleSelectors = @[&quot;&quot;];
+      concat: seq[Node] = @[]): Node</a></li>
           </ul></dd>
 <dt><a name="newIf" href="#newIf"><span>newIf:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -564,6 +652,8 @@ window.addEventListener('DOMContentLoaded', main);
 <dt><a name="newImport" href="#newImport"><span>newImport:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="ast: newImport(nodes: seq[Node]; importPath: string): Node" href="bropkg/engine/ast.html#newImport%2Cseq%5BNode%5D%2Cstring">ast: newImport(nodes: seq[Node]; importPath: string): Node</a></li>
+          <li><a class="reference external"
+          data-doc-search-tag="ast: newImport(path: string): Node" href="bropkg/engine/ast.html#newImport%2Cstring">ast: newImport(path: string): Node</a></li>
           </ul></dd>
 <dt><a name="newInfix" href="#newInfix"><span>newInfix:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -610,8 +700,8 @@ window.addEventListener('DOMContentLoaded', main);
 <dt><a name="newPseudoClass" href="#newPseudoClass"><span>newPseudoClass:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="ast: newPseudoClass(tk: TokenTuple; props = KeyValueTable();
-               multipleSelectors = @[&quot;&quot;]): Node" href="bropkg/engine/ast.html#newPseudoClass%2CTokenTuple">ast: newPseudoClass(tk: TokenTuple; props = KeyValueTable();
-               multipleSelectors = @[&quot;&quot;]): Node</a></li>
+               multipleSelectors = @[&quot;&quot;]; concat: seq[Node] = @[]): Node" href="bropkg/engine/ast.html#newPseudoClass%2CTokenTuple%2Cseq%5BNode%5D">ast: newPseudoClass(tk: TokenTuple; props = KeyValueTable();
+               multipleSelectors = @[&quot;&quot;]; concat: seq[Node] = @[]): Node</a></li>
           </ul></dd>
 <dt><a name="newSize" href="#newSize"><span>newSize:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -623,9 +713,9 @@ window.addEventListener('DOMContentLoaded', main);
           </ul></dd>
 <dt><a name="newTag" href="#newTag"><span>newTag:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="ast: newTag(tk: TokenTuple; string, props = KeyValueTable();
-       multipleSelectors = @[&quot;&quot;]): Node" href="bropkg/engine/ast.html#newTag%2CTokenTuple">ast: newTag(tk: TokenTuple; string, props = KeyValueTable();
-       multipleSelectors = @[&quot;&quot;]): Node</a></li>
+          data-doc-search-tag="ast: newTag(tk: TokenTuple; props = KeyValueTable(); multipleSelectors = @[&quot;&quot;];
+       concat: seq[Node] = @[]): Node" href="bropkg/engine/ast.html#newTag%2CTokenTuple%2Cseq%5BNode%5D">ast: newTag(tk: TokenTuple; props = KeyValueTable(); multipleSelectors = @[&quot;&quot;];
+       concat: seq[Node] = @[]): Node</a></li>
           </ul></dd>
 <dt><a name="newValue" href="#newValue"><span>newValue:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -693,9 +783,17 @@ window.addEventListener('DOMContentLoaded', main);
 <li><a class="reference external"
           data-doc-search-tag="NodeType.NTCaseStmt" href="bropkg/engine/ast.html#NTCaseStmt">NodeType.NTCaseStmt</a></li>
           </ul></dd>
+<dt><a name="NTClassSelector" href="#NTClassSelector"><span>NTClassSelector:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="NodeType.NTClassSelector" href="bropkg/engine/ast.html#NTClassSelector">NodeType.NTClassSelector</a></li>
+          </ul></dd>
 <dt><a name="NTColor" href="#NTColor"><span>NTColor:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="NodeType.NTColor" href="bropkg/engine/ast.html#NTColor">NodeType.NTColor</a></li>
+          </ul></dd>
+<dt><a name="NTCommand" href="#NTCommand"><span>NTCommand:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="NodeType.NTCommand" href="bropkg/engine/ast.html#NTCommand">NodeType.NTCommand</a></li>
           </ul></dd>
 <dt><a name="NTComment" href="#NTComment"><span>NTComment:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -720,6 +818,10 @@ window.addEventListener('DOMContentLoaded', main);
 <dt><a name="NTFunction" href="#NTFunction"><span>NTFunction:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="NodeType.NTFunction" href="bropkg/engine/ast.html#NTFunction">NodeType.NTFunction</a></li>
+          </ul></dd>
+<dt><a name="NTIDSelector" href="#NTIDSelector"><span>NTIDSelector:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="NodeType.NTIDSelector" href="bropkg/engine/ast.html#NTIDSelector">NodeType.NTIDSelector</a></li>
           </ul></dd>
 <dt><a name="NTImport" href="#NTImport"><span>NTImport:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -753,9 +855,9 @@ window.addEventListener('DOMContentLoaded', main);
 <li><a class="reference external"
           data-doc-search-tag="NodeType.NTProperty" href="bropkg/engine/ast.html#NTProperty">NodeType.NTProperty</a></li>
           </ul></dd>
-<dt><a name="NTPseudoClass" href="#NTPseudoClass"><span>NTPseudoClass:</span></a></dt><dd><ul class="simple">
+<dt><a name="NTPseudoClassSelector" href="#NTPseudoClassSelector"><span>NTPseudoClassSelector:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="NodeType.NTPseudoClass" href="bropkg/engine/ast.html#NTPseudoClass">NodeType.NTPseudoClass</a></li>
+          data-doc-search-tag="NodeType.NTPseudoClassSelector" href="bropkg/engine/ast.html#NTPseudoClassSelector">NodeType.NTPseudoClassSelector</a></li>
           </ul></dd>
 <dt><a name="NTPseudoElements" href="#NTPseudoElements"><span>NTPseudoElements:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -765,18 +867,6 @@ window.addEventListener('DOMContentLoaded', main);
 <li><a class="reference external"
           data-doc-search-tag="NodeType.NTRoot" href="bropkg/engine/ast.html#NTRoot">NodeType.NTRoot</a></li>
           </ul></dd>
-<dt><a name="NTSelectorClass" href="#NTSelectorClass"><span>NTSelectorClass:</span></a></dt><dd><ul class="simple">
-<li><a class="reference external"
-          data-doc-search-tag="NodeType.NTSelectorClass" href="bropkg/engine/ast.html#NTSelectorClass">NodeType.NTSelectorClass</a></li>
-          </ul></dd>
-<dt><a name="NTSelectorID" href="#NTSelectorID"><span>NTSelectorID:</span></a></dt><dd><ul class="simple">
-<li><a class="reference external"
-          data-doc-search-tag="NodeType.NTSelectorID" href="bropkg/engine/ast.html#NTSelectorID">NodeType.NTSelectorID</a></li>
-          </ul></dd>
-<dt><a name="NTSelectorTag" href="#NTSelectorTag"><span>NTSelectorTag:</span></a></dt><dd><ul class="simple">
-<li><a class="reference external"
-          data-doc-search-tag="NodeType.NTSelectorTag" href="bropkg/engine/ast.html#NTSelectorTag">NodeType.NTSelectorTag</a></li>
-          </ul></dd>
 <dt><a name="NTSize" href="#NTSize"><span>NTSize:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="NodeType.NTSize" href="bropkg/engine/ast.html#NTSize">NodeType.NTSize</a></li>
@@ -784,6 +874,10 @@ window.addEventListener('DOMContentLoaded', main);
 <dt><a name="NTString" href="#NTString"><span>NTString:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="NodeType.NTString" href="bropkg/engine/ast.html#NTString">NodeType.NTString</a></li>
+          </ul></dd>
+<dt><a name="NTTagSelector" href="#NTTagSelector"><span>NTTagSelector:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="NodeType.NTTagSelector" href="bropkg/engine/ast.html#NTTagSelector">NodeType.NTTagSelector</a></li>
           </ul></dd>
 <dt><a name="NTUniversalSelector" href="#NTUniversalSelector"><span>NTUniversalSelector:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -857,10 +951,6 @@ window.addEventListener('DOMContentLoaded', main);
 <li><a class="reference external"
           data-doc-search-tag="Units.PX" href="bropkg/engine/ast.html#PX">Units.PX</a></li>
           </ul></dd>
-<dt><a name="ready" href="#ready"><span>ready:</span></a></dt><dd><ul class="simple">
-<li><a class="reference external"
-          data-doc-search-tag="tokens: ready(lex: var Lexer)" href="bropkg/engine/tokens.html#ready%2CLexer">tokens: ready(lex: var Lexer)</a></li>
-          </ul></dd>
 <dt><a name="Relative" href="#Relative"><span>Relative:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="LengthType.Relative" href="bropkg/engine/ast.html#Relative">LengthType.Relative</a></li>
@@ -918,10 +1008,6 @@ window.addEventListener('DOMContentLoaded', main);
 <dt><a name="Status" href="#Status"><span>Status:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="properties: Status" href="bropkg/engine/properties.html#Status">properties: Status</a></li>
-          </ul></dd>
-<dt><a name="token" href="#token"><span>token:</span></a></dt><dd><ul class="simple">
-<li><a class="reference external"
-          data-doc-search-tag="tokens: token(lex: var Lexer): char" href="bropkg/engine/tokens.html#token%2CLexer">tokens: token(lex: var Lexer): char</a></li>
           </ul></dd>
 <dt><a name="tokenize" href="#tokenize"><span>tokenize:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -1030,7 +1116,7 @@ window.addEventListener('DOMContentLoaded', main);
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2023-05-30 20:53:30 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2023-06-08 01:44:44 UTC</small>
       </div>
     </div>
   </div>

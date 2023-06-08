@@ -128,7 +128,8 @@ window.addEventListener('DOMContentLoaded', main);
   UndeclaredVariable = &quot;Undeclared variable&quot;,
   AssignUndeclaredVar = &quot;Assigning an undeclared variable&quot;,
   MissingAssignmentToken = &quot;Missing assignment token&quot;,
-  UndeclaredCSSSelector = &quot;Undeclared CSS selector&quot;, ExtendCssSelector = &quot;CSS properties can only be extended from ID or CSS selectors.&quot;,
+  UndeclaredCSSSelector = &quot;Undeclared CSS selector&quot;,
+  ExtendRedundancyError = &quot;Selector $ extends $ multiple times&quot;,
   InvalidProperty = &quot;Invalid CSS property $&quot;,
   DuplicateVarDeclaration = &quot;Duplicate variable declaration&quot;,
   DuplicateSelector = &quot;Duplicated CSS declaration&quot;,
@@ -326,7 +327,8 @@ window.addEventListener('DOMContentLoaded', main);
   <span class="Identifier">UndeclaredVariable</span> <span class="Other">=</span> <span class="StringLit">&quot;Undeclared variable&quot;</span><span class="Other">,</span>
   <span class="Identifier">AssignUndeclaredVar</span> <span class="Other">=</span> <span class="StringLit">&quot;Assigning an undeclared variable&quot;</span><span class="Other">,</span>
   <span class="Identifier">MissingAssignmentToken</span> <span class="Other">=</span> <span class="StringLit">&quot;Missing assignment token&quot;</span><span class="Other">,</span>
-  <span class="Identifier">UndeclaredCSSSelector</span> <span class="Other">=</span> <span class="StringLit">&quot;Undeclared CSS selector&quot;</span><span class="Other">,</span> <span class="Identifier">ExtendCssSelector</span> <span class="Other">=</span> <span class="StringLit">&quot;CSS properties can only be extended from ID or CSS selectors.&quot;</span><span class="Other">,</span>
+  <span class="Identifier">UndeclaredCSSSelector</span> <span class="Other">=</span> <span class="StringLit">&quot;Undeclared CSS selector&quot;</span><span class="Other">,</span>
+  <span class="Identifier">ExtendRedundancyError</span> <span class="Other">=</span> <span class="StringLit">&quot;Selector $ extends $ multiple times&quot;</span><span class="Other">,</span>
   <span class="Identifier">InvalidProperty</span> <span class="Other">=</span> <span class="StringLit">&quot;Invalid CSS property $&quot;</span><span class="Other">,</span>
   <span class="Identifier">DuplicateVarDeclaration</span> <span class="Other">=</span> <span class="StringLit">&quot;Duplicate variable declaration&quot;</span><span class="Other">,</span>
   <span class="Identifier">DuplicateSelector</span> <span class="Other">=</span> <span class="StringLit">&quot;Duplicated CSS declaration&quot;</span><span class="Other">,</span>
@@ -534,7 +536,7 @@ window.addEventListener('DOMContentLoaded', main);
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2023-05-30 20:53:29 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2023-06-08 01:44:43 UTC</small>
       </div>
     </div>
   </div>

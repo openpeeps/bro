@@ -4,14 +4,14 @@ NTVariable	bropkg/engine/ast.html#NTVariable	NodeType.NTVariable
 NTVariableValue	bropkg/engine/ast.html#NTVariableValue	NodeType.NTVariableValue	
 NTUniversalSelector	bropkg/engine/ast.html#NTUniversalSelector	NodeType.NTUniversalSelector	
 NTAttrSelector	bropkg/engine/ast.html#NTAttrSelector	NodeType.NTAttrSelector	
-NTSelectorClass	bropkg/engine/ast.html#NTSelectorClass	NodeType.NTSelectorClass	
-NTPseudoClass	bropkg/engine/ast.html#NTPseudoClass	NodeType.NTPseudoClass	
+NTClassSelector	bropkg/engine/ast.html#NTClassSelector	NodeType.NTClassSelector	
+NTPseudoClassSelector	bropkg/engine/ast.html#NTPseudoClassSelector	NodeType.NTPseudoClassSelector	
 NTPseudoElements	bropkg/engine/ast.html#NTPseudoElements	NodeType.NTPseudoElements	
-NTSelectorID	bropkg/engine/ast.html#NTSelectorID	NodeType.NTSelectorID	
+NTIDSelector	bropkg/engine/ast.html#NTIDSelector	NodeType.NTIDSelector	
 NTAtRule	bropkg/engine/ast.html#NTAtRule	NodeType.NTAtRule	
 NTFunction	bropkg/engine/ast.html#NTFunction	NodeType.NTFunction	
 NTComment	bropkg/engine/ast.html#NTComment	NodeType.NTComment	
-NTSelectorTag	bropkg/engine/ast.html#NTSelectorTag	NodeType.NTSelectorTag	
+NTTagSelector	bropkg/engine/ast.html#NTTagSelector	NodeType.NTTagSelector	
 NTString	bropkg/engine/ast.html#NTString	NodeType.NTString	
 NTInt	bropkg/engine/ast.html#NTInt	NodeType.NTInt	
 NTFloat	bropkg/engine/ast.html#NTFloat	NodeType.NTFloat	
@@ -31,6 +31,7 @@ NTForStmt	bropkg/engine/ast.html#NTForStmt	NodeType.NTForStmt
 NTCondStmt	bropkg/engine/ast.html#NTCondStmt	NodeType.NTCondStmt	
 NTMathStmt	bropkg/engine/ast.html#NTMathStmt	NodeType.NTMathStmt	
 NTCaseStmt	bropkg/engine/ast.html#NTCaseStmt	NodeType.NTCaseStmt	
+NTCommand	bropkg/engine/ast.html#NTCommand	NodeType.NTCommand	
 NodeType	bropkg/engine/ast.html#NodeType	ast: NodeType	
 propRuleNone	bropkg/engine/ast.html#propRuleNone	PropertyRule.propRuleNone	
 propRuleDefault	bropkg/engine/ast.html#propRuleDefault	PropertyRule.propRuleDefault	
@@ -71,12 +72,18 @@ Absolute	bropkg/engine/ast.html#Absolute	LengthType.Absolute
 Relative	bropkg/engine/ast.html#Relative	LengthType.Relative	
 LengthType	bropkg/engine/ast.html#LengthType	ast: LengthType	
 ArithmeticOperators	bropkg/engine/ast.html#ArithmeticOperators	ast: ArithmeticOperators	
+cmdEcho	bropkg/engine/ast.html#cmdEcho	CommandType.cmdEcho	
+CommandType	bropkg/engine/ast.html#CommandType	ast: CommandType	
 CaseCondTuple	bropkg/engine/ast.html#CaseCondTuple	ast: CaseCondTuple	
 ScopeTable	bropkg/engine/ast.html#ScopeTable	ast: ScopeTable	
 Node	bropkg/engine/ast.html#Node	ast: Node	
 Program	bropkg/engine/ast.html#Program	ast: Program	
 prefixed	bropkg/engine/ast.html#prefixed,TokenTuple	ast: prefixed(tk: TokenTuple): string	
+getInfixOp	bropkg/engine/ast.html#getInfixOp,TokenKind,bool	ast: getInfixOp(kind: TokenKind; isInfixInfix: bool): InfixOp	
 markVarUsed	bropkg/engine/ast.html#markVarUsed,Node	ast: markVarUsed(node: Node)	
+call	bropkg/engine/ast.html#call,Node	ast: call(node: Node): Node	
+getColor	bropkg/engine/ast.html#getColor,Node	ast: getColor(node: Node): string	
+getString	bropkg/engine/ast.html#getString,Node	ast: getString(node: Node): string	
 newProperty	bropkg/engine/ast.html#newProperty,string	ast: newProperty(pName: string): Node	
 newString	bropkg/engine/ast.html#newString,string	ast: newString(sVal: string): Node	
 newInt	bropkg/engine/ast.html#newInt,string	ast: newInt(iVal: string): Node	
@@ -92,16 +99,18 @@ newInfix	bropkg/engine/ast.html#newInfix,Node,Node,InfixOp	ast: newInfix(infixLe
 newInfix	bropkg/engine/ast.html#newInfix,Node	ast: newInfix(infixLeft: Node): Node	
 newIf	bropkg/engine/ast.html#newIf,Node	ast: newIf(infix: Node): Node	
 newImport	bropkg/engine/ast.html#newImport,seq[Node],string	ast: newImport(nodes: seq[Node]; importPath: string): Node	
+newImport	bropkg/engine/ast.html#newImport,string	ast: newImport(path: string): Node	
 newVariable	bropkg/engine/ast.html#newVariable,string,Node,TokenTuple	ast: newVariable(varName: string; varValue: Node; tk: TokenTuple): Node	
 newVariable	bropkg/engine/ast.html#newVariable,TokenTuple	ast: newVariable(tk: TokenTuple): Node	
 newValue	bropkg/engine/ast.html#newValue,Node	ast: newValue(val: Node): Node	
 newValue	bropkg/engine/ast.html#newValue,TokenTuple,Node	ast: newValue(tk: TokenTuple; valNode: Node): Node	
 newComment	bropkg/engine/ast.html#newComment,string	ast: newComment(str: string): Node	
-newTag	bropkg/engine/ast.html#newTag,TokenTuple	ast: newTag(tk: TokenTuple; string, props = KeyValueTable();\n       multipleSelectors = @[&quot;&quot;]): Node	
+newTag	bropkg/engine/ast.html#newTag,TokenTuple,seq[Node]	ast: newTag(tk: TokenTuple; props = KeyValueTable(); multipleSelectors = @[&quot;&quot;];\n       concat: seq[Node] = @[]): Node	
 newClass	bropkg/engine/ast.html#newClass,TokenTuple,seq[Node]	ast: newClass(tk: TokenTuple; props = KeyValueTable(); multipleSelectors = @[&quot;&quot;];\n         concat: seq[Node] = @[]): Node	
-newPseudoClass	bropkg/engine/ast.html#newPseudoClass,TokenTuple	ast: newPseudoClass(tk: TokenTuple; props = KeyValueTable();\n               multipleSelectors = @[&quot;&quot;]): Node	
-newID	bropkg/engine/ast.html#newID,TokenTuple	ast: newID(tk: TokenTuple; props = KeyValueTable()): Node	
+newPseudoClass	bropkg/engine/ast.html#newPseudoClass,TokenTuple,seq[Node]	ast: newPseudoClass(tk: TokenTuple; props = KeyValueTable();\n               multipleSelectors = @[&quot;&quot;]; concat: seq[Node] = @[]): Node	
+newID	bropkg/engine/ast.html#newID,TokenTuple,seq[Node]	ast: newID(tk: TokenTuple; props = KeyValueTable(); multipleSelectors = @[&quot;&quot;];\n      concat: seq[Node] = @[]): Node	
 newPreview	bropkg/engine/ast.html#newPreview,TokenTuple	ast: newPreview(tk: TokenTuple): Node	
 newExtend	bropkg/engine/ast.html#newExtend,TokenTuple,KeyValueTable	ast: newExtend(tk: TokenTuple; keyValueTable: KeyValueTable): Node	
-newForStmt	bropkg/engine/ast.html#newForStmt,Node,Node	ast: newForStmt(item, items: Node): Node	
+newForStmt	bropkg/engine/ast.html#newForStmt,Node,Node	ast: newForStmt(item, items: Node; toPairs = false): Node	
 newCaseStmt	bropkg/engine/ast.html#newCaseStmt,Node	ast: newCaseStmt(caseIdent: Node): Node	
+newEcho	bropkg/engine/ast.html#newEcho,Node	ast: newEcho(cmdValue: Node): Node	
