@@ -301,9 +301,3 @@ proc newCompiler*(p: Program, outputPath: string, minify = false): Compiler =
   setLen strNL, 0
   setLen strCL, 0
   setLen strCR, 0
-
-proc newCompilerStr*(p: Program, outputPath: string): string =
-  var c = Compiler(program: p)
-  for node in c.program.nodes:
-    c.write node
-  result = c.css
