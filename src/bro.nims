@@ -10,3 +10,6 @@ when defined release:
   switch "passC", "-flto"
   switch "passL", "-flto"
   switch "define", "nimAllocPagesViaMalloc"
+
+when defined napibuild:
+  switch "passC", "-I/usr/include/node -I/usr/local/include/node"
