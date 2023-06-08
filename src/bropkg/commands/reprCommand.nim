@@ -9,7 +9,7 @@ import ../engine/[ast, compiler]
 
 import pkg/zippy
 import pkg/kapsis/[runtime, cli]
-import pkg/[msgpack4nim, msgpack4nim/msgpack4collection]
+import ../private/msgpack/[msgpack4nim, msgpack4nim/msgpack4collection]
 
 proc runCommand*(v: Values) =
   ## Compiles binary AST to CSS

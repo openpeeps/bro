@@ -9,7 +9,7 @@ import ../engine/[parser, ast]
 
 import pkg/zippy
 import pkg/kapsis/[runtime, cli]
-import pkg/[msgpack4nim, msgpack4nim/msgpack4collection]
+import ../private/msgpack/[msgpack4nim, msgpack4nim/msgpack4collection]
 
 proc runCommand*(v: Values) =
   var stylesheetPath: string
