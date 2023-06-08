@@ -14,14 +14,12 @@ type
     NTProperty
     NTVariable
     NTVariableValue
-    
     NTUniversalSelector
     NTAttrSelector
     NTClassSelector
     NTPseudoClassSelector
     NTPseudoElements
     NTIDSelector
-
     NTAtRule
     NTFunction
     NTComment
@@ -215,25 +213,25 @@ type
 
 proc prefixed*(tk: TokenTuple): string =
   result = case tk.kind
-            of TKClass: "."
-            of TKID: "#"
+            of tkClass: "."
+            of tkID: "#"
             else: ""
   add result, tk.value
 
 proc getInfixOp*(kind: TokenKind, isInfixInfix: bool): InfixOp =
   case kind:
-  of TK_EQ: result = EQ
-  of TK_NE: result = NE
-  of TK_LT: result = LT
-  of TK_LTE: result = LTE
-  of TK_GT: result = GT
-  of TK_GTE: result = GTE
+  of tkEQ: result = EQ
+  of tkNE: result = NE
+  of tkLT: result = LT
+  of tkLTE: result = LTE
+  of tkGT: result = GT
+  of tkGTE: result = GTE
   else:
     if isInfixInfix:
       case kind
-      of TK_ANDAND, TKAltAnd:
+      of tkANDAND, tkAltAnd:
         result = AND
-      of TK_OR, TKAltOr:
+      of tkOR, tkAltOr:
         result = OR
       else: discard
 
@@ -326,6 +324,10 @@ proc newIf*(infix: Node): Node =
 proc newImport*(nodes: seq[Node], importPath: string): Node =
   ## Create a new NTImport node
   result = Node(nt: NTImport, importNodes: nodes, importPath: importPath)
+
+proc newImport*(path: string): Node =
+  ## Create a new NTImport node
+  result = Node(nt: NTImport, importPath: path)
 
 proc newVariable*(varName: string, varValue: Node, tk: TokenTuple): Node =
   ## Create a new NTVariable (declaration) node

@@ -269,7 +269,9 @@ proc write(c: var Compiler, node: Node, scope: ScopeTable = nil, data: Node = ni
       case node.importNodes[i].nt:
       of NTClassSelector, NTTagSelector, NTIDSelector, NTRoot:
         c.writeSelector(node.importNodes[i])
-      else: discard
+      of NTForStmt:
+        c.handleForStmt(node.importNodes[i], scope)
+      else: discard # todo
   of NTCommand:
     case node.cmdIdent
     of cmdEcho:
@@ -296,7 +298,6 @@ proc newCompiler*(p: Program, outputPath: string, minify = false): Compiler =
   for i in 0.. c.program.nodes.high:
     c.write(c.program.nodes[i])
   result = c
-
   setLen strNL, 0
   setLen strCL, 0
   setLen strCR, 0
