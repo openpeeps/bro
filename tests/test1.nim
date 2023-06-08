@@ -1,49 +1,59 @@
 import std/[os, strutils, unittest]
 import bro
 
-proc path(append: string): string =
-  result = getCurrentDir() / "tests/stylesheets" / append
+proc getPath(append: string): string =
+  result = getCurrentDir() / "tests/stylesheets" / append & ".bass"
 
-let
-  basicsPath = path "basic.bass"
-  invalidPath = path "invalid.bass"
-  forPath = path "for.bass"
-  forJsonPath = path "forjson.bass"
+var paths = ["basic", "invalid", "for", "forjson", "case", "unused"]
 
 test "can parse":
-  var p: Parser = parseProgram(basicsPath)
+  var p = parseProgram(paths[0].getPath())
   check p.hasErrors == false
   check p.hasWarnings == false
 
 test "can compile":
-  var p: Parser = parseProgram(basicsPath)
+  let basic = paths[0].getPath()
+  var p = parseProgram(basic)
   check p.hasErrors == false
   check p.hasWarnings == false
 
   var c: Compiler
   # unminified
-  c = newCompiler(p.getProgram, basicsPath)
+  c = newCompiler(p.getProgram, basic)
   check c.getCSS.count("\n") == 3
   # minified
-  c = newCompiler(p.getProgram, basicsPath, minify = true)
+  c = newCompiler(p.getProgram, basic, minify = true)
   check c.getCSS.count("\n") == 0
   check c.getCSS == ".btn{border:2px #FFF solid}"
 
 test "can catch errors":
-  var p: Parser = parseProgram(invalidPath)
+  var p = parseProgram(paths[1].getPath)
   check p.hasErrors == true
   check p.logger.errorLogs[0].getMessage == InvalidProperty
 
+test "can catch warnings":
+  var p = parseProgram(paths[5].getPath)
+  check p.hasErrors == false
+  check p.hasWarnings == true
+
 test "can compile `for` blocks":
-  var p: Parser = parseProgram(forPath)
+  let path = paths[2].getPath()
+  var p = parseProgram(path)
   check p.hasErrors == false
   check p.hasWarnings == false
-  let c = newCompiler(p.getProgram, basicsPath)
-  echo c.getCSS
+  let c = newCompiler(p.getProgram, path)
 
 test "can compile `for` blocks w/ @json":
-  var p: Parser = parseProgram(forJsonPath)
+  let path = paths[3].getPath()
+  var p = parseProgram(path)
   check p.hasErrors == false
   check p.hasWarnings == false
-  let c = newCompiler(p.getProgram, basicsPath)
+  let c = newCompiler(p.getProgram, path)
+
+test "can compile `case` blocks":
+  let path = paths[4].getPath()
+  var p = parseProgram(path)
+  check p.hasErrors == false
+  check p.hasWarnings == false
+  let c = newCompiler(p.getProgram, path)
   echo c.getCSS
