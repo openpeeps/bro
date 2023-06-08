@@ -10,7 +10,7 @@ import toktok
 export lexbase.close
 
 static:
-  Program.settings(true, "TK", keepUnknownChars = true)
+  Program.settings(false, "tk", keepUnknownChars = true)
 
 handlers:
 
@@ -22,7 +22,7 @@ handlers:
         add lex
       else:
         break
-    lex.kind = TKClass 
+    lex.kind = tkClass 
 
   proc handleHash(lex: var Lexer, kind: TokenKind) =
     lexReady lex
@@ -33,9 +33,9 @@ handlers:
       else: break
     if isColor("#" & lex.token):
       lex.token = "#" & lex.token
-      lex.kind = TKColor
+      lex.kind = tkColor
     else:
-      lex.kind = TkID 
+      lex.kind = tkID 
 
   proc handleVariable(lex: var Lexer, kind: TokenKind) =
     lexReady lex
@@ -47,13 +47,13 @@ handlers:
     while lex.buf[lex.bufpos] == ' ':
       inc lex.bufpos
     if lex.buf[lex.bufpos] == '=':
-      lex.kind = TKVar
+      lex.kind = tkVar
       if lex.next("="):
-        lex.kind = TKVarCall
+        lex.kind = tkVarCall
     elif lex.token.contains("."):
-      lex.kind = TKVarCallAccessor
+      lex.kind = tkVarCallAccessor
     else:
-      lex.kind = TKVarCall
+      lex.kind = tkVarCall
 
   proc handleCurlyVar(lex: var Lexer, kind: TokenKind) =
     lexReady lex
@@ -62,11 +62,11 @@ handlers:
       lex.handleVariable(kind)
       if current(lex) == '}':
         inc lex
-        lex.kind = TKVarConcat
+        lex.kind = tkVarConcat
       else:
         lex.setError("Missing closing curly bracket")
     else:
-      lex.kind = TKLC
+      lex.kind = tkLC
 
   proc handleExclamation(lex: var Lexer, kind: TokenKind) =
     lexReady lex
@@ -77,18 +77,18 @@ handlers:
       else:
         if lex.buf[lex.bufpos] == '=':
           add lex
-          lex.kind = TKNE
+          lex.kind = tkNE
           return
         break
     if lex.token == "important":
-      lex.kind = TKImportant
+      lex.kind = tkImportant
     elif lex.token == "default":
-      lex.kind = TKDefault
+      lex.kind = tkDefault
     else: discard # TODO error
 
   proc handleSnippets*(lex: var Lexer, kind: TokenKind) =    
     lex.startPos = lex.getColNumber(lex.bufpos)
-    var k = TKPreview
+    var k = tkPreview
     if lex.next("``html"):
       setLen(lex.token, 0)
       inc lex, 7
@@ -117,10 +117,10 @@ handlers:
     lexReady lex
     add lex
     if current(lex) == ':':
-      lex.kind = TKPseudoClass
+      lex.kind = tkPseudoClass
       add lex
     elif current(lex) == '&':
-      lex.kind = TKAndAnd
+      lex.kind = tkAndAnd
       add lex
     else:
       lex.kind = kind
@@ -315,6 +315,150 @@ tokens:
   CSSRGB > "rgb"
   CSSRGBA > "rgba"
   CSSVar > "var"
+
+  # named colors
+  ColorAliceblue > "aliceblue"
+  ColorAntiquewhite > "antiquewhite"
+  ColorAqua > "aqua"
+  ColorAquamarine > "aquamarine"
+  ColorAzure > "azure"
+  ColorBeige > "beige"
+  ColorBisque > "bisque"
+  ColorBlack > "black"
+  ColorBlanchedalmond > "blanchedalmond"
+  ColorBlue > "blue"
+  ColorBlueviolet > "blueviolet"
+  ColorBrown > "brown"
+  ColorBurlywood > "burlywood"
+  ColorCadetblue > "cadetblue"
+  ColorChartreuse > "chartreuse"
+  ColorChocolate > "chocolate"
+  ColorCoral > "coral"
+  ColorCornflowerblue > "cornflowerblue"
+  ColorCornsilk > "cornsilk"
+  ColorCrimson > "crimson"
+  ColorCyan > "cyan"
+  ColorDarkblue > "darkblue"
+  ColorDarkcyan > "darkcyan"
+  ColorDarkgoldenrod > "darkgoldenrod"
+  ColorDarkgray > "darkgray"
+  ColorDarkgreen > "darkgreen"
+  ColorDarkkhaki > "darkkhaki"
+  ColorDarkmagenta > "darkmagenta"
+  ColorDarkolivegreen > "darkolivegreen"
+  ColorDarkorange > "darkorange"
+  ColorDarkorchid > "darkorchid"
+  ColorDarkred > "darkred"
+  ColorDarksalmon > "darksalmon"
+  ColorDarkseagreen > "darkseagreen"
+  ColorDarkslateblue > "darkslateblue"
+  ColorDarkslategray > "darkslategray"
+  ColorDarkturquoise > "darkturquoise"
+  ColorDarkviolet > "darkviolet"
+  ColorDeeppink > "deeppink"
+  ColorDeepskyblue > "deepskyblue"
+  ColorDimgray > "dimgray"
+  ColorDodgerblue > "dodgerblue"
+  ColorFirebrick > "firebrick"
+  ColorFloralwhite > "floralwhite"
+  ColorForestgreen > "forestgreen"
+  ColorFuchsia > "fuchsia"
+  ColorGainsboro > "gainsboro"
+  ColorGhostwhite > "ghostwhite"
+  ColorGold > "gold"
+  ColorGoldenrod > "goldenrod"
+  ColorGray > "gray"
+  ColorGrey > "grey"
+  ColorGreen > "green"
+  ColorGreenyellow > "greenyellow"
+  ColorHoneydew > "honeydew"
+  ColorHotpink > "hotpink"
+  ColorIndianred > "indianred"
+  ColorIndigo > "indigo"
+  ColorIvory > "ivory"
+  ColorKhaki > "khaki"
+  ColorLavender > "lavender"
+  ColorLavenderblush > "lavenderblush"
+  ColorLawngreen > "lawngreen"
+  ColorLemonchiffon > "lemonchiffon"
+  ColorLightblue > "lightblue"
+  ColorLightcoral > "lightcoral"
+  ColorLightcyan > "lightcyan"
+  ColorLightgoldenrodyellow > "lightgoldenrodyellow"
+  ColorLightgray > "lightgray"
+  ColorLightgreen > "lightgreen"
+  ColorLightpink > "lightpink"
+  ColorLightsalmon > "lightsalmon"
+  ColorLightseagreen > "lightseagreen"
+  ColorLightskyblue > "lightskyblue"
+  ColorLightslategray > "lightslategray"
+  ColorLightsteelblue > "lightsteelblue"
+  ColorLightyellow > "lightyellow"
+  ColorLime > "lime"
+  ColorLimegreen > "limegreen"
+  ColorLinen > "linen"
+  ColorMagenta > "magenta"
+  ColorMaroon > "maroon"
+  ColorMediumaquamarine > "mediumaquamarine"
+  ColorMediumblue > "mediumblue"
+  ColorMediumorchid > "mediumorchid"
+  ColorMediumpurple > "mediumpurple"
+  ColorMediumseagreen > "mediumseagreen"
+  ColorMediumslateblue > "mediumslateblue"
+  ColorMediumspringgreen > "mediumspringgreen"
+  ColorMediumturquoise > "mediumturquoise"
+  ColorMediumvioletred > "mediumvioletred"
+  ColorMidnightblue > "midnightblue"
+  ColorMintcream > "mintcream"
+  ColorMistyrose > "mistyrose"
+  ColorMoccasin > "moccasin"
+  ColorNavajowhite > "navajowhite"
+  ColorNavy > "navy"
+  ColorOldlace > "oldlace"
+  ColorOlive > "olive"
+  ColorOlivedrab > "olivedrab"
+  ColorOrange > "orange"
+  ColorOrangered > "orangered"
+  ColorOrchid > "orchid"
+  ColorPalegoldenrod > "palegoldenrod"
+  ColorPalegreen > "palegreen"
+  ColorPaleturquoise > "paleturquoise"
+  ColorPalevioletred > "palevioletred"
+  ColorPapayawhip > "papayawhip"
+  ColorPeachpuff > "peachpuff"
+  ColorPeru > "peru"
+  ColorPink > "pink"
+  ColorPlum > "plum"
+  ColorPowderblue > "powderblue"
+  ColorPurple > "purple"
+  ColorRebeccapurple > "rebeccapurple"
+  ColorRed > "red"
+  ColorRosybrown > "rosybrown"
+  ColorRoyalblue > "royalblue"
+  ColorSaddlebrown > "saddlebrown"
+  ColorSalmon > "salmon"
+  ColorSandybrown > "sandybrown"
+  ColorSeagreen > "seagreen"
+  ColorSeashell > "seashell"
+  ColorSienna > "sienna"
+  ColorSilver > "silver"
+  ColorSkyblue > "skyblue"
+  ColorSlateblue > "slateblue"
+  ColorSlategray > "slategray"
+  ColorSnow > "snow"
+  ColorSpringgreen > "springgreen"
+  ColorSteelblue > "steelblue"
+  ColorTan > "tan"
+  ColorTeal > "teal"
+  ColorThistle > "thistle"
+  ColorTomato > "tomato"
+  ColorTurquoise > "turquoise"
+  ColorViolet > "violet"
+  ColorWheat > "wheat"
+  ColorWhite > "white"
+  ColorWhitesmoke > "whitesmoke"
+  ColorYellow > "yellow"
+  ColorYellowgreen > "yellowgreen"
   ID
   Color
   Important
