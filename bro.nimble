@@ -1,6 +1,6 @@
 # Package
 
-version       = "0.1.0"
+version       = "0.1.1"
 author        = "George Lemon"
 description   = "A super fast statically typed stylesheet language for cool kids"
 license       = "MIT"
@@ -17,11 +17,12 @@ requires "toktok#head"
 requires "kapsis"
 requires "watchout"
 requires "jsony"
-requires "msgpack4nim"
-requires "https://github.com/openpeeps/denim/"
+requires "msgpack4nim#head"
+requires "denim"
 requires "chroma#head"
 requires "zippy"
 requires "pkginfo"
+requires "stashtable"
 
 task dev, "development build":
   exec "nimble build --threads:on -d:useMalloc --gc:arc --deepcopy:on"
