@@ -8,9 +8,9 @@ import std/[times, os, strutils, threadpool]
 import pkg/watchout
 import pkg/kapsis/[runtime, cli]
 
-import ../engine/[parser, compiler]
+import ../engine/[parser, compiler, freemem]
 
-proc runProgram(fpath, fname: string) {.thread.} =
+proc runProgram(fpath, fname, cssPath: string) {.thread.} =
   {.gcsafe.}:
     let t = cpuTime()
     var p = parser.parseProgram(fpath)
@@ -21,14 +21,20 @@ proc runProgram(fpath, fname: string) {.thread.} =
         display(error)
     else:
       display(fname, indent = 3)
-      let cssPath = fpath.changeFileExt("css")
-      let c = newCompiler(p.getProgram, cssPath)
-      writeFile(cssPath, c.getCSS)
+      # let cssPath = fpath.changeFileExt("css")
+      var c = newCompiler(p.getProgram, cssPath)
+      if cssPath.len != 0:
+        writeFile(cssPath, c.getCSS)
+      else:
+        display(c.getCSS)
       display("Done in " & $(cpuTime() - t), br="before")
-    reset p
+      freem(c)
+    freem(p)
 
 proc runCommand*(v: Values) =
   var stylesheetPath: string
+  var cssPath: string
+  var hasOutput = v.has("output")
   if v.has("style"):
     stylesheetPath = v.get("style").absolutePath()
     if not stylesheetPath.fileExists:
@@ -36,6 +42,15 @@ proc runCommand*(v: Values) =
       QuitFailure.quit
   else:
     QuitFailure.quit
+
+  if hasOutput:
+    cssPath = v.get("output")
+    if cssPath.splitFile.ext != ".css":
+      display("Output path missing `.css` extension\n" & cssPath)
+      QuitFailure.quit
+    if not cssPath.isAbsolute:
+      cssPath.normalizePath
+      cssPath = cssPath.absolutePath()
 
   var delay = 550
   if v.has("delay"):
@@ -47,16 +62,15 @@ proc runCommand*(v: Values) =
 
   display "✨ Watching for changes...", br="after"
   var watchFiles: seq[string]
-
   proc watchoutCallback(file: watchout.File) {.closure.} =
     display "✨ Changes detected"
     if stylesheetPath.getFileSize > 0:
-      spawn(runProgram(file.getPath, file.getName()))
+      spawn(runProgram(file.getPath, file.getName(), cssPath))
     else:
       display("Stylesheet is empty")
 
   watchFiles.add(stylesheetPath)
-  spawn(runProgram(stylesheetPath, v.get("style")))
+  spawn(runProgram(stylesheetPath, v.get("style"), cssPath))
   sync()
   startThread(watchoutCallback, watchFiles, delay, shouldJoinThread = true)
   QuitSuccess.quit

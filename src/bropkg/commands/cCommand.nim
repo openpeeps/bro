@@ -24,8 +24,16 @@ proc runCommand*(v: Values) =
     display("Stylesheet is empty")
     QuitFailure.quit
 
-  let cssPath = stylesheetPath.changeFileExt("css")
-  if not v.flag("stdout"):
+  var cssPath: string
+  var hasOutput = v.has("output")
+  if hasOutput:
+    cssPath = v.get("output")
+    if cssPath.splitFile.ext != ".css":
+      display("Output path missing `.css` extension\n" & cssPath)
+      QuitFailure.quit
+    if not cssPath.isAbsolute:
+      cssPath.normalizePath
+      cssPath = cssPath.absolutePath()
     display("✨ Building...", br="after")
   let
     t = cpuTime()
@@ -41,15 +49,14 @@ proc runCommand*(v: Values) =
       display(error)
     display(" 👉 " & p.logger.filePath)
   else:
-    let c = newCompiler(p.getProgram, cssPath, minify = v.flag("minify"))
-    if likely(not v.flag("gzip")):
-      if not v.flag("stdout"):
-        writeFile(cssPath, c.getCSS)
-      else:
-        display(c.getCSS)
-    else:
-      if not v.flag("stdout"):
+    let c = newCompiler(p.getProgram, cssPath, minify = v.flag("min"))
+    if hasOutput:
+      if v.flag("gzip"):
         writeFile(cssPath.changeFileExt(".css.gzip"), compress(c.getCSS, dataFormat = dfGzip))
-    if not v.flag("stdout"):
+      else:
+        writeFile(cssPath, c.getCSS)
+    else:
+      display(c.getCSS)
+    if hasOutput:
       display "Done in " & $(cpuTime() - t)
     QuitSuccess.quit
