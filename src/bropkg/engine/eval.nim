@@ -105,18 +105,37 @@ macro mathLog*(x, base: float): untyped =
 proc evalInfix*(infixLeft, infixRight: Node, infixOp: InfixOp, scope: ScopeTable): bool =
   case infixOp:
   of EQ:
-    if infixLeft.nt == NTCall:
-      if infixRight.nt == NTColor:
+    case infixLeft.nt
+    of NTCall:
+      case infixRight.nt
+      of NTColor:
         return isEqualString(call(infixLeft).getColor, infixRight.getColor)
-      elif infixRight.nt == NTBool:
+      of NTBool:
         return isEqualBool(call(infixLeft).bVal, infixRight.bVal)
-
+      else: discard # todo
+    of NTBool:
+      case infixRight.nt:
+      of NTBool:
+        return isEqualBool(infixLeft.bVal, infixRight.bVal)
+      else: discard # todo
+    else : discard # todo
   of NE:
-    if infixLeft.nt == NTCall:
-      if infixRight.nt == NTColor:
+    case infixLeft.nt
+    of NTCall:
+      case infixRight.nt
+      of NTColor:
         return isNotEqualString(call(infixLeft).getColor, infixRight.getColor)
-      elif infixRight.nt == NTBool:
+      of NTBool:
         return isNotEqualBool(call(infixLeft).bVal, infixRight.bVal)
+      else: discard # TODO
+    of NTBool:
+      case infixRight.nt:
+      of NTBool:
+        return isNotEqualBool(infixLeft.bVal, infixRight.bVal)
+      of NTCall:
+        return isNotEqualBool(infixLeft.bVal, call(infixRight).bVal)
+      else: discard # todo
+    else: discard
   of AND:
     result =
       evalInfix(infixLeft.infixLeft,infixLeft.infixRight,
