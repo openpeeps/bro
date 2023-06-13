@@ -7,7 +7,7 @@
 import pkg/stashtable
 import pkg/[msgpack4nim, msgpack4nim/msgpack4collection]
 import pkg/kapsis/cli
-import std/[os, strutils, sequtils, macros, tables, json,
+import std/[os, strutils, sequtils, macros, algorithm, tables, json,
             memfiles, critbits, threadpool, times, oids]
 
 import ./tokens, ./ast, ./memtable, ./logging
@@ -24,13 +24,6 @@ type
     Partial 
 
   Warning* = tuple[msg: string, line, col: int]
-
-  # PartialFilePath = distinct string
-  # Importer* = ref object
-  #   partials: OrderedTableRef[int, tuple[indentation: int, sourcePath: string]]
-  #   sources: TableRef[string, MemFile]
-
-  
   Memparser = StashTable[string, Program, 1000]
   Imports = OrderedTableRef[string, Node]
 
@@ -65,6 +58,7 @@ proc parse(p: var Parser, scope: ScopeTable = nil, excludeOnly, includeOnly: set
 proc parseVariableCall(p: var Parser, scope: ScopeTable = nil): Node
 proc parseVariableAccessor(p: var Parser, scope: ScopeTable = nil): Node
 proc parseInfix(p: var Parser, scope: ScopeTable = nil): Node
+proc parseClass(p: var Parser, scope: ScopeTable = nil): Node
 proc partialThread(th: (string, Memparser)) {.thread.}
 
 when compileOption("app", "console"):

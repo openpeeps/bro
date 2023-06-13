@@ -94,15 +94,15 @@ proc parseSelector(p: var Parser, node: Node, tk: TokenTuple, scope: ScopeTable,
       else:
         error(DuplicateSelector, p.curr, prefixedIdent)
   node.multipleSelectors = multipleSelectors
-  
   # parse selector properties or child nodes
-  if p.curr.line > tk.line:
+  if p.curr.kind != tkEOF and p.curr.line > tk.line:
     p.whileChild(tk, node, scope)
-    result = node
-    if unlikely(result.props.len == 0 and result.extends == false):
+    if unlikely(node.props.len == 0 and node.extends == false):
       warn(DeclaredEmptySelector, tk, true, node.ident)
+    result = node
+    result.props.sort(system.cmp, order = Descending)
   else:
-    if not p.hasErrors: # to be sure will not be superseded
+    if not p.hasErrors:
       error(UnexpectedToken, p.curr, p.curr.value)
 
 template handleSelectorConcat(withConcat, withoutConcat: untyped) =
@@ -134,11 +134,13 @@ proc parseClass(p: var Parser, scope: ScopeTable = nil): Node =
   let tk = p.curr
   var concatNodes: seq[Node] # NTVariable
   handleSelectorConcat:
-    p.currentSelector = tk.newClass(concat = concatNodes)
-    result = p.parseSelector(p.currentSelector, tk, scope, toWalk = false)
+    let node = tk.newClass(concat = concatNodes)
+    p.currentSelector = node
+    result = p.parseSelector(node, tk, scope, toWalk = false)
   do:
-    p.currentSelector = tk.newClass()
-    result = p.parseSelector(p.currentSelector, tk, scope)
+    let node = tk.newClass()
+    p.currentSelector = node
+    result = p.parseSelector(node, tk, scope)
   p.program.selectors[prefixed(tk)] = result
 
 proc parseID(p: var Parser, scope: ScopeTable = nil): Node =
