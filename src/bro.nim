@@ -9,7 +9,9 @@ when defined napibuild:
   from std/sequtils import toSeq
 
   init proc(module: Module) =
-    module.registerFn(1, "compile"):
+    module.registerFn(2, "compile"):
+      if not Env.expect(args, "BroError", ("src", napi_string), ("minify", napi_boolean)):
+        return
       let sourcePath = args[0].getStr
       var p = parseProgram(sourcePath)
       if not p.hasErrors:
