@@ -120,7 +120,7 @@ proc setPosition*(s: MsgStream, pos: int) =
 proc atEnd*(s: MsgStream): bool =
   return s.pos >= s.data.len
 
-proc conversionError*(msg: string): ref ObjectConversionError =
+proc conversionError*(msg: string): ref Defect =
   new(result)
   result.msg = msg
 
