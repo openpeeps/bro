@@ -195,8 +195,7 @@ type
       parents*: seq[string]
       multipleSelectors*: seq[string]
       nested*: bool
-      props*, pseudo*: KeyValueTable
-      nodes*: seq[Node]
+      properties*, pseudo*, innerNodes*: KeyValueTable
       extends*: bool
       extendFrom*, extendBy*: seq[string]
       identConcat*: seq[Node] # NTVariable
@@ -215,6 +214,7 @@ proc prefixed*(tk: TokenTuple): string =
   result = case tk.kind
             of tkClass: "."
             of tkID: "#"
+            of tkPseudoClass: ":"
             else: ""
   add result, tk.value
 
@@ -351,21 +351,21 @@ proc newComment*(str: string): Node =
   ## Create a new NTComment node
   result = Node(nt: NTComment, comment: str)
 
-proc newTag*(tk: TokenTuple, props = KeyValueTable(), multipleSelectors = @[""], concat: seq[Node] = @[]): Node =
+proc newTag*(tk: TokenTuple, properties = KeyValueTable(), multipleSelectors = @[""], concat: seq[Node] = @[]): Node =
   ## Create a new NTTag node
-  Node(nt: NTTagSelector, ident: tk.prefixed, props: props, multipleSelectors: multipleSelectors, identConcat: concat)
+  Node(nt: NTTagSelector, ident: tk.prefixed, properties: properties, multipleSelectors: multipleSelectors, identConcat: concat)
 
-proc newClass*(tk: TokenTuple, props = KeyValueTable(), multipleSelectors = @[""], concat: seq[Node] = @[]): Node =
+proc newClass*(tk: TokenTuple, properties = KeyValueTable(), multipleSelectors = @[""], concat: seq[Node] = @[]): Node =
   ## Create a new NTClassSelector
-  Node(nt: NTClassSelector, ident: tk.prefixed, props: props, multipleSelectors: multipleSelectors, identConcat: concat)
+  Node(nt: NTClassSelector, ident: tk.value, properties: properties, multipleSelectors: multipleSelectors, identConcat: concat)
 
-proc newPseudoClass*(tk: TokenTuple, props = KeyValueTable(), multipleSelectors = @[""], concat: seq[Node] = @[]): Node =
+proc newPseudoClass*(tk: TokenTuple, properties = KeyValueTable(), multipleSelectors = @[""], concat: seq[Node] = @[]): Node =
   ## Create a new NTPseudoClassSelector
-  Node(nt: NTPseudoClassSelector, ident: tk.prefixed, props: props, multipleSelectors: multipleSelectors, identConcat: concat)
+  Node(nt: NTPseudoClassSelector, ident: tk.prefixed, properties: properties, multipleSelectors: multipleSelectors, identConcat: concat)
 
-proc newID*(tk: TokenTuple, props = KeyValueTable(), multipleSelectors = @[""], concat: seq[Node] = @[]): Node =
+proc newID*(tk: TokenTuple, properties = KeyValueTable(), multipleSelectors = @[""], concat: seq[Node] = @[]): Node =
   ## Create a new NTIDSelector
-  Node(nt: NTIDSelector, ident: tk.prefixed, props: props, multipleSelectors: multipleSelectors, identConcat: concat)
+  Node(nt: NTIDSelector, ident: tk.prefixed, properties: properties, multipleSelectors: multipleSelectors, identConcat: concat)
 
 proc newPreview*(tk: TokenTuple): Node =
   ## Create a new NTPreview

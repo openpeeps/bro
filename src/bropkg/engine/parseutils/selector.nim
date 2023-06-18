@@ -1,3 +1,19 @@
+proc prefixSelector(node: Node): string =
+  result =
+    case node.nt
+    of NTClassSelector: "." & node.ident
+    of NTIDSelector: "#" & node.ident
+    else: node.ident
+
+proc checkPseudoSelector(p: var Parser): bool =
+  if likely(pseudoTable.hasKey(p.next.value)):
+    walk p
+    p.curr.col = p.prev.col
+    p.curr.pos = p.prev.pos
+    return true
+  walk p
+  error(UnknownPseudoClass, p.prev, p.curr.value)
+
 proc parseProperty(p: var Parser, scope: ScopeTable = nil): Node =
   if likely(Properties.hasKey(p.curr.value)):
     let pName = p.curr
@@ -56,30 +72,47 @@ proc whileChild(p: var Parser, this: TokenTuple, parentNode: Node, scope: ScopeT
     if p.isPropOf(this):
       let propNode = p.parseProperty(scope)
       if likely(propNode != nil):
-        parentNode.props[propNode.pName] = propNode
+        parentNode.properties[propNode.pName] = propNode
       else: return
     elif p.childOf(this):
       if unlikely(p.curr.kind == tkExtend):
         discard p.parseExtend(scope)
         if p.hasErrors: return # any errors from `parseExtend`
         continue
+        # remember last parent when parsing child nodes
+      p.lastParent = parentNode
       let node = p.parse(scope, excludeOnly = {tkImport})
-      if node != nil:
+      if likely(node != nil):
         case node.nt
         of NTForStmt:
-          parentNode.props[$node.forOid] = node
+          parentNode.properties[$node.forOid] = node
         of NTCondStmt:
-          parentNode.props[$node.condOid] = node
+          parentNode.properties[$node.condOid] = node
         of NTCaseStmt:
-          parentNode.props[$node.caseOid] = node
+          parentNode.properties[$node.caseOid] = node
+        # of NTPseudoClassSelector:
+        #   node.parents = concat(@[parentNode.ident], parentNode.multipleSelectors)
+        #   if not parentNode.pseudo.hasKey(node.ident):
+        #     parentNode.pseudo[node.ident] = node
+        #   else:
+        #     for k, v in node.properties:
+        #       parentNode.pseudo[node.ident].properties[k] = v
         else:
-          node.parents = concat(@[parentNode.ident], parentNode.multipleSelectors)
-          if not parentNode.props.hasKey(node.ident):
-            parentNode.props[node.ident] = node
+          case node.nt:
+          of NTProperty:          
+            if not parentNode.properties.hasKey(node.ident):
+              parentNode.properties[node.ident] = node
+            else:
+              for k, v in node.properties:
+                parentNode.properties[node.ident].properties[k] = v
           else:
-            for k, v in node.props.pairs():
-              parentNode.props[node.ident].props[k] = v
-      else: return
+            if not parentNode.innerNodes.hasKey(node.ident):
+              parentNode.innerNodes[node.ident] = node
+            else:
+              for k, v in node.innerNodes:
+                parentNode.innerNodes[node.ident].innerNodes[k] = v
+        #   node.parents = concat(@[parentNode.ident], parentNode.multipleSelectors)
+      else: break
 
 proc parseSelector(p: var Parser, node: Node, tk: TokenTuple, scope: ScopeTable, toWalk = true): Node =
   if toWalk: walk p
@@ -87,20 +120,32 @@ proc parseSelector(p: var Parser, node: Node, tk: TokenTuple, scope: ScopeTable,
   while p.curr.kind == tkComma:
     walk p
     if p.curr.kind notin {tkColon, tkIdentifier}:
-      let prefixedIdent = prefixed(p.curr)
+      var prefixedIdent: string
+      if p.curr.kind == tkPseudoClass:
+        if not p.checkPseudoSelector():
+          return
+        prefixedIdent = p.curr.value
+      else:
+        prefixedIdent = prefixed(p.curr)
       if prefixedIdent != node.ident and prefixedIdent notin multipleSelectors:
-        add multipleSelectors, prefixed(p.curr)
+        add multipleSelectors, prefixedIdent
         walk p
       else:
         error(DuplicateSelector, p.curr, prefixedIdent)
   node.multipleSelectors = multipleSelectors
-  # parse selector properties or child nodes
+  if p.lastParent != nil:
+    if p.lastParent.parents.len != 0:
+      node.parents = concat(p.lastParent.parents, @[prefixSelector(p.lastParent)])
+    else:
+      add node.parents, prefixSelector(p.lastParent)
   if p.curr.kind != tkEOF and p.curr.line > tk.line:
+    # parse selector properties and child nodes
     p.whileChild(tk, node, scope)
-    if unlikely(node.props.len == 0 and node.extends == false):
+    if unlikely(node.properties.len == 0 and node.extends == false):
       warn(DeclaredEmptySelector, tk, true, node.ident)
     result = node
-    result.props.sort(system.cmp, order = Descending)
+    result.properties.sort(system.cmp, order = Descending)
+    p.lastParent = nil # flush parent
   else:
     if not p.hasErrors:
       error(UnexpectedToken, p.curr, p.curr.value)
@@ -147,11 +192,13 @@ proc parseID(p: var Parser, scope: ScopeTable = nil): Node =
   let tk = p.curr
   var concatNodes: seq[Node] # NTVariable
   handleSelectorConcat:
-    p.currentSelector = tk.newID(concat = concatNodes)
-    result = p.parseSelector(p.currentSelector, tk, scope, toWalk = false)
+    let node = tk.newID(concat = concatNodes)
+    p.currentSelector = node
+    result = p.parseSelector(node, tk, scope, toWalk = false)
   do:
-    p.currentSelector = tk.newID()
-    result = p.parseSelector(p.currentSelector, tk, scope)
+    let node = tk.newID()
+    p.currentSelector = node
+    result = p.parseSelector(node, tk, scope)
   p.program.selectors[prefixed(tk)] = result
 
 proc parseNest(p: var Parser, scope: ScopeTable = nil): Node =
@@ -164,12 +211,6 @@ proc parseNest(p: var Parser, scope: ScopeTable = nil): Node =
     error(InvalidNestSelector, p.curr, p.curr.value)
 
 proc parsePseudoNest(p: var Parser, scope: ScopeTable = nil): Node =
-  if likely(pseudoTable.hasKey(p.next.value)):
-    walk p
-    p.curr.col = p.prev.col
-    p.curr.pos = p.prev.pos
+  if p.checkPseudoSelector():
     let tk = p.curr
     result = p.parseSelector(tk.newPseudoClass, tk, scope)
-  else:
-    walk p
-    error(UnknownPseudoClass, p.prev, p.curr.value)

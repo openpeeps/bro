@@ -5,7 +5,7 @@
 #          https://github.com/openpeeps/bro
 
 
-import std/[tables, strutils, macros, json]
+import std/[tables, strutils, macros, sequtils, json]
 import ./ast, ./sourcemap, ./logging, ./eval
 
 when not defined release:
@@ -23,9 +23,9 @@ type
 var strNL, strCL, strCR: string
 
 # forward defintion
-proc write(c: var Compiler, node: Node, scope: ScopeTable = nil, data: Node = nil)
-proc writeSelector(c: var Compiler, node: Node, scope: ScopeTable = nil, data: Node = nil)
-proc writeClass(c: var Compiler, node: Node)
+proc write(c: var Compiler, node: Node, scope: ScopeTable = nil, data: Node = nil, parentSelector = "")
+proc writeSelector(c: var Compiler, node: Node, scope: ScopeTable = nil, data: Node = nil, parentSelector = "")
+proc writeClass(c: var Compiler, node: Node, scope: ScopeTable)
 proc handleChildNodes(c: var Compiler, node: Node, scope: ScopeTable = nil,
                       skipped: var bool, length: int)
 
@@ -42,6 +42,13 @@ template writeKeyValue(val: string, i: int) =
   if length != i:
     add c.css, ";"
 
+proc prefix(node: Node): string =
+  result =
+    case node.nt
+    of NTClassSelector: "." & node.ident
+    of NTIDSelector: "#" & node.ident
+    else: node.ident
+
 proc getOtherParents(node: Node, childSelector: string): string =
   var res: seq[string]
   for parent in node.parents:
@@ -57,6 +64,7 @@ proc getOtherParents(node: Node, childSelector: string): string =
 proc writeVal(c: var Compiler, val: Node, scope: ScopeTable, isHexColorStripHash = false) =
   case val.nt
   of NTString:
+    # add c.css, "\"" & val.sVal & "\""
     add c.css, val.sVal
   of NTFloat:
     add c.css, $val.fVal
@@ -91,8 +99,7 @@ proc writeVal(c: var Compiler, val: Node, scope: ScopeTable, isHexColorStripHash
     discard
   else: discard
 
-proc writeProps(c: var Compiler, n: Node, k: string, i: var int,
-              length: int, scope: ScopeTable) =
+proc writeProps(c: var Compiler, n: Node, k: string, i: var int, length: int, scope: ScopeTable) =
   var ii = 1
   var vLen = n.pVal.len
   if c.minify:
@@ -127,7 +134,10 @@ proc handleForStmt(c: var Compiler, node: Node, scope: ScopeTable) =
 proc handleCondStmt(c: var Compiler, node: Node, scope: ScopeTable) =
   if evalInfix(node.ifInfix.infixLeft, node.ifInfix.infixRight, node.ifInfix.infixOp, scope):
     var ix = 0
+    var skipped: bool
     for ii in 0 .. node.ifBody.high:
+      # c.write(node.ifBody[ii], scope)
+      # c.handleChildNodes(node.ifBody[ii], scope, skipped,)
       case node.ifBody[ii].nt:
       of NTProperty:
         c.writeProps(node.ifBody[ii], node.ifBody[ii].pName, ix, node.ifBody.len, scope)
@@ -150,7 +160,7 @@ proc handleCondStmt(c: var Compiler, node: Node, scope: ScopeTable) =
             # todo handle nested selectors
             discard
 
-proc handleAheadOfTimeComputation(c: var Compiler, node: Node, scope: ScopeTable) =
+proc handleAOT(c: var Compiler, node: Node, scope: ScopeTable) =
   ## TODO collect scope data
   for childSelector in node.extendBy:
     for aot in c.program.selectors[childSelector].aotStmts:
@@ -162,122 +172,50 @@ proc handleAheadOfTimeComputation(c: var Compiler, node: Node, scope: ScopeTable
         discard # todo
       else: discard
 
-proc writeSelector(c: var Compiler, node: Node, scope: ScopeTable = nil,
-                   data: Node = nil) =
-  var skipped: bool
-  let length = node.props.len
-  if node.extendBy.len != 0:
-    c.handleAheadOfTimeComputation(node, scope)
-    add c.css, node.ident & "," & node.extendBy.join(",")
-  elif node.multipleSelectors.len == 0 and node.parents.len == 0:
-    add c.css, node.ident
-    for identConcat in node.identConcat:
-      case identConcat.nt
-      of NTCall:
-        var scopeVar: Node
-        if identConcat.callNode.varValue != nil:
-          c.writeVal(identConcat, nil)
-        else:
-          scopeVar = scope[identConcat.callNode.varName]
-          var varValue = scopeVar.varValue
-          case varValue.val.nt
-          of NTColor:
-            # todo handle colors at parser level
-            identConcat.callNode.varValue = varValue
-            c.writeVal(identConcat, nil, varValue.val.cVal[0] == '#')
-          else:
-            identConcat.callNode.varValue = varValue
-            c.writeVal(identConcat, nil)
-      of NTString, NTInt, NTFloat, NTBool:
-        c.writeVal(identConcat, nil)
-      else: discard
-  elif node.parents.len != 0:
-    add c.css, node.getOtherParents(node.ident)
-  else:
-    add c.css, node.ident & "," & node.multipleSelectors.join(",")
-  add c.css, strCL
-  c.handleChildNodes(node, scope, skipped, length)
-  if not skipped:
-    add c.css, strCR
+include ./compileutils/handleWriteSelector
 
-proc writeClass(c: var Compiler, node: Node) =
-  c.writeSelector(node)
+proc handleCaseStmt(c: var Compiler, node: Node, scope: ScopeTable, data: Node) =
+  for i in 0 .. node.caseCond.high:
+    if evalInfix(node.caseIdent, node.caseCond[i].condOf, EQ, scope):
+      for ii in 0 .. node.caseCond[i].body.high:
+        c.write(node.caseCond[i].body[ii], scope)
+      return
+  for i in 0 .. node.caseElse.high:
+    c.write(node.caseElse[i], scope)
 
-proc writeID(c: var Compiler, node: Node) =
-  c.writeSelector(node)
+proc handleImportStmt(c: var Compiler, node: Node, scope: ScopeTable) =
+  for i in 0 .. node.importNodes.high:
+    c.write(node.importNodes[i], scope)
+    # case node.importNodes[i].nt:
+    # of NTClassSelector, NTTagSelector, NTIDSelector, NTRoot:
+    #   c.writeSelector(node.importNodes[i])
+    # of NTForStmt:
+    #   c.handleForStmt(node.importNodes[i], scope)
+    # else: discard # todo
 
-proc writeTag(c: var Compiler, node: Node) =
-  c.writeSelector(node)
-
-proc handleChildNodes(c: var Compiler, node: Node, scope: ScopeTable = nil,
-                      skipped: var bool, length: int) =
-  var i = 1
-  for k, v in node.props.pairs():
-    case v.nt:
-    of NTProperty:
-      c.writeProps(v, k, i, length, scope)
-    of NTClassSelector:
-      if not skipped:
-        add c.css, strCR
-        skipped = true
-      c.writeClass(v)
-    of NTPseudoClassSelector:
-      if not skipped:
-        add c.css, strCR
-        skipped = true
-      c.writeSelector(v)
-    of NTExtend:
-      for eKey, eProp in v.extendProps.pairs():
-        var ix = 0
-        c.writeProps(eProp, eKey, ix, v.extendProps.len, scope)
-    of NTCall:
-      discard v.callNode.nt
-    of NTForStmt:
-      case node.inItems.callNode.nt:
-      of NTVariableValue:
-        let items = node.inItems.callNode.varValue.arrayVal
-      of NTJsonValue:
-        let items = node.inItems.callNode.jsonVal
-      else: discard
-    of NTCaseStmt:
-      discard
-    of NTCondStmt:
-      c.handleCondStmt(v, scope)
-    else: discard
-
-proc write(c: var Compiler, node: Node, scope: ScopeTable = nil, data: Node = nil) =
+proc write(c: var Compiler, node: Node, scope: ScopeTable = nil, data: Node = nil, parentSelector = "") =
   case node.nt:
   of NTClassSelector, NTTagSelector, NTIDSelector, NTRoot:
-    if node.props.len != 0:
-      c.writeSelector(node, scope, data)
+    c.writeSelector(node, scope, data, parentSelector)
+    if unlikely(node.pseudo.len != 0):
+      for k, pseudoNode in node.pseudo:
+        c.writeSelector(pseudoNode, scope, data)
   of NTForStmt:
     c.handleForStmt(node, scope)
   of NTCondStmt:
-    if evalInfix(node.ifInfix.infixLeft, node.ifInfix.infixRight, node.ifInfix.infixOp, scope):
-      for i in 0 .. node.ifBody.high:
-        c.write(node.ifBody[i], scope)
+    c.handleCondStmt(node, scope)
   of NTCaseStmt:
-    for i in 0 .. node.caseCond.high:
-      if evalInfix(node.caseIdent, node.caseCond[i].condOf, EQ, scope):
-        for ii in 0 .. node.caseCond[i].body.high:
-          c.write(node.caseCond[i].body[ii], scope)
-        return
-    for i in 0 .. node.caseElse.high:
-      c.write(node.caseElse[i], scope)
+    c.handleCaseStmt(node, scope, data)
   of NTImport:
-    for i in 0 .. node.importNodes.high:
-      case node.importNodes[i].nt:
-      of NTClassSelector, NTTagSelector, NTIDSelector, NTRoot:
-        c.writeSelector(node.importNodes[i])
-      of NTForStmt:
-        c.handleForStmt(node.importNodes[i], scope)
-      else: discard # todo
+    c.handleImportStmt(node, scope)
   of NTCommand:
     case node.cmdIdent
     of cmdEcho:
       discard # todo
       # echo node
   else: discard
+
+proc len*(c: var Compiler): int = c.program.nodes.len
 
 proc newCompiler*(p: Program, outputPath: string, minify = false): Compiler =
   var c = Compiler(program: p, minify: minify)
@@ -295,6 +233,7 @@ proc newCompiler*(p: Program, outputPath: string, minify = false): Compiler =
   # info.newLine("test.sass", 14)
   # info.addSegment(0, 0)
   # echo toJson(info.toSourceMap("test.css"))
+  echo p.nodes
   for i in 0.. c.program.nodes.high:
     c.write(c.program.nodes[i])
   result = c

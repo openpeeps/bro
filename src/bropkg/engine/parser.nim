@@ -4,11 +4,10 @@
 #          Made by Humans from OpenPeeps
 #          https://github.com/openpeeps/bro
 
-import pkg/stashtable
-import pkg/[msgpack4nim, msgpack4nim/msgpack4collection]
+import pkg/[stashtable, msgpack4nim]
 import pkg/kapsis/cli
 import std/[os, strutils, sequtils, macros, algorithm, tables, json,
-            memfiles, critbits, threadpool, times, oids]
+            memfiles, critbits, times, oids]
 
 import ./tokens, ./ast, ./memtable, ./logging
 import ./properties
@@ -39,7 +38,7 @@ type
       error: string
     hasErrors*: bool
     warnings*: seq[Warning]
-    currentSelector: Node
+    currentSelector, lastParent: Node
     imports: Imports
     memparser: Memparser
     case ptype: ParserType
@@ -241,7 +240,7 @@ proc isProp(p: var Parser): bool =
   result = p.curr.kind == tkIdentifier
 
 proc childOf(p: var Parser, tk: TokenTuple): bool =
-  result = p.curr.pos > tk.pos and p.curr.kind != tkEOF
+  result = p.curr.pos > tk.pos and (p.curr.line > tk.line and p.curr.kind != tkEOF)
 
 proc isPropOf(p: var Parser, tk: TokenTuple): bool =
   result = p.childOf(tk) and p.isProp()
