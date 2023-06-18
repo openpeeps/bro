@@ -233,7 +233,7 @@ proc newCompiler*(p: Program, outputPath: string, minify = false): Compiler =
   # info.newLine("test.sass", 14)
   # info.addSegment(0, 0)
   # echo toJson(info.toSourceMap("test.css"))
-  echo p.nodes
+  # echo p.nodes
   for i in 0.. c.program.nodes.high:
     c.write(c.program.nodes[i])
   result = c
