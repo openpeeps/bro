@@ -1,6 +1,6 @@
 <p align="center">
   <img src="https://github.com/openpeeps/bro/blob/main/.github/bro.png" alt="Bro aka NimSass" width="170px"><br>
-  😋 Bro aka NimSass ⚡ A super fast statically typed stylesheet language for cool kids<br>👑 Written in Nim language
+  😋 Bro aka NimSass ⚡ A super fast stylesheet language for cool kids!<br>👑 Written in Nim language
 </p>
 
 <p align="center">
