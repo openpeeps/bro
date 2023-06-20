@@ -16,7 +16,8 @@ handlers:
 
   proc handleClassSelector(lex: var Lexer, kind: TokenKind) =
     lexReady lex
-    inc lex
+    # inc lex
+    add lex
     while true:
       if lex.hasLetters(lex.bufpos) or lex.hasNumbers(lex.bufpos):
         add lex

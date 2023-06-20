@@ -1,10 +1,3 @@
-proc prefixSelector(node: Node): string =
-  result =
-    case node.nt
-    of NTClassSelector: "." & node.ident
-    of NTIDSelector: "#" & node.ident
-    else: node.ident
-
 proc checkPseudoSelector(p: var Parser): bool =
   if likely(pseudoTable.hasKey(p.next.value)):
     walk p
@@ -85,11 +78,11 @@ proc whileChild(p: var Parser, this: TokenTuple, parentNode: Node, scope: ScopeT
       if likely(node != nil):
         case node.nt
         of NTForStmt:
-          parentNode.properties[$node.forOid] = node
+          parentNode.innerNodes[$node.forOid] = node
         of NTCondStmt:
-          parentNode.properties[$node.condOid] = node
+          parentNode.innerNodes[$node.condOid] = node
         of NTCaseStmt:
-          parentNode.properties[$node.caseOid] = node
+          parentNode.innerNodes[$node.caseOid] = node
         # of NTPseudoClassSelector:
         #   node.parents = concat(@[parentNode.ident], parentNode.multipleSelectors)
         #   if not parentNode.pseudo.hasKey(node.ident):
@@ -99,7 +92,7 @@ proc whileChild(p: var Parser, this: TokenTuple, parentNode: Node, scope: ScopeT
         #       parentNode.pseudo[node.ident].properties[k] = v
         else:
           case node.nt:
-          of NTProperty:          
+          of NTProperty:
             if not parentNode.properties.hasKey(node.ident):
               parentNode.properties[node.ident] = node
             else:
@@ -111,7 +104,6 @@ proc whileChild(p: var Parser, this: TokenTuple, parentNode: Node, scope: ScopeT
             else:
               for k, v in node.innerNodes:
                 parentNode.innerNodes[node.ident].innerNodes[k] = v
-        #   node.parents = concat(@[parentNode.ident], parentNode.multipleSelectors)
       else: break
 
 proc parseSelector(p: var Parser, node: Node, tk: TokenTuple, scope: ScopeTable, toWalk = true): Node =
@@ -120,32 +112,32 @@ proc parseSelector(p: var Parser, node: Node, tk: TokenTuple, scope: ScopeTable,
   while p.curr.kind == tkComma:
     walk p
     if p.curr.kind notin {tkColon, tkIdentifier}:
-      var prefixedIdent: string
+      var selectorIdent: string
       if p.curr.kind == tkPseudoClass:
         if not p.checkPseudoSelector():
           return
-        prefixedIdent = p.curr.value
-      else:
-        prefixedIdent = prefixed(p.curr)
-      if prefixedIdent != node.ident and prefixedIdent notin multipleSelectors:
-        add multipleSelectors, prefixedIdent
+      selectorIdent = p.curr.value
+      if selectorIdent != node.ident and selectorIdent notin multipleSelectors:
+        add multipleSelectors, selectorIdent
         walk p
       else:
-        error(DuplicateSelector, p.curr, prefixedIdent)
+        error(DuplicateSelector, p.curr, selectorIdent)
   node.multipleSelectors = multipleSelectors
+  setLen(multipleSelectors, 0)
   if p.lastParent != nil:
     if p.lastParent.parents.len != 0:
-      node.parents = concat(p.lastParent.parents, @[prefixSelector(p.lastParent)])
+      node.parents = concat(p.lastParent.parents, @[p.lastParent.ident])
     else:
-      add node.parents, prefixSelector(p.lastParent)
+      add node.parents, p.lastParent.ident
   if p.curr.kind != tkEOF and p.curr.line > tk.line:
     # parse selector properties and child nodes
     p.whileChild(tk, node, scope)
-    if unlikely(node.properties.len == 0 and node.extends == false):
-      warn(DeclaredEmptySelector, tk, true, node.ident)
-    result = node
-    result.properties.sort(system.cmp, order = Descending)
-    p.lastParent = nil # flush parent
+    if not p.hasErrors:
+      if unlikely(node.properties.len == 0 and (node.innerNodes.len == 0 and node.extends == false)):
+        warn(DeclaredEmptySelector, tk, true, node.ident)
+      result = node
+      # result.properties.sort(system.cmp, order = Ascending)
+      p.lastParent = nil # flush parent
   else:
     if not p.hasErrors:
       error(UnexpectedToken, p.curr, p.curr.value)
@@ -173,7 +165,7 @@ template handleSelectorConcat(withConcat, withoutConcat: untyped) =
     withConcat
   else:
     withoutConcat
-  p.program.selectors[prefixed(tk)] = result
+  p.program.selectors[tk.value] = result
 
 proc parseClass(p: var Parser, scope: ScopeTable = nil): Node =
   let tk = p.curr
@@ -186,7 +178,7 @@ proc parseClass(p: var Parser, scope: ScopeTable = nil): Node =
     let node = tk.newClass()
     p.currentSelector = node
     result = p.parseSelector(node, tk, scope)
-  p.program.selectors[prefixed(tk)] = result
+  p.program.selectors[tk.value] = result
 
 proc parseID(p: var Parser, scope: ScopeTable = nil): Node =
   let tk = p.curr
@@ -199,7 +191,7 @@ proc parseID(p: var Parser, scope: ScopeTable = nil): Node =
     let node = tk.newID()
     p.currentSelector = node
     result = p.parseSelector(node, tk, scope)
-  p.program.selectors[prefixed(tk)] = result
+  p.program.selectors[tk.value] = result
 
 proc parseNest(p: var Parser, scope: ScopeTable = nil): Node =
   walk p

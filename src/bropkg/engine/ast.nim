@@ -218,6 +218,13 @@ proc prefixed*(tk: TokenTuple): string =
             else: ""
   add result, tk.value
 
+proc prefixSelector(node: Node): string =
+  result =
+    case node.nt
+    of NTClassSelector: "." & node.ident
+    of NTIDSelector: "#" & node.ident
+    else: node.ident
+
 proc getInfixOp*(kind: TokenKind, isInfixInfix: bool): InfixOp =
   case kind:
   of tkEQ: result = EQ

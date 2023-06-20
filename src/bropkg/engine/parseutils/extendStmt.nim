@@ -14,12 +14,12 @@ proc parseExtend(p: var Parser, scope: ScopeTable = nil): Node =
   walk p
   case p.curr.kind
   of tkClass, tkID:
-    let parentSelector = prefixed(p.curr)
-    if p.program.selectors.hasKey(parentSelector):
-      let pNode = p.program.selectors[parentSelector]
+    let pSelectorIdent = p.curr
+    if p.program.selectors.hasKey(pSelectorIdent.value):
+      let pNode = p.program.selectors[pSelectorIdent.value]
       p.resolveExtended(pNode)
       if not p.hasErrors:
         walk p
       else: return
-    else: error(UndeclaredCSSSelector, p.curr, prefixed(p.curr))
+    else: error(UndeclaredCSSSelector, p.curr, pSelectorIdent.value)
   else: discard # todo
