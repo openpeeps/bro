@@ -20,7 +20,7 @@
 - 🔖 A beautiful, improved `SASS`-like Syntax [Learn Bro in 5 minutes](https://github.com/openpeeps/bro/wiki/Learn-Bro-in-5-minutes)
 - 🎁 **CSS Minifier**
 - 🗺 **CSS SourceMap Generator**
-- 🔄 **CSS Reload** & **Browser sync**
+- 🔄 **CSS Reload** & **Browser sync** [Setup info](https://github.com/openpeeps/bro/wiki/Index#css-reload--browser-syncing)
 - 🌴 **Abstract Syntax Tree** binary serialization via **MessagePack**
 - 🎉 Built-in `HTML` Documentation Generator
 - 🔥 Works with **NodeJS** & **BunJS** via `NAPI`
