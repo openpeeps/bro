@@ -243,7 +243,6 @@ document.addEventListener('DOMContentLoaded', function() {
 // BroStyle CSS Reload & Browser Syncing (development mode)
 const broSocket = new WebSocket("ws://127.0.0.1:9009/ws");
 const lastTimeModified = localStorage.getItem("watchout") || 0
-broSocket.addEventListener("open", (e) => broSocket.send("update"));
 broSocket.addEventListener("message", (e) => {
   if(parseInt(e.data) > lastTimeModified) {
     localStorage.setItem("watchout", e.data)
