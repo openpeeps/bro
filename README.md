@@ -4,7 +4,7 @@
 </p>
 
 <p align="center">
-  <a href="https://openpeeps.github.io/bro">API reference</a> | <a href="#">Download</a> (not yet)<br>
+  <a href="https://openpeeps.github.io/bro/theindex.html">API reference</a> | <a href="#">Download</a> (not yet)<br>
   <img src="https://github.com/openpeeps/bro/workflows/test/badge.svg" alt="Github Actions">  <img src="https://github.com/openpeeps/bro/workflows/docs/badge.svg" alt="Github Actions">
   <br><br><img src="https://github.com/openpeeps/bro/blob/main/.github/bro-cli.png" width="779px">
 </p>
