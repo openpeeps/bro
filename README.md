@@ -12,7 +12,7 @@
 ## 😍 Key Features
 - 🍃 Lightweight, tiny executable
 - 🐱 Dependency Free / **No Virtual Machine**
-- 💪 **Strong Typed Stylesheet** = Perfect **Cascading Style Sheets** 🤩
+- 💪 **Strong Typed** = Perfect **Cascading Style Sheets** 🤩
 - 🌍 Works on **Linux**, **macOS**, **Windows**
 - 👉 `Warnings` => Unused **Variables**
 - 👉 `Warnings` => Unused **Mixins**, **Functions**, **Empty selectors**
@@ -20,6 +20,7 @@
 - 🔖 A beautiful, improved `SASS`-like Syntax [Learn Bro in 5 minutes](https://github.com/openpeeps/bro/wiki/Learn-Bro-in-5-minutes)
 - 🎁 **CSS Minifier**
 - 🗺 **CSS SourceMap Generator**
+- 🔄 **CSS Reload** & **Browser sync**
 - 🌴 **Abstract Syntax Tree** binary serialization via **MessagePack**
 - 🎉 Built-in `HTML` Documentation Generator
 - 🔥 Works with **NodeJS** & **BunJS** via `NAPI`
