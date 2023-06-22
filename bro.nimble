@@ -2,7 +2,7 @@
 
 version       = "0.1.1"
 author        = "George Lemon"
-description   = "A super fast statically typed stylesheet language for cool kids"
+description   = "A super fast stylesheet language for cool kids!"
 license       = "MIT"
 srcDir        = "src"
 bin           = @["bro"]
@@ -22,6 +22,7 @@ requires "chroma#head"
 requires "zippy"
 requires "pkginfo"
 requires "stashtable"
+requires "httpx", "websocketx"
 
 task dev, "development build":
   exec "nimble build --threads:on -d:useMalloc --gc:arc --deepcopy:on"
@@ -30,7 +31,7 @@ task dev, "development build":
   # exec "nim c -f -d:release --app:lib --tlsEmulation:off --opt:speed --gc:arc -d:danger --noMain --out:./bin/libbro.so src/bro.nim"
 
 task node, "build for NodeJS":
-  exec "denim build src/bro.nim"
+  exec "denim build src/bro.nim --release"
 
 task propsgen, "Generate CSS Properties":
   # ignore undeclared identifier: 'Properties'

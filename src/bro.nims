@@ -13,3 +13,5 @@ when defined release:
 
 when defined napibuild:
   switch "passC", "-I/usr/include/node -I/usr/local/include/node"
+else:
+  switch "define", "serverInfo:BroStyleSync"

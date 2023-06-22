@@ -9,13 +9,14 @@ when defined napibuild:
   from std/sequtils import toSeq
 
   init proc(module: Module) =
-    module.registerFn(2, "compile"):
-      if not Env.expect(args, "BroError", ("src", napi_string), ("minify", napi_boolean)):
+    module.registerFn(3, "compile"):
+      if not Env.expect(args,
+        "BroError", ("src", napi_string), ("minify", napi_boolean), ("sorted", napi_boolean)):
         return
       let sourcePath = args[0].getStr
       var p = parseProgram(sourcePath)
       if not p.hasErrors:
-        return %* newCompiler(p.getProgram, sourcePath).getCSS
+        return %* newCompiler(p.getProgram, sourcePath, args[1].getBool, args[2].getBool).getCSS
       else:
         let errors = p.logger.errors.toSeq
         assert error($(errors[0]), "BroParsingError")
@@ -45,9 +46,13 @@ else:
           ? stdout  "Return CSS to stdout"
         
         --- "Development"
-        $ "watch" `style` `delay` `output`:
+        $ "watch" `style` `delay` `output` ["sync"]:
           ? "Watch for changes and compile"
-        
+          ? style    "Your main .bass file"
+          ? delay    "Delay time in ms for watcher (default 550)"
+          ? output   "Where to save the final CSS output"
+          ? sync     "Fast http server to handle CSS reload & browser syncing"
+
         $ "map" `style`:
           ? "Generates a source map"
         
