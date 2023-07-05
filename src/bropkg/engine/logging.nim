@@ -22,7 +22,7 @@ type
     InvalidProperty = "Invalid CSS property $"
     DuplicateVarDeclaration = "Duplicate variable declaration"
     DuplicateSelector = "Duplicated CSS declaration"
-    UnexpectedToken = "Unexpected token"
+    UnexpectedToken = "Unexpected token $ in this context"
     UndefinedValueVariable = "Undefined value for variable"
     DeclaredEmptySelector = "Declared CSS selector $ has no properties"
     BadIndentation = "Nestable statement requires indentation"
@@ -36,16 +36,27 @@ type
     VariableRedefinition = "Compile-time variables are immutable"
     UndefinedPropertyAccessor = "Undefined property accessor $ for object $"
     InvalidInfixMissingValue = "Invalid infix missing assignable token"
-    InvalidInfixOperator = "Invalid infix operator"
-    DeclaredVariableUnused = "Declared and not used $"
+    InvalidInfixOperator = "Invalid infix operator $ for $"
+    DeclaredNotUsed = "Declared and not used $"
     TryingAccessNonObject = "Trying to get property $ on a non-object variable $"
     DuplicateObjectKey = "Duplicate key in object"
     MissingClosingObjectBody = "Missing closing object body"
-    
+    DuplicateCaseLabel = "Duplicate case label"
+
+    UndeclaredFunction = "Undeclared function $"
+    FunctionMismatchParam = "Type mismatch for $. Got $ expected $"
+    FunctionExtraArg = "Function $ expects $ arguments, $ given"
+    FunctionReturnVoid = "Function $ has no return type"
+    FunctionInvalidReturn = "Invalid return type for function"
+
     InvalidSyntaxCaseStmt = "Invalid syntax for case statement"
     InvalidSyntaxLoopStmt = "Invalid syntax for loop statement"
     InvalidSyntaxCondStmt = "Invalid syntax for conditional statement"
     ConfigLoadingError = "Could not open json config file"
+    AttemptRedefineIdent = "Attempt to redefine"
+    TypeMismatch = "Type mismatch"
+    InvalidIdent = "Invalid identifier"
+    EndOfFileError = "EOF reached before end of $ statement"
     InternalError = "$"
 
   Level* = enum
@@ -138,7 +149,12 @@ proc warn*(logger: Logger, msg: Message, line, col: int, args: varargs[string]) 
 proc warn*(logger: Logger, msg: Message, line, col: int, strFmt: bool, args: varargs[string]) =
   logger.add(lvlWarn, msg, line, col, true, args)
 
-template error*(msg: Message, tk: TokenTuple, args: varargs[string]) =
+template error*(msg: Message, tk: TokenTuple) =
+  p.logger.newError(msg, tk.line, tk.pos, false)
+  p.hasErrors = true
+  return # block code execution
+
+template error*(msg: Message, tk: TokenTuple, args: openarray[string]) =
   p.logger.newError(msg, tk.line, tk.pos, false, args)
   p.hasErrors = true
   return # block code execution
@@ -149,7 +165,7 @@ template error*(msg: Message, tk: TokenTuple, strFmt: bool,
   p.hasErrors = true
   return # block code execution
 
-template error*(msg: Message, tk: TokenTuple, strFmt: bool, args: varargs[string]) =
+template errorWithArgs*(msg: Message, tk: TokenTuple, args: openarray[string]) =
   p.logger.newError(msg, tk.line, tk.pos, true, args)
   p.hasErrors = true
   return # block code execution
@@ -157,7 +173,7 @@ template error*(msg: Message, tk: TokenTuple, strFmt: bool, args: varargs[string
 proc error*(logger: Logger, msg: Message, line, col: int, args: varargs[string]) =
   logger.add(lvlError, msg, line, col, false, args)
 
-when defined napibuild:
+when defined napiOrWasm:
   proc runIterator(i: Log, label = ""): string =
       if label.len != 0:
         add result, label
