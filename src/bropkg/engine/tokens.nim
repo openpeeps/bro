@@ -48,9 +48,13 @@ handlers:
     while lex.buf[lex.bufpos] == ' ':
       inc lex.bufpos
     if lex.buf[lex.bufpos] == '=':
-      lex.kind = tkVar
+      lex.kind = tkVarDef
       if lex.next("="):
         lex.kind = tkVarCall
+      else: inc lex.bufpos
+    elif lex.buf[lex.bufpos] == ':':
+      lex.kind = tkVarTyped
+      # inc lex.bufpos
     elif lex.token.contains("."):
       lex.kind = tkVarCallAccessor
     else:
@@ -68,6 +72,7 @@ handlers:
         lex.setError("Missing closing curly bracket")
     else:
       lex.kind = tkLC
+      lex.token = "{"
 
   proc handleExclamation(lex: var Lexer, kind: TokenKind) =
     lexReady lex
@@ -246,7 +251,6 @@ tokens:
   TT           > "tt"
   Underline    > "u"  
   UL           > "ul"
-  # Var          > "var"
   Video        > "video"
   WBR          > "wbr"
   Root         > "root"
@@ -277,11 +281,12 @@ tokens:
   LB        > '['
   RB        > ']'
   VarConcat > tokenize(handleCurlyVar, '{')
-  LC        # '{'
+  LC        # > '{'
   RC        > '}'
   ExcRule   > tokenize(handleExclamation, '!')
   Hash      > tokenize(handleHash, '#')
-  Var       > tokenize(handleVariable, '$')
+  VarDef    > tokenize(handleVariable, '$')
+  VarTyped
   VarCall
   VarCallAccessor
   Class       > tokenize(handleClassSelector, '.')
@@ -299,6 +304,7 @@ tokens:
     # Uppercase   ? "uppercase"
     JSON        ? "json"
   Echo        > "echo"
+  Return      > "return"
   CSSCalc     > "calc"
   CSSAttr     > "attr"
   CSSConicGradient > "conic-gradient"
@@ -316,6 +322,18 @@ tokens:
   CSSRGB > "rgb"
   CSSRGBA > "rgba"
   CSSVar > "var"
+
+  # Types
+  # int, string, bool and float is supported by default
+  ArrayLit > "Array"
+  BoolLit > "Bool"
+  ColorLit  > "Color"
+  FloatLit > "Float"
+  FunctionLit > "Function"
+  IntLit    > "Int"
+  ObjectLit > "Object"
+  SizeLit   > "Size"
+  StringLit > "String"
 
   # named colors
   ColorAliceblue > "aliceblue"
@@ -465,8 +483,8 @@ tokens:
   Important
   Default
   Preview     > tokenize(handleSnippets, '`')
+  FnDef > "fn"
   FunctionCall
-  FunctionStmt
   If          > "if"
   Elif        > "elif"
   Else        > "else"
