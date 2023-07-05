@@ -1,53 +1,11 @@
-import std/[macros, math, fenv]
+# A super fast stylesheet language for cool kids
+#
+# (c) 2023 George Lemon | MIT License
+#          Made by Humans from OpenPeeps
+#          https://github.com/openpeeps/bro
+
+import std/[macros, math, parseutils, fenv]
 import ./ast
-
-macro isEqualBool*(a, b: bool): untyped =
-  result = quote:
-    `a` == `b`
-
-macro isNotEqualBool*(a, b: bool): untyped =
-  result = quote:
-    `a` != `b`
-
-macro isEqualInt*(a, b: int): untyped =
-  result = quote:
-    `a` == `b`
-
-macro isNotEqualInt*(a, b: int): untyped =
-  result = quote:
-    `a` != `b`
-
-macro isGreaterInt*(a, b: int): untyped =
-  result = quote:
-    `a` > `b`
-
-macro isGreaterEqualInt*(a, b: int): untyped =
-  result = quote:
-    `a` >= `b`
-
-macro isLessInt*(a, b: int): untyped =
-  result = quote:
-    `a` < `b`
-
-macro isLessEqualInt*(a, b: int): untyped =
-  result = quote:
-    `a` <= `b`
-
-macro isEqualFloat*(a, b: float64): untyped =
-  result = quote:
-    `a` == `b`
-
-macro isNotEqualFloat*(a, b: float64): untyped =
-  result = quote:
-    `a` != `b`
-
-macro isEqualString*(a, b: string): untyped =
-  result = quote:
-    `a` == `b`
-
-macro isNotEqualString*(a, b: string): untyped =
-  result = quote:
-    `a` != `b`
 
 # Math
 macro mathEpsilon*(x: float): untyped =
@@ -102,48 +60,128 @@ macro mathLog*(x, base: float): untyped =
   result = quote:
     math.log(x, base)
 
-proc evalInfix*(infixLeft, infixRight: Node, infixOp: InfixOp, scope: ScopeTable): bool =
-  case infixOp:
-  of EQ:
-    case infixLeft.nt
-    of NTCall:
-      case infixRight.nt
-      of NTColor:
-        return isEqualString(call(infixLeft).getColor, infixRight.getColor)
-      of NTBool:
-        return isEqualBool(call(infixLeft).bVal, infixRight.bVal)
-      else: discard # todo
-    of NTBool:
-      case infixRight.nt:
-      of NTBool:
-        return isEqualBool(infixLeft.bVal, infixRight.bVal)
-      else: discard # todo
-    else : discard # todo
-  of NE:
-    case infixLeft.nt
-    of NTCall:
-      case infixRight.nt
-      of NTColor:
-        return isNotEqualString(call(infixLeft).getColor, infixRight.getColor)
-      of NTBool:
-        return isNotEqualBool(call(infixLeft).bVal, infixRight.bVal)
-      else: discard # TODO
-    of NTBool:
-      case infixRight.nt:
-      of NTBool:
-        return isNotEqualBool(infixLeft.bVal, infixRight.bVal)
-      of NTCall:
-        return isNotEqualBool(infixLeft.bVal, call(infixRight).bVal)
-      else: discard # todo
-    else: discard
-  of AND:
-    result =
-      evalInfix(infixLeft.infixLeft,infixLeft.infixRight,
-                infixLeft.infixOp, scope) and
-      evalInfix(infixRight.infixLeft, infixRight.infixRight,
-                infixRight.infixOp, scope)
-  of OR:
-    result =
-      evalInfix(infixLeft.infixLeft, infixLeft.infixRight, infixLeft.infixOp, scope) or
-      evalInfix(infixRight.infixLeft, infixRight.infixRight, infixRight.infixOp, scope)
-  else: discard
+proc evalInfix*(lht, rht: Node, infixOp: InfixOp, scope: ScopeTable): bool =
+  # todo a macro to generate this ugly statement
+  result =
+    case infixOp:
+    of EQ:
+      case lht.nt
+      of ntCall:
+        let l = call(lht)
+        case rht.nt
+          of ntBool:    l.bVal == rht.bVal
+          of ntString:  l.sVal == rht.sVal
+          of ntInt:     l.iVal == rht.iVal
+          of ntColor:   l.getColor == rht.getColor
+          else: false
+      of ntBool:
+        case rht.nt:
+          of ntBool:    lht.bVal == rht.bVal
+          of ntCall:    lht.bVal == call(rht).bVal
+          else: false
+      of ntInt:
+        case rht.nt:
+          of ntInt:     lht.iVal == rht.iVal
+          of ntCall:    lht.iVal == call(rht).iVal
+          of ntFloat:   toFloat(lht.iVal) == rht.fVal
+          else: false
+      of ntFloat:
+        case rht.nt:
+          of ntFloat:   lht.fVal == rht.fVal
+          of ntInt:     lht.fVal == toFloat(rht.iVal)
+          of ntCall:    lht.fVal == toFloat(call(rht).iVal)
+          else: false
+      else: false
+    of NE:
+      case lht.nt
+      of ntCall:
+        let left = call(lht)
+        case rht.nt
+          of ntBool:    left.bVal != rht.bVal
+          of ntString:  left.sVal != rht.sVal
+          of ntInt:     left.iVal != rht.iVal
+          of ntColor:   left.getColor != rht.getColor
+          else: false
+      of ntBool:
+        case rht.nt:
+          of ntBool:    lht.bVal != rht.bVal
+          of ntCall:    lht.bVal != call(rht).bVal
+          else: false
+      of ntInt:
+        case rht.nt:
+          of ntInt:     lht.iVal != rht.iVal
+          of ntCall:    lht.iVal != call(rht).iVal
+          of ntFloat:   toFloat(lht.iVal) != rht.fVal
+          else: false
+      of ntFloat:
+        case rht.nt:
+          of ntFloat:   lht.fVal != rht.fVal
+          of ntInt:     lht.fVal != toFloat(rht.iVal)
+          of ntCall:    lht.fVal != toFloat(call(rht).iVal)
+          else: false
+      else: false
+    of LT:
+      case lht.nt:
+      of ntInt:
+        case rht.nt:
+          of ntInt:     lht.iVal < rht.iVal
+          of ntCall:    lht.iVal < call(rht).iVal
+          else: false
+      of ntFloat:
+        case rht.nt:
+          of ntFloat:   lht.fVal < rht.fVal
+          of ntInt:     lht.fVal < toFloat(rht.iVal)
+          of ntCall:    lht.fVal < toFloat(call(rht).iVal)
+          else: false
+      of ntCall:
+        case rht.nt:
+          of ntInt:    call(lht).iVal < rht.iVal
+          of ntCall:   call(lht).iVal < call(rht).iVal
+          else: false
+      else: false
+    of LTE:
+      case lht.nt:
+      of ntInt:
+        case rht.nt:
+          of ntInt:     lht.iVal <= rht.iVal
+          of ntCall:    lht.iVal <= call(rht).iVal
+          else: false
+      of ntCall:
+        case rht.nt:
+          of ntInt:    call(lht).iVal <= rht.iVal
+          of ntCall:   call(lht).iVal <= call(rht).iVal
+          else: false
+      else: false
+    of GT:
+      case lht.nt:
+      of ntInt:
+        case rht.nt:
+          of ntInt:     lht.iVal > rht.iVal
+          of ntCall:    lht.iVal > call(rht).iVal
+          else: false
+      of ntCall:
+        case rht.nt:
+          of ntInt:    call(lht).iVal > rht.iVal
+          of ntCall:   call(lht).iVal > call(rht).iVal
+          else: false
+      else: false
+    of GTE:
+      case lht.nt:
+      of ntInt:
+        case rht.nt:
+          of ntInt:     lht.iVal >= rht.iVal
+          of ntCall:    lht.iVal >= call(rht).iVal
+          else: false
+      of ntCall:
+        case rht.nt:
+          of ntInt:    call(lht).iVal >= rht.iVal
+          of ntCall:   call(lht).iVal >= call(rht).iVal
+          else: false
+      else: false
+    of AND:
+      evalInfix(lht.infixLeft, lht.infixRight, lht.infixOp, scope) and
+        evalInfix(rht.infixLeft, rht.infixRight, rht.infixOp, scope)
+    of OR:
+      evalInfix(lht.infixLeft, lht.infixRight, lht.infixOp, scope) or
+        evalInfix(rht.infixLeft, rht.infixRight, rht.infixOp, scope)
+    else: false
