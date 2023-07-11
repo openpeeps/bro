@@ -364,6 +364,7 @@ proc parseSelectorStmt(p: var Parser, parent: (TokenTuple, Node),
     while p.curr.kind != tkEOF and (p.curr.line > parent[0].line and p.curr.pos > parent[0].pos):
       let node = p.parsePrefix(excludeOnly, includeOnly, scope)
       if likely(node != nil):
+        p.lastParent = parent[1]
         case node.nt:
         of ntProperty:
           parent[1].properties[node.pName] = node
@@ -374,7 +375,12 @@ proc parseSelectorStmt(p: var Parser, parent: (TokenTuple, Node),
         of ntCaseStmt:
           parent[1].innerNodes[$node.caseOid] = node
         else:
-          parent[1].innerNodes[node.ident] = node
+          if not parent[1].innerNodes.hasKey(node.ident):
+            parent[1].innerNodes[node.ident] = node
+          else:
+            for k, v in node.innerNodes:
+              parent[1].innerNodes[node.ident].innerNodes[k] = v
+          # parent[1].innerNodes[node.ident] = node
       else: return
 #
 # Prefix Statements
@@ -397,6 +403,7 @@ proc getPrefixFn(p: var Parser, excludeOnly, includeOnly: set[TokenKind] = {}): 
     of tkCase:    parseCase
     of tkIf:      parseCond
     of tkFor:     parseFor
+    of tkClass:   parseSelectorClass
     of tkIdentifier:
       if p.next.kind == tkLPAR and p.next.line == p.curr.line:
         parseCallFnCommand
