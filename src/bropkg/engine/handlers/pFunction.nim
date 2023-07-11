@@ -88,7 +88,6 @@ proc parseCallFnCommand(p: var Parser, scope: ScopeTable = nil, excludeOnly, inc
     if likely(args.len == fn.fnParams.len):
       var i = 0  
       for pKey, pDef in fn.fnParams:
-        # check if given arguments match with function
         try:
           if likely(args[i].getNodeType == pDef[1]):
             use(args[i])

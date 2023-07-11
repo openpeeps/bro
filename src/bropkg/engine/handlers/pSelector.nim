@@ -15,6 +15,12 @@ proc parseMultiSelector(p: var Parser, node: Node) =
         errorWithArgs(DuplicateSelector, p.curr, [selectorIdent])
   node.multipleSelectors = selectors
   setLen(selectors, 0)
+  if p.lastParent != nil:
+    if p.lastParent.parents.len != 0:
+      node.parents = concat(p.lastParent.parents, @[p.lastParent.ident])
+    else:
+      add node.parents, p.lastParent.ident
+    p.lastParent = nil
 
 proc parseSelector(p: var Parser, node: Node, tk: TokenTuple, scope: ScopeTable, eatIdent = false): Node =
   if eatIdent: walk p # selector ident
@@ -59,7 +65,6 @@ proc parseSelectorClass(p: var Parser, scope: ScopeTable = nil,
     let node = tk.newClass()
     p.currentSelector = node
     result = p.parseSelector(node, tk, scope, eatIdent = true)
-  # echo result
 
 proc parseCSSProperty(p: var Parser, scope: ScopeTable = nil, excludeOnly, includeOnly: set[TokenKind] = {}): Node =
   ## Parse `key: value` pair as CSS Property
@@ -70,8 +75,21 @@ proc parseCSSProperty(p: var Parser, scope: ScopeTable = nil, excludeOnly, inclu
       result = newProperty(pName.value)
       case p.curr.kind
       of tkString:
-        result.pVal.add(newString(p.curr.value))
+        result.pVal = newString(p.curr.value)
+        walk p
       of tkInteger:
-        result.pVal.add(newInt(p.curr.value))
+        result.pVal = newInt(p.curr.value)
+        walk p
+      of tkIdentifier:
+        if p.next.kind == tkLPAR and p.next.line == p.curr.line:
+          let identToken = p.curr
+          let callNode = p.parseCallFnCommand()
+          if likely(callNode != nil):
+            if likely(callNode.callStackReturnType != ntVoid):
+              result.pVal = callNode
+            else:
+              errorWithArgs(functionReturnVoid, identToken, [callNode.callStackIdent])
+      of tkNamedColors:
+        result.pVal = newColor(p.curr.value)
+        walk p
       else: discard
-      walk p # tk value
