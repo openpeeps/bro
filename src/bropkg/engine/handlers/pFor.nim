@@ -1,5 +1,5 @@
 proc parseFor(p: var Parser, scope: ScopeTable = nil, excludeOnly, includeOnly: set[TokenKind] = {}): Node =
-  ## Parse `for x in y:` loops for arrays or for `x, y in z` for 
+  # Parse `for x in y:` loops of objects, arrays or ranges.
   let tk = p.curr
   if p.next.kind == tkVarCall:
     walk p # tkFor

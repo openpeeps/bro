@@ -1,15 +1,12 @@
-# A super fast statically typed stylesheet language for cool kids
+# A super fast stylesheet language for cool kids
 #
 # (c) 2023 George Lemon | MIT License
 #          Made by Humans from OpenPeeps
 #          https://github.com/openpeeps/bro
 
-
-import std/[tables, strutils, macros, json, algorithm]
+import pkg/jsony
+import std/[tables, strutils, macros, json, algorithm, terminal]
 import ./ast, ./sourcemap, ./logging, ./eval
-
-when not defined release:
-  import std/jsonutils
 
 type
   Warning* = tuple[msg: string, line, col: int]
@@ -18,32 +15,46 @@ type
     program: Program
     sourceMap: SourceInfo
     minify, sortPropsEnabled: bool
+    stack: Table[int, Node]
     warnings*: seq[Warning]
 
 var strNL, strCL, strCR: string
 
-# forward defintion
+# forward declaration
 proc write(c: var Compiler, node: Node, scope: ScopeTable = nil, data: Node = nil)
 proc getSelectorGroup(c: var Compiler, node: Node, scope: ScopeTable = nil, parent: Node = nil): string
-# proc writeClass(c: var Compiler, node: Node, scope: ScopeTable)
-proc handleInnerNode(c: var Compiler, node, parent: Node, scope: ScopeTable = nil,
-                    length: int, ix: var int)
+proc handleInnerNode(c: var Compiler, node, parent: Node, scope: ScopeTable = nil, length: int, ix: var int)
+proc handleCallStack(c: var Compiler, node: Node)
+
+proc getTypeInfo(node: Node): string =
+  # Return type info for given Node
+  case node.nt
+  of ntCall:
+    if node.callNode != nil:
+      case node.callNode.varValue.nt:
+      of ntArray:
+        add result, "$1[$2]($3)" % [$(node.callNode.varValue.nt), "Mix", $(node.callNode.varValue.itemsVal.len)]
+      of ntObject:
+        add result: "$1($2)" % [$(node.callNode.varValue.nt), $(node.callNode.varValue.objectFields.len)]
+      of ntVarValue:
+        add result, $(node.callNode.varValue.val.nt)
+      else: discard
+    else:
+      # todo parameter has no body
+      # will need to get the 
+      discard
+  else: discard
 
 proc getCSS*(c: Compiler): string =
   result = c.css
 
-when not defined release:
-  proc `$`(node: Node): string =
-    # print nodes while in dev mode
-    result = pretty(node.toJson(), 2)
-
 proc prefix(node: Node): string =
-  # Prefix CSS selector, `.myclass` for NTClassSelector,
-  # `#myId` for `NTIDSelector` and so on
+  # Prefix CSS selector, `.myclass` for ntClassSelector,
+  # `#myId` for `ntIDSelector` and so on
   result =
     case node.nt
-    of NTClassSelector: "." & node.ident
-    of NTIDSelector: "#" & node.ident
+    of ntClassSelector: "." & node.ident
+    of ntIDSelector: "#" & node.ident
     else: node.ident
 
 proc getOtherParents(node: Node, childSelector: string): string =
@@ -51,7 +62,7 @@ proc getOtherParents(node: Node, childSelector: string): string =
   var res: seq[string]
   for parent in node.parents:
     if likely(node.nested == false):
-      if unlikely(node.nt == NTPseudoClassSelector):
+      if unlikely(node.nt == ntPseudoClassSelector):
         add res, parent & ":" & childSelector
       else:
         add res, parent & " " & childSelector
@@ -59,44 +70,77 @@ proc getOtherParents(node: Node, childSelector: string): string =
       add res, parent & childSelector
   result = res.join(",")
 
-proc getValue(c: var Compiler, val: Node, scope: ScopeTable,
-              isHexColorStripHash = false): string =
-  # Unpack and write values
+#
+# Serialization API
+#
+proc dumpHook*(s: var string, v: Node) =
+  case v.nt
+  of ntString:
+    s.add("\"" & $v.sVal & "\"")
+  of ntFloat:
+    s.add($v.fVal)
+  of ntInt:
+    s.add($v.iVal)
+  of ntBool:
+    s.add($v.bVal)
+  of ntColor:
+    s.add($v.cVal)
+  of ntVarValue:
+    s.dumpHook(v.val)
+  else: discard
+
+proc getValue(c: var Compiler, val: Node, scope: ScopeTable): string =
   case val.nt
-  of NTString:
-    # add c.css, "\"" & val.sVal & "\""
+  of ntString:
     add result, val.sVal
-  of NTFloat:
+  of ntFloat:
     add result, $val.fVal
-  of NTInt:
+  of ntInt:
     add result, $val.iVal
-  of NTColor:
-    if not isHexColorStripHash:
-      add result, val.cVal
-    else:
-      add result, val.cVal[1..^1]
-  of NTJsonValue:
-    case val.jsonVal.kind:
+  of ntBool:
+    add result, $val.bVal
+  of ntColor:
+    add result, val.cVal
+  of ntVarValue:
+    add result, c.getValue(val.val, nil)
+  of ntArray:
+    add result, jsony.toJson(val.itemsVal)
+  of ntObject:
+    add result, jsony.toJson(val.objectFields)
+  of ntStream:
+    case val.streamContent.kind:
     of JString:
-      add result, val.jsonVal.getStr
+      add result, val.streamContent.str
     of JInt:
-      add result, $(val.jsonVal.getInt)
-    else: discard # todo compiler error when JObject, JArray
-  of NTCall:
-    if val.callNode.varValue != nil:
-      case val.callNode.varValue.nt:
-      of NTJsonValue:
-        add result, c.getValue(val.callNode.varValue, nil, isHexColorStripHash)
-      else:
-        add result, c.getValue(val.callNode.varValue.val, nil, isHexColorStripHash)
-    else:
-      if scope.hasKey(val.callNode.varName):
-        case scope[val.callNode.varName].varValue.nt:
-        of NTJsonValue:
-          add result, c.getValue(scope[val.callNode.varName].varValue, nil, isHexColorStripHash)
+      add result, $(val.streamContent.num)
+    of JFloat:
+      add result, $(val.streamContent.fnum)
+    of JObject, JArray:
+      add result, $(val.streamContent)
+    of JNull:
+      add result, "null"
+    of JBool:
+      add result, $(val.streamContent.bval)
+  of ntInfix:
+    add result, $(evalInfix(val.infixLeft, val.infixRight, val.infixOp, scope))
+  of ntCall:
+    if val.callNode != nil:
+      if val.callNode.varValue != nil:
+        case val.callNode.varValue.nt:
+        of ntStream:
+          add result, c.getValue(val.callNode.varValue, nil)
         else:
-          add result, c.getValue(scope[val.callNode.varName].varValue.val, nil, isHexColorStripHash)
-    discard
+          add result, c.getValue(val.callNode.varValue, nil)
+      else:
+        case scope[val.callNode.varName].varValue.nt:
+        of ntStream:
+          add result, c.getValue(scope[val.callNode.varName].varValue, nil)
+        else:
+          add result, c.getValue(scope[val.callNode.varName].varValue, nil)
+    else:
+      add result, c.getValue(scope[val.callIdent], nil)
+  of ntCallStack:
+    c.handleCallStack(val)
   else: discard
 
 proc getProperty(c: var Compiler, n: Node, k: string, i: var int,
@@ -121,19 +165,21 @@ proc getProperty(c: var Compiler, n: Node, k: string, i: var int,
 proc handleForStmt(c: var Compiler, node, parent: Node, scope: ScopeTable) =
   # Handle `for` statements
   case node.inItems.callNode.nt:
-  of NTVariable:
-    let items = node.inItems.callNode.varValue.arrayVal
+  of ntVariable:
+    let items = node.inItems.callNode.varValue.itemsVal
     var ix = 1
     for i in 0 .. items.high:
       node.forScopes[node.forItem.varName].varValue = items[i]
-      for ii in 0 .. node.forBody.high:
-        c.handleInnerNode(node.forBody[ii], parent, node.forScopes, node.forBody.len, ix)
+      for ii in 0 .. node.forBody.stmtList.high:
+        c.handleInnerNode(node.forBody.stmtList[ii], parent, node.forScopes, node.forBody.stmtList.len, ix)
         # c.write(node.forBody[ii], node.forScopes, items[i])
-  of NTJsonValue:
-    for item in items(node.inItems.callNode.jsonVal):
-      node.forScopes[node.forItem.varName].varValue = newJson item
-      for i in 0 .. node.forBody.high:
-        c.write(node.forBody[i], node.forScopes, newJson item)
+  of ntStream:
+    var ix = 1
+    for item in items(node.inItems.callNode.streamContent):
+      node.forScopes[node.forItem.varName].varValue = newStream item
+      for i in 0 .. node.forBody.stmtList.high:
+        # c.write(node.forBody[i], node.forScopes, newJson item)
+        c.handleInnerNode(node.forBody.stmtList[i], parent, node.forScopes, node.forBody.stmtList.len, ix)
   else: discard
 
 proc handleExtendAOT(c: var Compiler, node: Node, scope: ScopeTable) =
@@ -141,43 +187,15 @@ proc handleExtendAOT(c: var Compiler, node: Node, scope: ScopeTable) =
   for childSelector in node.extendBy:
     for aot in c.program.selectors[childSelector].aotStmts:
       case aot.nt:
-      of NTInfix:
+      of ntInfix:
         if not evalInfix(aot.infixLeft, aot.infixRight, aot.infixOp, scope):
           node.extendBy.delete(node.extendBy.find(childSelector))
-      of NTForStmt:
+      of ntForStmt:
         discard # todo
       else: discard
 
-proc handleCondStmt(c: var Compiler, node, parent: Node, scope: ScopeTable) =
-  # Handle `if`, `elif`, `else` statements
-  var tryElse: bool
-  if evalInfix(node.ifInfix.infixLeft, node.ifInfix.infixRight, node.ifInfix.infixOp, scope):
-    var ix = 0
-    for ifNode in node.ifBody:
-      c.handleInnerNode(ifNode, parent, scope, node.ifBody.len, ix)
-  elif node.elifNode.len != 0:
-    for elifNode in node.elifNode:
-      if evalInfix(elifNode.infix.infixLeft, elifNode.infix.infixRight, elifNode.infix.infixOp, scope):
-        var ix = 0
-        for elifNode in elifNode.body:
-          c.handleInnerNode(elifNode, parent, scope, node.elifNode.len, ix)
-        tryElse = false
-      else:
-        tryElse = true
-  if node.elseBody.len != 0 and tryElse:
-    var ix = 0
-    for elseNode in node.elseBody:
-      c.handleInnerNode(elseNode, parent, scope, node.elseBody.len, ix)
-
-proc handleCaseStmt(c: var Compiler, node: Node, scope: ScopeTable) =
-  # Handle `case` statements
-  for i in 0 .. node.caseCond.high:
-    if evalInfix(node.caseIdent, node.caseCond[i].condOf, EQ, scope):
-      for ii in 0 .. node.caseCond[i].body.high:
-        c.write(node.caseCond[i].body[ii], scope)
-      return
-  for i in 0 .. node.caseElse.high:
-    c.write(node.caseElse[i], scope)
+# Writers
+include ./handlers/[wCond]
 
 proc getSelectorGroup(c: var Compiler, node: Node,
                   scope: ScopeTable = nil, parent: Node = nil): string =
@@ -198,7 +216,7 @@ proc getSelectorGroup(c: var Compiler, node: Node,
       add result, node.ident
     for idConcat in node.identConcat:
       case idConcat.nt
-      of NTCall:
+      of ntCall:
         var scopeVar: Node
         if idConcat.callNode.varValue != nil:
           add result, c.getValue(idConcat, nil)
@@ -206,14 +224,14 @@ proc getSelectorGroup(c: var Compiler, node: Node,
           scopeVar = scope[idConcat.callNode.varName]
           var varValue = scopeVar.varValue
           case varValue.val.nt
-          of NTColor:
+          of ntColor:
             # todo handle colors at parser level
             idConcat.callNode.varValue = varValue
-            add result, c.getValue(idConcat, nil, varValue.val.cVal[0] == '#')
+            add result, c.getValue(idConcat, nil)
           else:
             idConcat.callNode.varValue = varValue
             add result, c.getValue(idConcat, nil)
-      of NTString, NTInt, NTFloat, NTBool:
+      of ntString, ntInt, ntFloat, ntBool:
         add result, c.getValue(idConcat, nil)
       else: discard
     add result, strCL # {
@@ -237,53 +255,99 @@ proc handleImportStmt(c: var Compiler, node: Node, scope: ScopeTable) =
   for i in 0 .. node.importNodes.high:
     c.write(node.importNodes[i], scope)
 
+proc handleCommand(c: var Compiler, node: Node, scope: ScopeTable = nil) =
+  case node.cmdIdent
+  of cmdEcho:
+    let meta = " (" & $(node.cmdMeta.line) & ":" & $(node.cmdMeta.pos) & ") "
+    case node.cmdValue.nt:
+    of ntInfix:
+      let output = evalInfix(node.cmdValue.infixLeft, node.cmdValue.infixRight, node.cmdValue.infixOp, scope)
+      stdout.styledWriteLine(fgGreen, "Debug", fgDefault, meta, fgDefault, getTypeInfo(node.cmdValue) & "\n" & $(output))
+    of ntInfo:
+      stdout.styledWriteLine(fgGreen, "Debug", fgDefault, meta, fgMagenta, "[[" & $(node.cmdValue.nodeType) & "]]")
+    else:
+      let output = c.getValue(node.cmdValue, scope)
+      stdout.styledWriteLine(fgGreen, "Debug", fgDefault, meta, fgMagenta, getTypeInfo(node.cmdValue) & "\n", fgDefault, output)
+
+proc handleReturn(c: var Compiler, node: Node, scope: ScopeTable) =
+    # echo node
+    # echo scope
+    discard
+
+proc handleCallStack(c: var Compiler, node: Node) =
+  # echo c.program.stack.hasKey(node.callStackIdent)
+  let callable = c.program.stack[node.callStackIdent]
+  case callable.nt
+  of ntFunction:
+    var i = 0
+    var scope = ScopeTable() 
+    for pName in callable.fnParams.keys():
+      scope[pName] = node.callStackArgs[i]
+      inc i
+    i = 0
+    for n in callable.fnBody.stmtList:
+      case n.nt
+      of ntReturn:
+        c.handleInnerNode(n, callable, scope, 0, i)
+        return
+      else: c.handleInnerNode(n, callable, scope, 0, i)
+  else: discard
+
 proc handleInnerNode(c: var Compiler, node, parent: Node,
                     scope: ScopeTable = nil, length: int, ix: var int) =
+  # echo node
   case node.nt:
-  of NTProperty:
+  of ntProperty:
     if parent == nil:
       add c.deferredProps, c.getProperty(node, node.pName, ix, length, scope)
     else:
       parent.properties[node.pName] = node
-  of NTClassSelector, NTTagSelector, NTIDSelector, NTRoot:
-    add c.deferred, c.getSelectorGroup(node, scope)
+  of ntClassSelector, ntTagSelector, ntIDSelector, ntRoot:
+    # echo parent == nil
+    if parent == nil:
+      add c.css, c.getSelectorGroup(node, scope)
+    else:
+      add c.deferred, c.getSelectorGroup(node, scope)
     if unlikely(node.pseudo.len != 0):
       for k, pseudoNode in node.pseudo:
         add c.deferred, c.getSelectorGroup(pseudoNode, scope)
-  of NTForStmt:
+  of ntForStmt:
     c.handleForStmt(node, parent, scope)
-  of NTCondStmt:
+  of ntCondStmt:
     c.handleCondStmt(node, parent, scope)
-  of NTCaseStmt:
+  of ntCaseStmt:
     c.handleCaseStmt(node, scope)
-  of NTExtend:
+  of ntExtend:
     for eKey, eProp in node.extendProps:
       var ix = 0
       add c.css, c.getProperty(eProp, eKey, ix, node.extendProps.len, scope)
-  of NTImport:
+  of ntImport:
     c.handleImportStmt(node, scope)
+  of ntCommand:
+    c.handleCommand(node, scope)
+  of ntReturn:
+    c.handleReturn(node, scope)
   else: discard
 
 proc write(c: var Compiler, node: Node, scope: ScopeTable = nil, data: Node = nil) =
   case node.nt:
-  of NTClassSelector, NTTagSelector, NTIDSelector, NTRoot:
+  of ntClassSelector, ntTagSelector, ntIDSelector, ntRoot:
     add c.css, c.getSelectorGroup(node, scope)
     if unlikely(node.pseudo.len != 0):
       for k, pseudoNode in node.pseudo:
         add c.css, c.getSelectorGroup(pseudoNode, scope)
-  of NTForStmt:
+  of ntForStmt:
     c.handleForStmt(node, nil, scope)
-  of NTCondStmt:
+  of ntCondStmt:
     c.handleCondStmt(node, nil, scope)
-  of NTCaseStmt:
+  of ntCaseStmt:
     c.handleCaseStmt(node, scope)
-  of NTImport:
+  of ntImport:
     c.handleImportStmt(node, scope)
-  of NTCommand:
-    case node.cmdIdent
-    of cmdEcho:
-      discard # todo
-      # echo node
+  of ntCommand:
+    c.handleCommand(node)
+  of ntCallStack:
+    c.handleCallStack(node)
   else: discard
 
 proc len*(c: var Compiler): int = c.program.nodes.len

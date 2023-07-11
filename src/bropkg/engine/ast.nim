@@ -1,49 +1,56 @@
-# A super fast statically typed stylesheet language for cool kids
+# A super fast stylesheet language for cool kids
 #
 # (c) 2023 George Lemon | MIT License
 #          Made by Humans from OpenPeeps
 #          https://github.com/openpeeps/bro
 
-import std/[tables, critbits, strutils, times, oids]
+import std/[tables, strutils, json, times, oids]
 from ./tokens import TokenKind, TokenTuple
-from std/json import JsonNode
+
+when not defined release:
+  import std/jsonutils
 
 type
   NodeType* = enum
-    NTRoot
-    NTProperty
-    NTVariable
-    NTVariableValue
-    NTUniversalSelector
-    NTAttrSelector
-    NTClassSelector
-    NTPseudoClassSelector
-    NTPseudoElements
-    NTIDSelector
-    NTAtRule
-    NTFunction
-    NTComment
-    NTTagSelector
-    NTString
-    NTInt
-    NTFloat
-    NTBool
-    NTArray
-    NTObject
-    NTAccessor # $myarr[0] $myobj.field
-    NTColor
-    NTSize
-    NTJsonValue
-    NTCall
-    NTInfix
-    NTImport
-    NTPreview
-    NTExtend
-    NTForStmt
-    NTCondStmt
-    NTMathStmt
-    NTCaseStmt
-    NTCommand
+    ntVoid
+    ntRoot
+    ntProperty
+    ntVariable
+    ntVarValue
+    ntUniversalSelector
+    ntAttrSelector
+    ntClassSelector = "Class"
+    ntPseudoClassSelector
+    ntPseudoElements
+    ntIDSelector
+    ntAtRule
+    ntFunction = "Function"
+    ntComment
+    ntTagSelector
+    ntString = "String"
+    ntInt = "Int"
+    ntFloat = "Float"
+    ntBool = "Bool"
+    ntArray = "Array"
+    ntObject = "Object"
+    ntAccessor # $myarr[0] $myobj.field
+    ntColor = "Color"
+    ntSize = "Size"
+    ntStream = "Stream"
+    ntCall
+    ntCallStack
+    ntInfix
+    ntImport
+    ntPreview
+    ntExtend
+    ntForStmt
+    ntCondStmt
+    ntMathStmt
+    ntCaseStmt
+    ntCommand
+    ntStmtList
+    ntInfo
+    ntReturn
 
   PropertyRule* = enum
     propRuleNone
@@ -108,89 +115,112 @@ type
   CommandType* = enum
     cmdEcho
 
-  CaseCondTuple* = tuple[condOf: Node, body: seq[Node]]
+  # NStack = ref object
+    # case nt: NodeType
+    # of ntFunction:
+
+    # else:
+
+
   ScopeTable* = OrderedTableRef[string, Node]
 
-  # Node
+  CaseCondTuple* = tuple[`of`: Node, body: Node]
+  Meta* = tuple[line, pos: int]
+  ParamDef* = (string, NodeType, Node)
+
   Node* = ref object
     case nt*: NodeType
-    of NTProperty:
+    of ntProperty:
       pName*: string
       pVal*: seq[Node]
       pRule*: PropertyRule
-    of NTFunction:
-      fnName: string
-      fnParams: seq[Node]
-    of NTComment:
+    of ntFunction:
+      fnName*: string
+      fnParams*: OrderedTable[string, ParamDef]
+      fnBody*: Node          # ntStmtList
+      fnReturnType*: NodeType
+      fnUsed*: bool
+      fnMeta*: Meta
+    of ntComment:
       comment*: string
-    of NTVariable:
+    of ntVariable:
       varName*: string
       varValue*: Node
-      varMeta*: tuple[line, col: int]
-    of NTVariableValue:
+      varMeta*: Meta 
+      varUsed*: bool
+    of ntVarValue:
       val*: Node
       used*: bool
-    of NTString:
+    of ntString:
       sVal*: string
-    of NTInt:
+    of ntInt:
       iVal*: int
-    of NTFloat:
+    of ntFloat:
       fVal*: float
-    of NTBool:
+    of ntBool:
       bVal*: bool
-    of NTColor:
+    of ntColor:
       colorType*: ColorType
       colorGlobals: GlobalValue
       cVal*: string
-    of NTArray:
-      arrayVal*: seq[Node]
-      usedArray*: bool
-    of NTObject:
-      objectPairs*: OrderedTable[string, Node]
+    of ntArray:
+      itemsVal*: seq[Node]
+    of ntObject:
+      objectFields*: OrderedTable[string, Node]
       usedObject*: bool
-    of NTAccessor:
-      accessorType: NodeType # either NTArray or NTObject
-    of NTSize:
+    of ntAccessor:
+      accessorType: NodeType # either ntArray or ntObject
+    of ntSize:
       sizeVal*: int
       sizeUnit*: Units
       lenType*: LengthType
-    of NTJsonValue:
-      jsonVal*: JsonNode
-      usedJson*: bool
-    of NTCall:
+    of ntStream:
+      streamContent*: JsonNode
+      usedStream*: bool
+    of ntCall:
+      callIdent*: string
       callNode*: Node
-    of NTInfix:
+    of ntCallStack:
+      callStackIdent*: string
+      callStackType*: NodeType
+      callStackReturnType*: NodeType
+      callStackArgs*: seq[Node]
+    of ntInfix:
       infixOp*: InfixOp
       infixLeft*, infixRight*: Node
-    of NTCondStmt:
+    of ntCondStmt:
       condOid*: Oid
       ifInfix*: Node
-      ifBody*: seq[Node]
-      elifNode*: seq[tuple[infix: Node, body: seq[Node]]]
-      elseBody*: seq[Node]
-    of NTCaseStmt:
+      ifStmt*: Node # ntStmtList
+      elifStmt*: seq[tuple[comp: Node, body: Node]]
+      elseStmt*: Node # ntStmtList
+
+      # ifBody*: seq[Node]
+      # elifNode*: seq[tuple[infix: Node, body: seq[Node]]]
+      # elseBody*: seq[Node]
+    of ntCaseStmt:
       caseOid*: Oid
-      caseIdent*: Node # NTCall
+      caseIdent*: Node # ntCall
       caseCond*: seq[CaseCondTuple]
-      caseElse*: seq[Node] # body only
-    of NTImport:
+      caseElse*: Node # ntStmtList
+    of ntImport:
       importNodes*: seq[Node]
       importPath*: string
-    of NTPreview:
+    of ntPreview:
       previewContent: string
-    of NTExtend:
+    of ntExtend:
       extendIdent*: string
       extendProps*: KeyValueTable
-    of NTForStmt:
+    of ntForStmt:
       forOid*: Oid
       forItem*, inItems*: Node
-      forBody*: seq[Node]
+      forBody*: Node # ntStmtList
       forScopes*: ScopeTable
-        # Variable scopes Nodes of NTVariableValue
-    of NTMathStmt:
+        # Variable scopes Nodes of ntVarValue
+    of ntMathStmt:
       mathInfixOp: ArithmeticOperators
       mathLeft, mathRight: Node
-    of NTTagSelector, NTClassSelector, NTPseudoClassSelector, NTIDSelector:
+    of ntTagSelector, ntClassSelector, ntPseudoClassSelector, ntIDSelector:
       ident*: string
       parents*: seq[string]
       multipleSelectors*: seq[string]
@@ -198,10 +228,19 @@ type
       properties*, pseudo*, innerNodes*: KeyValueTable
       extends*: bool
       extendFrom*, extendBy*: seq[string]
-      identConcat*: seq[Node] # NTVariable
-    of NTCommand:
+      identConcat*: seq[Node] # ntVariable
+      selectorStmt*: Node # ntStmtList
+    of ntCommand:
       cmdIdent*: CommandType 
       cmdValue*: Node
+      cmdMeta*: Meta
+    of ntStmtList:
+      stmtList*: seq[Node]
+      stmtScope*: ScopeTable
+    of ntReturn:
+      returnStmt: Node
+    of ntInfo:
+      nodeType*: NodeType
     else: discard
     aotStmts*: seq[Node]
 
@@ -209,20 +248,26 @@ type
     # info*: tuple[version: string, createdAt: DateTime]
     nodes*: seq[Node]
     selectors*: Table[string, Node]
+    stack*: ScopeTable
+
+when not defined release:
+  proc `$`*(node: Node): string =
+    # print nodes while in dev mode
+    result = pretty(toJson(node), 2)
 
 proc prefixed*(tk: TokenTuple): string =
   result = case tk.kind
             of tkClass: "."
             of tkID: "#"
-            of tkPseudoClass: ":"
+            of tkPseudo: ":"
             else: ""
   add result, tk.value
 
 proc prefixSelector(node: Node): string =
   result =
     case node.nt
-    of NTClassSelector: "." & node.ident
-    of NTIDSelector: "#" & node.ident
+    of ntClassSelector: "." & node.ident
+    of ntIDSelector: "#" & node.ident
     else: node.ident
 
 proc getInfixOp*(kind: TokenKind, isInfixInfix: bool): InfixOp =
@@ -236,25 +281,29 @@ proc getInfixOp*(kind: TokenKind, isInfixInfix: bool): InfixOp =
   else:
     if isInfixInfix:
       case kind
-      of tkANDAND, tkAltAnd:
+      of tkANDAND, tkAndLit:
         result = AND
-      of tkOR, tkAltOr:
+      of tkOR, tkOrLit:
         result = OR
       else: discard
 
-proc markVarUsed*(node: Node) =
-  case node.varValue.nt
-  of NTArray:
-    node.varValue.usedArray = true
-  of NTObject:
-    node.varValue.usedObject = true
-  of NTJsonValue:
-    node.varValue.usedJson = true
-  else:
-    node.varValue.used = true
-
 proc call*(node: Node): Node = 
   result = node.callNode.varValue.val
+
+proc use*(node: Node) =
+  ## Mark a variable as used. If `node`
+  ## is not a variable it does nothing.
+  case node.nt:
+  of ntVariable:
+    node.varUsed = true
+  of ntFunction:
+    node.fnUsed = true 
+  of ntCall:
+    case node.callNode.nt:
+    of ntVariable:
+      node.callNode.varUsed = true
+    else: discard
+  else: discard
 
 proc getColor*(node: Node): string =
   result = node.cVal
@@ -262,133 +311,184 @@ proc getColor*(node: Node): string =
 proc getString*(node: Node): string =
   result = node.sVal
 
+proc getNodeType*(node: Node): NodeType =
+  result =
+    case node.nt
+    of ntCall:
+      case node.callNode.varValue.nt:
+      of ntVarValue:
+        node.callNode.varValue.val.nt
+      else:
+        node.callNode.varValue.nt
+    of ntInfix: ntBool
+    of ntMathStmt: ntInt # todo ntInt or ntFloat
+    of ntArray, ntObject, ntBool, ntString, ntInt, ntFloat: node.nt   # anonymous array
+    of ntFunction: ntFunction
+    else:
+      node.val.nt
+
 # API
 
 proc newProperty*(pName: string): Node =
-  ## Create a new NTProperty node
-  result = Node(nt: NTProperty, pName: pName)
+  ## Create a new ntProperty node
+  result = Node(nt: ntProperty, pName: pName)
 
 proc newString*(sVal: string): Node =
-  ## Create a new NTString node
-  result = Node(nt: NTString, sVal: sVal)
+  ## Create a new ntString node
+  result = Node(nt: ntString, sVal: sVal)
 
 proc newInt*(iVal: string): Node =
-  ## Create a new NTInt node
-  result = Node(nt: NTInt, iVal: parseInt iVal)
+  ## Create a new ntInt node
+  result = Node(nt: ntInt, iVal: parseInt iVal)
 
 proc newFloat*(fVal: string): Node =
-  ## Create a new NTFloat node
-  result = Node(nt: NTFloat, fVal: parseFloat fVal)
+  ## Create a new ntFloat node
+  result = Node(nt: ntFloat, fVal: parseFloat fVal)
 
 proc newBool*(bVal: string): Node =
-  ## Create a new NTbool node
+  ## Create a new ntbool node
   assert bVal in ["true", "false"]
-  result = Node(nt: NTBool, bVal: parseBool bVal)
+  result = Node(nt: ntBool, bVal: parseBool bVal)
 
 proc newColor*(cVal: string): Node =
-  ## Create a new NTColor node
-  result = Node(nt: NTColor, cVal: cVal)
+  ## Create a new ntColor node
+  result = Node(nt: ntColor, cVal: cVal)
 
 proc newSize*(size: int, unit: Units): Node =
   let lt = case unit:
             of EM, EX, CH, REM, VW, VH, VMIN, VMAX, PSIZE: Relative
             else: Absolute
-  result = Node(nt: NTSize, sizeVal: size, lenType: lt)
+  result = Node(nt: ntSize, sizeVal: size, lenType: lt)
 
-proc newJson*(jsonVal: JsonNode): Node =
-  ## Create a new NTJsonValue node
-  result = Node(nt: NTJsonValue, jsonVal: jsonVal)
+proc newInfo*(node: Node): Node =
+  result = Node(nt: ntInfo, nodeType: node.getNodeType)
+
+# proc newJson*(jsonVal: JsonNode): Node =
+#   ## Create a new ntJsonValue node
+#   result = Node(nt: ntJsonValue, jsonVal: jsonVal)
+
+proc newStream*(src: string): Node =
+  ## Create a new Stream node from YAML or JSON
+  try:
+    let str = readFile(src)
+    result = Node(nt: ntStream, streamContent: parseJSON(str))
+  except IOError:
+    echo "nope"
+  except JsonParsingError:
+    echo "internal error"
+
+proc newStream*(jsonNode: JsonNode): Node =
+  ## Create a new Stream node from `jsonNode`
+  result = Node(nt: ntStream, streamContent: jsonNode)
 
 proc newObject*(): Node =
-  ## Create a new NTObject node
-  result = Node(nt: NTObject)
+  ## Create a new ntObject node
+  result = Node(nt: ntObject)
 
 proc newArray*(): Node =
-  ## Create a new NTArray node
-  result = Node(nt: NTArray)
+  ## Create a new ntArray node
+  result = Node(nt: ntArray)
 
-proc newCall*(node: Node): Node =
-  ## Create a new NTCall node
-  assert node.nt in {NTVariable, NTJsonValue}
-  result = Node(nt: NTCall, callNode: node)
+proc newCall*(ident: string, node: Node): Node =
+  ## Create a new ntCall node
+  # assert node.nt in {ntVariable, ntJsonValue}
+  result = Node(nt: ntCall, callIdent: ident, callNode: node)
+
+proc newFnCall*[N: Node](node: N, args: seq[N], ident: string): Node =
+  result = Node(nt: ntCallStack, callStackArgs: args, callStackIdent: ident,
+                callStackReturnType: node.fnReturnType)
 
 proc newInfix*(infixLeft, infixRight: Node, infixOp: InfixOp): Node =
-  ## Create a new NTInfix node
-  assert infixLeft.nt in {NTColor, NTString, NTInt, NTBool, NTFloat, NTCall}
-  assert infixRight.nt in {NTColor, NTString, NTInt, NTBool, NTFloat, NTCall}
-  result = Node(nt: NTInfix, infixLeft: infixLeft, infixRight: infixRight, infixOp: infixOp)
+  ## Create a new ntInfix node
+  assert infixLeft.nt in {ntColor, ntString, ntInt, ntBool, ntFloat, ntCall}
+  assert infixRight.nt in {ntColor, ntString, ntInt, ntBool, ntFloat, ntCall}
+  result = Node(nt: ntInfix, infixLeft: infixLeft, infixRight: infixRight, infixOp: infixOp)
 
 proc newInfix*(infixLeft: Node): Node =
-  ## Create a new NTInfix node
-  assert infixLeft.nt in {NTColor, NTString, NTInt, NTBool, NTFloat, NTCall}
-  result = Node(nt: NTInfix, infixLeft: infixLeft)
+  ## Create a new ntInfix node
+  assert infixLeft.nt in {ntColor, ntString, ntInt, ntBool, ntFloat, ntCall}
+  result = Node(nt: ntInfix, infixLeft: infixLeft)
 
 proc newIf*(infix: Node): Node =
-  ## Create a new NTCondStmt
-  assert infix.nt == NTInfix
-  result = Node(nt: NTCondStmt, condOid: genOid(), ifInfix: infix)
+  ## Create a new ntCondStmt
+  assert infix.nt == ntInfix
+  result = Node(nt: ntCondStmt, condOid: genOid(), ifInfix: infix)
 
 proc newImport*(nodes: seq[Node], importPath: string): Node =
-  ## Create a new NTImport node
-  result = Node(nt: NTImport, importNodes: nodes, importPath: importPath)
+  ## Create a new ntImport node
+  result = Node(nt: ntImport, importNodes: nodes, importPath: importPath)
 
 proc newImport*(path: string): Node =
-  ## Create a new NTImport node
-  result = Node(nt: NTImport, importPath: path)
+  ## Create a new ntImport node
+  result = Node(nt: ntImport, importPath: path)
 
 proc newVariable*(varName: string, varValue: Node, tk: TokenTuple): Node =
-  ## Create a new NTVariable (declaration) node
-  result = Node(nt: NTVariable, varName: varName, varValue: varValue, varMeta: (tk.line, tk.col))
+  ## Create a new ntVariable (declaration) node
+  result = Node(nt: ntVariable, varName: varName, varValue: varValue, varMeta: (tk.line, tk.pos))
 
 proc newVariable*(tk: TokenTuple): Node =
-  ## Create a new NTVariable (declaration) node
-  result = Node(nt: NTVariable, varName: tk.value, varMeta: (tk.line, tk.col))
+  ## Create a new ntVariable (declaration) node
+  result = Node(nt: ntVariable, varName: tk.value, varMeta: (tk.line, tk.pos))
 
 proc newValue*(val: Node): Node =
-  ## Create a new NTVariableValue node
-  assert val.nt in {NTColor, NTString, NTInt, NTBool, NTFloat, NTCall}
-  result = Node(nt: NTVariableValue, val: val)
+  ## Create a new ntVarValue node
+  assert val.nt in {ntColor, ntString, ntInt, ntBool, ntFloat, ntCall}
+  result = Node(nt: ntVarValue, val: val)
 
 proc newValue*(tk: TokenTuple, valNode: Node): Node =
-  ## Create a new NTVariableValue node
-  assert valNode.nt in {NTColor, NTString, NTInt, NTBool, NTFloat, NTCall}
-  result = Node(nt: NTVariableValue, val: valNode)
+  ## Create a new ntVarValue node
+  assert valNode.nt in {ntColor, ntString, ntInt, ntBool, ntFloat, ntCall}
+  result = Node(nt: ntVarValue, val: valNode)
 
 proc newComment*(str: string): Node =
-  ## Create a new NTComment node
-  result = Node(nt: NTComment, comment: str)
+  ## Create a new ntComment node
+  result = Node(nt: ntComment, comment: str)
 
 proc newTag*(tk: TokenTuple, properties = KeyValueTable(), multipleSelectors = @[""], concat: seq[Node] = @[]): Node =
-  ## Create a new NTTag node
-  Node(nt: NTTagSelector, ident: tk.prefixed, properties: properties, multipleSelectors: multipleSelectors, identConcat: concat)
+  ## Create a new ntTag node
+  Node(nt: ntTagSelector, ident: tk.prefixed, properties: properties, multipleSelectors: multipleSelectors, identConcat: concat)
 
 proc newClass*(tk: TokenTuple, properties = KeyValueTable(), multipleSelectors = @[""], concat: seq[Node] = @[]): Node =
-  ## Create a new NTClassSelector
-  Node(nt: NTClassSelector, ident: tk.value, properties: properties, multipleSelectors: multipleSelectors, identConcat: concat)
+  ## Create a new ntClassSelector
+  Node(nt: ntClassSelector, ident: tk.value, properties: properties, multipleSelectors: multipleSelectors, identConcat: concat)
 
 proc newPseudoClass*(tk: TokenTuple, properties = KeyValueTable(), multipleSelectors = @[""], concat: seq[Node] = @[]): Node =
-  ## Create a new NTPseudoClassSelector
-  Node(nt: NTPseudoClassSelector, ident: tk.prefixed, properties: properties, multipleSelectors: multipleSelectors, identConcat: concat)
+  ## Create a new ntPseudoClassSelector
+  Node(nt: ntPseudoClassSelector, ident: tk.prefixed, properties: properties, multipleSelectors: multipleSelectors, identConcat: concat)
 
 proc newID*(tk: TokenTuple, properties = KeyValueTable(), multipleSelectors = @[""], concat: seq[Node] = @[]): Node =
-  ## Create a new NTIDSelector
-  Node(nt: NTIDSelector, ident: tk.prefixed, properties: properties, multipleSelectors: multipleSelectors, identConcat: concat)
+  ## Create a new ntIDSelector
+  Node(nt: ntIDSelector, ident: tk.prefixed, properties: properties, multipleSelectors: multipleSelectors, identConcat: concat)
 
 proc newPreview*(tk: TokenTuple): Node =
-  ## Create a new NTPreview
-  result = Node(nt: NTPreview, previewContent: tk.value)
+  ## Create a new ntPreview
+  result = Node(nt: ntPreview, previewContent: tk.value)
 
 proc newExtend*(tk: TokenTuple, keyValueTable: KeyValueTable): Node =
-  ## Create a new NTExtend
-  result = Node(nt: NTExtend, extendIdent: tk.value, extendProps: keyValueTable)
+  ## Create a new ntExtend
+  result = Node(nt: ntExtend, extendIdent: tk.value, extendProps: keyValueTable)
 
-proc newForStmt*(item, items: Node, toPairs = false): Node =
-  ## Create a new NTForStmt
-  result = Node(nt: NTForStmt, forOid: genOid(), forItem: item, inItems: items)
+proc newForStmt*(item, items: Node): Node =
+  ## Create a new ntForStmt
+  result = Node(nt: ntForStmt, forOid: genOid(), forItem: item, inItems: items)
 
 proc newCaseStmt*(caseIdent: Node): Node =
-  ## Create a new NTCaseStmt
-  result = Node(nt: NTCaseStmt, caseIdent: caseIdent)
+  ## Create a new ntCaseStmt
+  result = Node(nt: ntCaseStmt, caseIdent: caseIdent)
 
-proc newEcho*(cmdValue: Node): Node =
-  result = Node(nt: NTCommand, cmdIdent: cmdEcho, cmdValue: cmdValue)
+proc newFunction*(tk: TokenTuple): Node =
+  result = Node(nt: ntFunction, fnName: tk.value, fnMeta: (tk.line, tk.pos))
+
+proc newEcho*(val: Node, tk: TokenTuple): Node =
+  ## Create a new `echo` command
+  result = Node(nt: ntCommand, cmdIdent: cmdEcho, cmdValue: val, cmdMeta: (tk.line, tk.pos))
+
+proc newReturn*(stmtNode: Node): Node =
+  ## Create a new `return` statement
+  Node(nt: ntReturn, returnStmt: stmtNode)
+
+proc newStmt*(stmtScope: ScopeTable = nil): Node =
+  result = Node(nt: ntStmtList)
+  if stmtScope != nil:
+    result.stmtScope = stmtScope
+  else: new(result.stmtScope)

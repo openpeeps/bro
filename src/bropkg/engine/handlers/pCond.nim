@@ -38,12 +38,13 @@ proc parseCase(p: var Parser, scope: ScopeTable = nil, excludeOnly, includeOnly:
   let tk = p.curr # case
   walk p # tkCase
   if p.curr is tkVarCall: # todo support function calls
-    let caseVar = p.parseCallCommand(scope)
-    let caseVarType = caseVar.getNodeType
-    let caseNode = newCaseStmt(caseVar)
-    if p.curr is tkOf and p.curr.col > tk.col:
+    let
+      caseVar = p.parseCallCommand(scope)
+      caseVarType = caseVar.getNodeType
+      caseNode = newCaseStmt(caseVar)
+    if p.curr is tkOf and p.curr.pos > tk.pos:
       let tkOfTuple = p.curr
-      while p.curr is tkOf and p.curr.col == tkOfTuple.col:
+      while p.curr is tkOf and p.curr.pos == tkOfTuple.pos:
         walk p # tkOf
         let tkOfIdent = p.curr # literal or variable
         let ofCond = p.parsePrefix(excludeOnly = {tkEcho, tkReturn, tkFnDef}, scope = scope)

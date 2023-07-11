@@ -19,7 +19,7 @@ proc parseFn(p: var Parser, excludeOnly, includeOnly: set[TokenKind] = {}): Node
   result = newFunction(fnName)
   walk p # function identifier
   var types: seq[NodeType]
-  if p.curr.kind == tkLPAR:
+  if p.curr.kind == tkLPAR and p.curr.line == fn.line:
     # parse function parameters
     walk p # (
     while p.next.kind == tkColon and p.curr.kind == tkVarTyped:
@@ -45,20 +45,18 @@ proc parseFn(p: var Parser, excludeOnly, includeOnly: set[TokenKind] = {}): Node
         discard # todo
       else: break # UnexpectedToken
       if p.curr.kind == tkComma:
-        walk p # todo, better handling comma
-      else: break # MissingComma
+        walk p
+      else: break
   
   if p.curr.kind == tkRPAR:
     walk p
-    if p.curr.kind == tkColon:
-      # parse return type
+    if p.curr.kind == tkColon: # parse return type
       walk p
       result.fnReturnType = p.getLiteralType()
       if result.fnReturnType != ntVoid:
         walk p
       else: error(FunctionInvalidReturn, p.curr)
-    if p.curr.kind == tkAssign:
-      # parse function body
+    if p.curr.kind == tkAssign: # parse function body
       if fn.line == p.curr.line:
         walk p
         let stmtNode = p.parseStatement((fn, result), excludeOnly = {tkImport, tkFnDef}, scope = scope)
@@ -69,7 +67,7 @@ proc parseFn(p: var Parser, excludeOnly, includeOnly: set[TokenKind] = {}): Node
 
 proc parseCallFnCommand(p: var Parser, scope: ScopeTable = nil, excludeOnly, includeOnly: set[TokenKind] = {}): Node =
   # Parse function calls with/without arguments,
-  # matching the following pattern: `fn ($a: String): String =`
+  # matching the following pattern: `fn ($a: String, $b: Int ...): String =`
   let ident = p.curr
   walk p, 2 # (
   var
@@ -81,8 +79,8 @@ proc parseCallFnCommand(p: var Parser, scope: ScopeTable = nil, excludeOnly, inc
       add args, arg
       add types, arg.nt
     else: return
-    if p.curr is tkComma: walk p
-    elif p.curr is tkRPAR: break
+    if p.curr is tkComma:
+      walk p
   walk p # )
   let fnIdentStr = identifyFn(ident.value, types)
   if p.program.stack.hasKey(fnIdentStr):

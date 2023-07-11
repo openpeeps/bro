@@ -1,16 +1,16 @@
-# A super fast statically typed stylesheet language for cool kids
+# A super fast stylesheet language for cool kids
 #
 # (c) 2023 George Lemon | MIT License
 #          Made by Humans from OpenPeeps
 #          https://github.com/openpeeps/bro
 
-import pkg/[stashtable, msgpack4nim]
-import pkg/kapsis/cli
-import std/[os, strutils, sequtils, macros, algorithm, tables, json,
-            memfiles, critbits, times, oids]
+import pkg/[stashtable]
+import ./tokens, ./ast, ./logging, ./memtable, ./properties, ./memo
+import std/[os, strutils, critbits, sequtils, hashes, algorithm,
+          tables, json, memfiles, times, enumutils, oids]
 
-import ./tokens, ./ast, ./memtable, ./logging
-import ./properties
+when compileOption("app", "console"):
+  import pkg/kapsis/cli
 
 when not defined release:
   import std/[jsonutils] 
@@ -23,14 +23,15 @@ type
     Partial 
 
   Warning* = tuple[msg: string, line, col: int]
-  Memparser = StashTable[string, Program, 1000]
+  Subparsers = StashTable[string, Program, 1000]
+    # A stash table containing other Parser instances from `@import` statement
   Imports = OrderedTableRef[string, Node]
-
   Parser* = object
     lex: Lexer
     prev, curr, next: TokenTuple
     program: Program
     memtable: Memtable
+    propsTable: PropertiesTable
     when compileOption("app", "console"):
       error: seq[Row]
       logger*: Logger
@@ -40,116 +41,19 @@ type
     warnings*: seq[Warning]
     currentSelector, lastParent: Node
     imports: Imports
-    memparser: Memparser
+    subparsers: Subparsers
+    projectPath: string
     case ptype: ParserType
     of Main:
       projectDirectory: string
     else: discard
-    filePath: string
+    filePath, cachePath: string
 
-  PrefixFunction = proc(p: var Parser, scope: ScopeTable = nil): Node
-  InfixFunction = proc(p: var Parser, scope: ScopeTable = nil): Node
-  # PartialChannel = tuple[status: string, program: Program]
-
-# forward definition
-proc getPrefix(p: var Parser, kind: TokenKind): PrefixFunction
-proc parse(p: var Parser, scope: ScopeTable = nil, excludeOnly, includeOnly: set[TokenKind] = {}): Node
-proc parseVariableCall(p: var Parser, scope: ScopeTable = nil): Node
-proc parseVariableAccessor(p: var Parser, scope: ScopeTable = nil): Node
-proc parseInfix(p: var Parser, scope: ScopeTable = nil): Node
-proc parseClass(p: var Parser, scope: ScopeTable = nil): Node
-proc partialThread(th: (string, Memparser)) {.thread.}
-
-when compileOption("app", "console"):
-  template err(msg: string) =
-    let pos = if p.curr.pos == 0: 0 else: p.curr.pos + 1
-    add p.error, @[span("Error ($2:$3): $1" % [msg, $p.curr.line, $pos])]
-
-  template err(msg: string, tk: TokenTuple, sfmt: varargs[string]) =
-    let pos = if tk.pos == 0: 0 else: tk.pos + 1
-    var newRow: Row
-    add newRow, span("Error", fgRed, indentSize = 0)
-    add newRow, span("(" & $tk.line & ":" & $pos & ")")
-    add newRow, span(msg)
-    for str in sfmt:
-      add newRow, span(str, fgMagenta)
-    add p.error, newRow
-    add p.error, @[span(p.filePath)]
-    return
-
-  proc getError*(p: Parser): seq[Row] =
-    result =
-      if p.error.len != 0: p.error
-      else:
-        @[@[span(p.lex.getError)]]
-
-else:
-  template err(msg: string) =
-    let pos = if tk.pos == 0: 0 else: tk.pos + 1
-    p.error = "Error ($2:$3): $1" % [msg, $p.curr.line, $pos]
-
-  template err(msg: string, tk: TokenTuple, sfmt: varargs[string]) =
-    var errmsg = msg
-    for str in sfmt:
-      add errmsg, indent("\"" & str & "\"", 1)  
-    let pos = if tk.pos == 0: 0 else: tk.pos + 1 
-    p.error = "Error ($2:$3): $1" % [errmsg, $tk.line, $pos]
-    return
-
-  proc getError*(p: Parser): string =
-    result =
-      if p.error.len != 0: p.error
-      else: p.lex.getError
-
-proc hasError*(p: Parser): bool =
-  result = p.error.len != 0 or p.lex.hasError
-
-proc hasWarnings*(p: Parser): bool =
-  result = p.logger.warnLogs.len != 0
-
-const tkPropsName = {tkRuby, tkStrong}
-
-when not defined release:
-  proc `$`(node: Node): string =
-    # print nodes while in dev mode
-    result = pretty(node.toJson(), 2)
-
-  proc `$`(program: Program): string =
-    # print nodes while in dev mode
-    result = pretty(program.toJson(), 2)
-
-macro definePseudoClasses() =
-  # https://developer.mozilla.org/en-US/docs/Web/CSS/:host_function
-  var pseudoTable = nnkTableConstr.newTree()
-  let keys = [("active", 0), ("any-link", 0), ("autofill", 0), ("blank", 0),
-    ("checked", 0), ("current", 0), ("default", 0), ("defined", 0), ("dir", 1),
-    ("disabled", 0), ("empty", 0), ("enabled", 0), ("first", 0), ("first-child", 0),
-    ("focus", 0), ("focus-visible", 0), ("fullscreen", 0), ("future", 0), ("has", -1),
-    ("host", -1), ("host-context", 1), ("hover", 0), ("in-range", 0), ("indeterminate", 0),
-    ("invalid", 0), ("is", -1), ("lang", 1), ("last-child", 0), ("last-of-type", 0),
-    ("left", 0), ("link", 0), ("link", 0), ("local-link", 0), ("modal", 0), ("not", -1),
-    ("nth-child", 1), ("nth-col", 1), ("nth-last-child", 1), ("nth-last-col", 1),
-    ("nth-last-of-type", 1), ("nth-of-type", 1), ("only-child", 0), ("only-of-type", 0),
-    ("optional", 0), ("out-of-range", 0), ("past", 0), ("paused", 0), ("picture-in-picture", 0),
-    ("placeholder-shown", 0), ("playing", 0), ("read-only", 0), ("read-write", 0), ("required", 0),
-    ("right", 0), ("root", 0), ("scope", 0), ("target", 0), ("target-within", 0), ("user-invalid", 0),
-    ("user-valid", 0), ("valid", 0), ("visited", 0), ("where", -1) # https://developer.mozilla.org/en-US/docs/Web/CSS/:where
-  ]
-  for k in keys:
-    var node = newTree(nnkExprColonExpr, newLit k[0], newLit k[1])
-    add pseudoTable, node
-  result =
-    newStmtList(
-      newLetStmt(
-        ident "pseudoTable",
-        newCall(newDotExpr(pseudoTable, ident "toCritBitTree"))
-      )
-  )
-
-definePseudoClasses()
+  PrefixFunction = proc(p: var Parser, scope: ScopeTable = nil, excludeOnly, includeOnly: set[TokenKind] = {}): Node
+  InfixFunction = proc(p: var Parser, left: Node, scope: ScopeTable = nil): Node
 
 const
-  tkVars = {tkVarCall, tkVar}
+  tkVars = {tkVarCall, tkVarDef}
   tkNamedColors = {
     tkColorAliceblue, tkColorAntiquewhite, tkColorAqua, tkColorAquamarine, tkColorAzure,
     tkColorBeige, tkColorBisque, tkColorBlack, tkColorBlanchedalmond, tkColorBlue, tkColorBlueviolet,
@@ -175,15 +79,116 @@ const
     tkColorSlategray, tkColorSnow, tkColorSpringgreen, tkColorSteelblue, tkColorTan, tkColorTeal, tkColorThistle,
     tkColorTomato, tkColorTurquoise, tkColorViolet, tkColorWheat, tkColorWhite, tkColorWhitesmoke, tkColorYellow, tkColorYellowgreen
   }
+  # tkHtmlTags = {
+  #   tkA, tkAbbr, tkAcronym, tkAddress, tkApplet, tkArea, tkArticle, tkAside,
+  #   tkAudio, tkBold, tkBase, tkBasefont, tkBdi, tkBdo, tkBig, tkBlockquote, tkBody,
+  #   tkBr, tkButton, tkCanvas, tkCaption, tkCenter, tkCite, tkCode, tkCol, tkColgroup,
+  #   tkData, tkDatalist, tkDd, tkDel, tkDetails, tkDfn, tkDialog, tkDir, tkDiv,
+  #   tkDoctype, tkDl, tkDt, tkEm, tkEmbed, tkFieldset, tkFigcaption, tkFigure, tkFont,
+  #   tkFooter, tkForm, tkFrame, tkFrameset, tkH1, tkH2, tkH3, tkH4, tkH5, tkH6, tkHead,
+  #   tkHeader, tkHr, tkHtml, tkItalic, tkIframe, tkImg, tkInput, tkIns, tkKbd, tkLabel, tkLegend,
+  #   tkLi, tkLink, tkMain, tkMap, tkMark, tkMeta, tkMeter, tkNav, tkNoframes, tkNoscript,
+  #   tkObject, tkOl, tkOptgroup, tkOption, tkOutput, tkParagraph, tkParam, tkPre, tkProgress, tkQuotation,
+  #   tkRp, tkRt, tkRuby, tkStrike, tkSamp, tkScript, tkSection, tkSelect, tkSmall, tkSource, tkSpan,
+  #   tkStrikeLong, tkStrong, tkStyle, tkSub, tkSummary, tkSup, tkSvg, tkTable, tkTbody, tkTd,
+  #   tkTemplate, tkTextarea, tkTfoot, tkTh, tkThead, tkTime, tkTitle, tkTr, tkTrack, tkTt,
+  #   tkUnderline, tkUl, tkVideo, tkWbr, tkRoot
+  # }
   tkAssignable = {tkString, tkInteger, tkBool, tkColor} + tkVars + tkNamedColors
   tkComparable = tkAssignable
   tkAssignableFn = {tkJSON}
-  tkAssignableValue = {tkString, tkBool, tkFloat, tkInteger, tkIdentifier, tkVarCall, tkColor} + tkNamedColors
-  tkOperators = {tk_EQ, tk_NE, tk_GT, tk_GTE, tk_LT, tk_LTE}
-  tkConditional = {tkIf, tkElif, tkElse}
-  tkNativeFn = {
-    tkCSSCalc
+  tkTypedLiterals = {
+    tkArrayLit, tkBoolLit, tkColorLit, tkFloatLit, tkFunctionLit,
+    tkIntLit, tkObjectLit, tkSizeLit, tkStringLit
   }
+  tkAssignableValue = {
+    tkString, tkBool, tkFloat, tkInteger,
+    tkIdentifier, tkVarCall, tkColor
+  } + tkNamedColors
+  tkCompOperators = {tkEQ, tkNE, tkGT, tkGTE, tkLT, tkLTE}
+  tkMathOperators = {tkPlus, tkMinus, tkMultiply, tkDivide}
+  tkConditional = {tkIf, tkElif, tkElse}
+  # tkNativeFn = {
+  #   tkCSSCalc
+  # }
+
+when compileOption("app", "console"):
+  template err(msg: string) =
+    add p.error, @[span("Error ($2:$3): $1" % [msg, $p.curr.line, $p.curr.col])]
+
+  template err(msg: string, tk: TokenTuple, sfmt: varargs[string]) =
+    var newRow: Row
+    add newRow, span("Error", fgRed, indentSize = 0)
+    add newRow, span("(" & $(tk.line) & ":" & $(tk.col) & ")")
+    add newRow, span(msg)
+    for str in sfmt:
+      add newRow, span(str, fgMagenta)
+    add p.error, newRow
+    add p.error, @[span(p.filePath)]
+    return
+
+  proc getError*(p: Parser): seq[Row] =
+    result =
+      if p.error.len != 0: p.error
+      else:
+        @[@[span(p.lex.getError)]]
+
+else:
+  template err(msg: string) =
+    p.error = "Error ($2:$3): $1" % [msg, $(p.curr.line), $(tk.col)]
+
+  template err(msg: string, tk: TokenTuple, sfmt: varargs[string]) =
+    var errmsg = msg
+    for str in sfmt:
+      add errmsg, indent("\"" & str & "\"", 1)  
+    p.error = "Error ($2:$3): $1" % [errmsg, $(tk.line), $(tk.col)]
+    return
+
+  proc getError*(p: Parser): string =
+    result =
+      if p.error.len != 0: p.error
+      else: p.lex.getError
+
+proc hasError*(p: Parser): bool =
+  result = p.error.len != 0 or p.lex.hasError
+
+proc hasWarnings*(p: Parser): bool =
+  result = p.logger.warnLogs.len != 0
+
+proc getProgram*(p: Parser): Program = p.program
+
+#
+# Forward declaration
+#
+proc getPrefixFn(p: var Parser, excludeOnly, includeOnly: set[TokenKind] = {}): PrefixFunction
+proc getInfixFn(p: var Parser): InfixFunction
+
+proc parseRoot(p: var Parser, excludeOnly, includeOnly: set[TokenKind] = {}): Node
+proc parsePrefix(p: var Parser, excludeOnly, includeOnly: set[TokenKind] = {}, scope: ScopeTable = nil): Node
+proc parseInfix(p: var Parser, left: Node): Node
+
+proc parseStatement(p: var Parser, parent: (TokenTuple, Node), scope: ScopeTable = nil, excludeOnly, includeOnly: set[TokenKind] = {}): Node
+proc parseSelectorStmt(p: var Parser, parent: (TokenTuple, Node), scope: ScopeTable = nil, excludeOnly, includeOnly: set[TokenKind] = {})
+
+proc parseCallCommand(p: var Parser, scope: ScopeTable = nil, excludeOnly, includeOnly: set[TokenKind] = {}): Node
+proc parseCallFnCommand(p: var Parser, scope: ScopeTable = nil, excludeOnly, includeOnly: set[TokenKind] = {}): Node
+proc getPrefixOrInfix(p: var Parser, scope: ScopeTable, includeOnly, excludeOnly: set[TokenKind] = {}): Node
+
+
+#
+# Hash utils
+#
+# proc hash*(x: Identifier): Hash {.borrow.}
+# proc `==`*(a, b: Identifier): bool {.borrow.}
+
+
+
+#
+# Parse utils
+#
+when not defined release:
+  proc `$`(node: Node): string = pretty(node.toJson(), 2)
+  proc `$`(program: Program): string = pretty(program.toJson(), 2)
 
 proc walk(p: var Parser, offset = 1) =
   var i = 0
@@ -193,231 +198,277 @@ proc walk(p: var Parser, offset = 1) =
     p.curr = p.next
     p.next = p.lex.getToken()
 
-proc expect(p: var Parser, kind: TokenKind): bool =
-  result = p.curr.kind == kind
+proc getLiteralType(p: var Parser): NodeType =
+  result =
+    case p.curr.kind:
+    of tkArrayLit: ntArray
+    of tkBoolLit: ntBool
+    of tkColorLit: ntColor
+    of tkFloatLit: ntFloat
+    of tkFunctionLit: ntFunction
+    of tkIntLit: ntInt
+    of tkObjectLit: ntObject
+    of tkSizeLit: ntSize
+    of tkStringLit: ntString
+    else: ntVoid
 
-proc nextExpect(p: var Parser, kind: TokenKind): bool =
-  result = p.next.kind == kind
+proc getOpStr(tk: TokenTuple): string =
+  result =
+    case tk.kind:
+      of tkEQ: "=="
+      of tkNE: "!="
+      of tkLT: "<"
+      of tkLTE: "<="
+      of tkGT: ">"
+      of tkGTE: ">="
+      else: ""
 
-proc expect(p: var Parser, kind: set[TokenKind]): bool =
-  result = p.curr.kind in kind
+proc nextToken(p: var Parser, kind: TokenKind): bool = p.next.kind == kind
+proc nextToken(p: var Parser, kind: set[TokenKind]): bool = p.next.kind in kind
 
-proc nextExpect(p: var Parser, kind: set[TokenKind]): bool =
-  result = p.next.kind in kind
-  if not result: error(UnexpectedToken, p.curr)
+proc isColor(tk: TokenTuple): bool {.inline.} =
+  tk.kind in tkNamedColors
 
-proc isColor(tk: TokenTuple): bool =
-  result = tk.kind in tkNamedColors
+proc isChild(p: var Parser, tk: TokenTuple): bool {.inline.} =
+  p.curr.pos > tk.pos and (p.curr.line > tk.line and p.curr.kind != tkEOF)
 
-proc getAssignableNode(p: var Parser, scope: ScopeTable): Node =
+proc isInfix*(p: var Parser): bool {.inline.} =
+  p.curr.kind in tkCompOperators + tkMathOperators 
+
+proc isInfix*(tk: TokenTuple): bool {.inline.} =
+  tk.kind in tkCompOperators + tkMathOperators 
+
+proc `isnot`(tk: TokenTuple, kind: TokenKind): bool {.inline.} =
+  tk.kind != kind
+
+proc `is`(tk: TokenTuple, kind: TokenKind): bool {.inline.} =
+  tk.kind == kind
+
+proc `in`(tk: TokenTuple, kind: set[TokenKind]): bool {.inline.} =
+  tk.kind in kind
+
+proc `notin`(tk: TokenTuple, kind: set[TokenKind]): bool {.inline.} =
+  tk.kind notin kind
+
+#
+# Parse Literals
+#
+include handlers/pLiteral
+
+proc parseComment(p: var Parser): Node =
+  result = newComment("")
+  walk p
+
+proc getAssignableNode(p: var Parser, scope: ScopeTable = nil): Node =
   case p.curr.kind:
   of tkColor, tkNamedColors:
-    result = newColor p.curr.value
+    result = newValue(p.curr.value.newColor)
     walk p
   of tkString:
-    result = newString p.curr.value
+    result = newValue(p.curr.value.newString)
     walk p
   of tkInteger:
-    result = newInt p.curr.value
+    result = newValue(p.curr.value.newInt)
     walk p
   of tkBool:
-    result = newBool p.curr.value
+    result = newValue(p.curr.value.newBool)
     walk p
   of tkVarCall:
-    result = p.parseVariableCall(scope)
+    result = p.parseCallCommand(scope)
   else:
     if p.curr.isColor:
-      result = newColor(p.curr.value)
+      result = newValue(p.curr.value.newColor)
       walk p
 
-proc tkNot(p: var Parser, expKind: TokenKind): bool =
-  result = p.curr.kind != expKind
 
-proc tkNot(p: var Parser, expKind: set[TokenKind]): bool =
-  result = p.curr.kind notin expKind
+# Variable Declaration & Assignments
+#
+include handlers/[pAssignment, pCond, pFor, pCommand, pFunction, pSelector]
 
-proc isProp(p: var Parser): bool =
-  result = p.curr.kind == tkIdentifier
+# Prefix or Infix
+proc getPrefixOrInfix(p: var Parser, scope: ScopeTable, includeOnly, excludeOnly: set[TokenKind] = {}): Node =
+  if p.next.isInfix:
+    let lht = p.parsePrefix(excludeOnly, includeOnly, scope)
+    if lht != nil:
+      let infix = p.parseInfix(lht)
+      if infix != nil:
+        return infix
+    else: return
+  return p.parsePrefix(excludeOnly, includeOnly, scope)
 
-proc childOf(p: var Parser, tk: TokenTuple): bool =
-  result = p.curr.pos > tk.pos and (p.curr.line > tk.line and p.curr.kind != tkEOF)
-
-proc isPropOf(p: var Parser, tk: TokenTuple): bool =
-  result = p.childOf(tk) and p.isProp()
-
-proc parseComment(p: var Parser, scope: ScopeTable = nil): Node =
-  discard newComment(p.curr.value)
-  walk p
-
-proc getNil(p: var Parser): Node =
-  result = nil
-  walk p
-
-proc parseFnStmt(p: var Parser, scope: ScopeTable = nil): Node =
-  discard
-
-proc parseFnCall(p: var Parser, scope: ScopeTable = nil): Node =
-  discard
-
-include ./parseutils/extendStmt
-include ./parseutils/selector
-include ./parseutils/varStmt
-include ./parseutils/importStmt
-include ./parseutils/forStmt
-include ./parseutils/condStmt
-include ./parseutils/caseStmt
-
-proc parsePreview(p: var Parser, scope: ScopeTable = nil): Node =
-  result = newPreview(p.curr)
-  walk p
-
-proc parseTag(p: var Parser, scope: ScopeTable = nil): Node =
-  let tk = p.curr
-  result = p.parseSelector(tk.newTag, tk, scope)
-
-proc getInfix(p: var Parser, kind: TokenKind): InfixFunction =
-  discard
-  # case p.curr.kind:
-  # of tkPLus:
-  # of tkMinus:
-
-proc parseEcho(p: var Parser, scope: ScopeTable = nil): Node =
-  if p.nextExpect(tkAssignableValue):
-    walk p
-    result = newEcho(p.getAssignableNode(scope))
-
-proc parseNativeFn(p: var Parser, scope: ScopeTable = nil): Node =
-  discard
-
-proc getPrefix(p: var Parser, kind: TokenKind): PrefixFunction =
-  case p.curr.kind:
-  # of tkRoot:
-    # parseRoot
-  of tkClass:
-    parseClass
-  of tkID:
-    parseID
-  of tkComment:
-    parseComment
-  of tkAnd:
-    parseNest
-  of tkPseudoClass:
-    parsePseudoNest
-  of tkVar:
-    parseVariable
+#
+# Infix Comp
+#
+proc parseCompOp(p: var Parser, left: Node, scope: ScopeTable = nil): Node =
+  walk p # op
+  case p.curr.kind
+  of tkInteger:
+    result = p.parseInt()
+  of tkFloat:
+    result = p.parseFloat()
+  of tkString:
+    if p.prev.kind in {tkEQ, tkNE}:
+      return p.parseString()
+    errorWithArgs(InvalidInfixOperator, p.curr, [p.prev.getOpStr, "String"])
   of tkVarCall:
-    parseVariableCall
-  of tkVarCallAccessor:
-    parseVariableAccessor
-  of tkFunctionCall:
-    parseFnCall
-  of tkFunctionStmt:
-    parseFnStmt
-  of tkImport:
-    parseImport
-  of tkPreview:
-    parsePreview
-  of tkExtend:
-    parseExtend
-  of tkFor:
-    parseForStmt
-  of tkCase:
-    parseCaseStmt
-  of tkIdentifier:
-    parseTag
-  of tkIf:
-    parseCondStmt
-  of tkEcho:
-    parseEcho
-  of tkNativeFn:
-    parseNativeFn
+    echo "tkVarCall"
+    echo p.curr
+  of tkBool:
+    if p.prev.kind in {tkEQ, tkNE}:
+      return p.parseBool()
+    errorWithArgs(InvalidInfixOperator, p.curr, [p.prev.getOpStr, "Bool"])
+  else: discard
+
+proc parseMathOp(p: var Parser, left: Node, scope: ScopeTable = nil): Node =
+  case p.next.kind
+  of tkInteger, tkFloat:
+    walk p
+  of tkVarCall:
+    discard
+  else: discard
+
+proc getInfixFn(p: var Parser): InfixFunction =
+  case p.curr.kind
+  of tkCompOperators: parseCompOp
+  of tkMathOperators: parseMathOp
   else: nil
 
-proc parse(p: var Parser, scope: ScopeTable = nil, excludeOnly, includeOnly: set[TokenKind] = {}): Node =
-  if excludeOnly.len != 0 and includeOnly.len == 0:
-    # check if any `excludeOnly` TokenKind to look for
-    if p.curr.kind in excludeOnly:
-      error(UnexpectedToken, p.curr, p.curr.value)
-      return
-  elif includeOnly.len != 0 and excludeOnly.len == 0:
-    # check if any `includeOnly` TokenKind to look for
-    if p.curr.kind notin includeOnly:
-      error(UnexpectedToken, p.curr, p.curr.value)
-      return
-  let callFunction = p.getPrefix(p.curr.kind)
-  if callFunction != nil:
-    let node = p.callFunction(scope)
-    result = node
+proc parseInfix(p: var Parser, left: Node): Node =
+  let infixFn = p.getInfixFn()
+  if infixFn != nil:
+    result = newInfix(left)
+    result.infixOp = getInfixOp(p.curr.kind, false)
+    let node = p.infixFn(result.infixLeft)
+    if node != nil:
+      result.infixRight = node
+
+#
+# Statement List
+#
+proc parseStatement(p: var Parser, parent: (TokenTuple, Node),
+        scope: ScopeTable = nil, excludeOnly, includeOnly: set[TokenKind] = {}): Node =
+  if p.curr isnot tkEOF:
+    result = newStmt()
+    while p.curr isnot tkEOF and (p.curr.line > parent[0].line and p.curr.pos > parent[0].pos):
+      let node = p.parsePrefix(excludeOnly, includeOnly, scope)
+      if node != nil:
+        add result.stmtList, node
+      else: return nil
+    if result.stmtList.len == 0:
+      return nil # Nestab
+  # else: errorWithArgs(EndOfFileError, p.curr, [$(parent[1].nt)])
+
+proc parseSelectorStmt(p: var Parser, parent: (TokenTuple, Node),
+        scope: ScopeTable = nil, excludeOnly, includeOnly: set[TokenKind] = {}) =
+  if p.curr isnot tkEOF:
+    while p.curr.kind != tkEOF and (p.curr.line > parent[0].line and p.curr.pos > parent[0].pos):
+      let node = p.parsePrefix(excludeOnly, includeOnly, scope)
+      if likely(node != nil):
+        case node.nt:
+        of ntProperty:
+          parent[1].properties[node.pName] = node
+        of ntForStmt:
+          parent[1].innerNodes[$node.forOid] = node
+        of ntCondStmt:
+          parent[1].innerNodes[$node.condOid] = node
+        of ntCaseStmt:
+          parent[1].innerNodes[$node.caseOid] = node
+        else:
+          parent[1].innerNodes[node.ident] = node
+      else: return
+#
+# Prefix Statements
+#
+proc getPrefixFn(p: var Parser, excludeOnly, includeOnly: set[TokenKind] = {}): PrefixFunction =
+  if excludeOnly.len != 0:
+    if p.curr in excludeOnly: return
+  if includeOnly.len != 0:
+    if p.curr notin includeOnly: return
+  case p.curr.kind
+    of tkInteger: parseInt
+    of tkString:  parseString
+    of tkVarCall: parseCallCommand
+    of tkVarDef:  parseAssignment
+    of tkReturn:  parseReturnCommand
+    of tkEcho:    parseEchoCommand
+    of tkBool:    parseBool
+    of tkLB:      parseAnnoArray
+    of tkLC:      parseAnnoObject
+    of tkCase:    parseCase
+    of tkIf:      parseCond
+    of tkFor:     parseFor
+    of tkIdentifier:
+      if p.next.kind == tkLPAR and p.next.line == p.curr.line:
+        parseCallFnCommand
+      elif tkIdentifier notin excludeOnly:
+        parseCSSProperty
+      else: nil
+    else: nil
+
+proc parsePrefix(p: var Parser, excludeOnly, includeOnly: set[TokenKind] = {}, scope: ScopeTable = nil): Node =
+  let prefixFn = p.getPrefixFn(excludeOnly, includeOnly)
+  if prefixFn != nil:
+    return p.prefixFn(scope)
+
+proc parseRoot(p: var Parser, excludeOnly, includeOnly: set[TokenKind] = {}): Node =
+  # Parse nodes at root-level
+  result = case p.curr.kind:
+            of tkVarDef: p.parseAssignment(p.program.stack)
+            of tkVarCall: p.parseCallCommand()
+            of tkFnDef: p.parseFn()
+            of tkClass: p.parseSelectorClass()
+            of tkComment: p.parseComment()
+            of tkIf: p.parseCond(nil, excludeOnly, includeOnly)
+            of tkCase: p.parseCase(nil, excludeOnly, includeOnly)
+            of tkEcho: p.parseEchoCommand()
+            of tkFor: p.parseFor(nil, excludeOnly, includeOnly)
+            of tkIdentifier:
+              if p.next.kind == tkLPAR and p.next.line == p.curr.line:
+                p.parseCallFnCommand()
+              else: nil
+            else: nil
+  if result == nil and not p.hasErrors:
+    let tk = if p.curr isnot tkEOF: p.curr else: p.prev
+    errorWithArgs(UnexpectedToken, tk, [tk.value])
+
+template startParseProgram(src: string, scope: ScopeTable) =
+  when defined wasm:
+    p.lex = Lexer.init(src) # read from string
+    p.logger = Lexer.init(filePath: "")
   else:
-    if not p.hasErrors:
-      error(UnrecognizedToken, p.curr, p.curr.value)
-
-proc getProgram*(p: Parser): Program =
-  ## Return current AST as `Program`
-  result = p.program
-
-proc getMemtable*(p: Parser): Memtable =
-  ## Return data stored in memory as `Memtable`
-  result = p.memtable
-
-template initParser(fpath: string) =
-  result.lex = Lexer.init(readFile(fpath))
-  result.program = Program()
-  result.memtable = Memtable()
-  result.curr = result.lex.getToken()
-  result.next = result.lex.getToken()
-  result.logger = Logger(filePath: fpath)
-  while not result.hasError:
-    if result.curr.kind == tk_EOF: break
-    let node = result.parse(excludeOnly = {tkExtend, tkPseudoClass})
+    p.lex = Lexer.init(readFile(src))
+    p.logger = Logger(filePath: src)
+  p.program = Program(stack: scope)
+  p.curr = p.lex.getToken()
+  p.next = p.lex.getToken()
+  p.memtable = Memtable()
+  while p.curr isnot tkEOF:
+    if p.lex.hasError:
+      echo "Lexer errors:"
+      echo p.lex.getError # todo bring lexer errors to the current logger instance
+      break
+    elif p.hasErrors: break
+    let node = p.parseRoot(excludeOnly = {tkExtend, tkPseudo, tkReturn})
     if likely(node != nil):
-      result.program.nodes.add(node)
+      add p.program.nodes, node
     else: break
+  p.lex.close()
 
-  result.lex.close()
-  proc warnUnusedVar(p: var Parser, k: string, v: Node) =
-    p.logger.warn(DeclaredVariableUnused, v.varMeta.line, v.varMeta.col, true, "$" & k)
-  for k, v in result.memtable.pairs():
-    case v.varValue.nt:
-    of NTArray:
-      if unlikely(v.varValue.usedArray == false):
-        result.warnUnusedVar(k, v)
-    of NTObject:
-      if unlikely(v.varValue.usedObject == false):
-        result.warnUnusedVar(k, v)
-    of NTJsonValue:
-      if unlikely(v.varValue.usedJson == false):
-        result.warnUnusedVar(k, v)
-    else:
-      if unlikely(v.varValue.used == false):
-        result.warnUnusedVar(k, v)
-  # result.program.info = ("0.1.0", now())
-
-proc partialThread(th: (string, Memparser)) {.thread.} =
-  {.gcsafe.}:
-    proc newImporter(): Parser =
-      result = Parser(ptype: Partial, filePath: th[0])
-      initParser(th[0])
-    th[1].withValue(th[0]):
-      value[] = newImporter().getProgram
-    # var s = MsgStream.init()
-    # s.pack(p.getProgram)
-    # s.pack_bin(sizeof(p.getProgram))
-    # writeFile(th[0].parentDir / "cache" / "test.partial.ast", s.data)
-    # let p = newImportParser()
-    # discard th[1].insert(p.filePath, p) 
-
-proc parseProgram*(fpath: string): Parser =
-  ## Parse program and return `Parser` instance
-  result = Parser(ptype: Main, filePath: fpath, imports: Imports(),
-              memparser: newStashTable[string, Program, 1000]())
-  result.projectDirectory = fpath.parentDir()
-  initParser(fpath)
-  # resolve deferred imports
-  # echo result.memparser.len
-  # for k, index in result.memparser.keys:
-  #   result.memparser.withFound(k, index):
-  #     echo k
-  #     echo value == nil
-  #     result.imports[k].importNodes = value.nodes
-  # echo result.getProgram
+proc parseProgram*(src: string): Parser =
+  var p = Parser(ptype: Main, imports: Imports(), propsTable: initPropsTable())
+  when not defined wasm:
+    p.filePath = src 
+    p.projectDirectory = src.parentDir()
+    p.projectPath = src.parentDir()
+  startParseProgram(src, ScopeTable())
+  for k, v in p.program.stack:
+    # check for unused variables/functions
+    case v.nt:
+    of ntVariable:
+      if unlikely(v.varUsed == false):
+        p.logger.warn(DeclaredNotUsed, v.varMeta.line, v.varMeta.pos, true, k)
+    of ntFunction:
+      if unlikely(v.fnUsed == false):
+        p.logger.warn(DeclaredNotUsed, v.fnMeta.line, v.fnMeta.pos, true, v.fnName)
+    else: discard
+  result = p
