@@ -115,13 +115,6 @@ type
   CommandType* = enum
     cmdEcho
 
-  # NStack = ref object
-    # case nt: NodeType
-    # of ntFunction:
-
-    # else:
-
-
   ScopeTable* = OrderedTableRef[string, Node]
 
   CaseCondTuple* = tuple[`of`: Node, body: Node]
@@ -132,7 +125,7 @@ type
     case nt*: NodeType
     of ntProperty:
       pName*: string
-      pVal*: seq[Node]
+      pVal*: Node
       pRule*: PropertyRule
     of ntFunction:
       fnName*: string
@@ -238,7 +231,7 @@ type
       stmtList*: seq[Node]
       stmtScope*: ScopeTable
     of ntReturn:
-      returnStmt: Node
+      returnStmt*: Node
     of ntInfo:
       nodeType*: NodeType
     else: discard
