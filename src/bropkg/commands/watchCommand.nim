@@ -10,6 +10,8 @@ import std/[times, os, strutils, net, threadpool,
 
 import ../engine/[parser, compiler, freemem]
 
+var hasOutput: bool
+
 proc runProgram(fpath, fname: string) {.thread.} =
   {.gcsafe.}:
     let t = cpuTime()
@@ -23,9 +25,10 @@ proc runProgram(fpath, fname: string) {.thread.} =
       display(fname, indent = 3)
       let cssPath = fpath.changeFileExt("css")
       var c = newCompiler(p.getProgram, cssPath)
-      # if cssPath.len != 0:
-      writeFile(cssPath, c.getCSS)
-      # display(c.getCSS)
+      if hasOutput:
+        writeFile(cssPath, c.getCSS)
+      else:
+        display(c.getCSS)
       display("Done in " & $(cpuTime() - t), br="before")
       freem(c)
     freem(p)
@@ -33,7 +36,7 @@ proc runProgram(fpath, fname: string) {.thread.} =
 proc runCommand*(v: Values) =
   var stylesheetPath: string
   var cssPath: string
-  var hasOutput = v.has("output")
+  hasOutput = v.has("output")
   if v.has("style"):
     stylesheetPath = v.get("style").absolutePath()
     if not stylesheetPath.fileExists:
@@ -42,17 +45,14 @@ proc runCommand*(v: Values) =
   else:
     QuitFailure.quit
 
-  # if hasOutput:
-  #   cssPath = v.get("output")
-  #   if cssPath.splitFile.ext != ".css":
-  #     display("Output path missing `.css` extension\n" & cssPath)
-  #     QuitFailure.quit
-  #   if not cssPath.isAbsolute:
-  #     cssPath.normalizePath
-  #     cssPath = cssPath.absolutePath()
-  # else:
-    # let confirmNoOutput = promptConfirm("Big files can mess up your terminal, continue without output path?")
-    # if not confirmNoOutput: return
+  if hasOutput:
+    cssPath = v.get("output")
+    if cssPath.splitFile.ext != ".css":
+      display("Output path missing `.css` extension\n" & cssPath)
+      QuitFailure.quit
+    if not cssPath.isAbsolute:
+      cssPath.normalizePath
+      cssPath = cssPath.absolutePath()
 
   var delay = 550
   if v.has("delay"):
@@ -70,6 +70,7 @@ proc runCommand*(v: Values) =
   var watchFiles: seq[string]
   proc watchoutCallback(file: watchout.File) {.closure.} =
     display("✨ Changes detected")
+    display(file.getPath, indent = 2, br="after")
     if stylesheetPath.getFileSize > 0:
       runProgram(file.getPath, file.getName())
     else:
@@ -263,12 +264,11 @@ document.addEventListener('DOMContentLoaded', function() {
             var ws = await newWebSocket(req)
             await ws.send($toUnix(cssStylesheetPath.getLastModificationTime))
             while ws.readyState == Open:
-              # sleep(delay)
               await ws.send($toUnix(cssStylesheetPath.getLastModificationTime))
             ws.close()
             freem(ws)
           except WebSocketClosedError:
-            echo "Socket closed. "
+            echo "Socket closed"
           except WebSocketProtocolMismatchError:
             echo "Socket tried to use an unknown protocol: ", getCurrentExceptionMsg()
           except WebSocketError:
