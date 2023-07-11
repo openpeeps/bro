@@ -24,7 +24,7 @@ var strNL, strCL, strCR: string
 proc write(c: var Compiler, node: Node, scope: ScopeTable = nil, data: Node = nil)
 proc getSelectorGroup(c: var Compiler, node: Node, scope: ScopeTable = nil, parent: Node = nil): string
 proc handleInnerNode(c: var Compiler, node, parent: Node, scope: ScopeTable = nil, length: int, ix: var int)
-proc handleCallStack(c: var Compiler, node: Node)
+proc handleCallStack(c: var Compiler, node: Node): string
 
 proc getTypeInfo(node: Node): string =
   # Return type info for given Node
@@ -140,7 +140,7 @@ proc getValue(c: var Compiler, val: Node, scope: ScopeTable): string =
     else:
       add result, c.getValue(scope[val.callIdent], nil)
   of ntCallStack:
-    c.handleCallStack(val)
+    add result, c.handleCallStack(val)
   else: discard
 
 proc getProperty(c: var Compiler, n: Node, k: string, i: var int,
@@ -148,15 +148,17 @@ proc getProperty(c: var Compiler, n: Node, k: string, i: var int,
   # Get pairs of `key`:`value`;
   var
     ii = 1
-    vLen = n.pVal.len
-  if c.minify: add result, k & ":"
+    # vLen = n.pVal.len
+  if c.minify:
+    add result, k & ":"
   else:
     add result, spaces(2) & k & ":" & spaces(1)
-  for val in n.pVal:
-    add result, c.getValue(val, scope)
-    if vLen != ii:
-      add result, spaces(1)
-    inc ii
+  # for val in n.pVal:
+  #   add result, c.getValue(val, scope)
+  #   if vLen != ii:
+  #     add result, spaces(1)
+  #   inc ii
+  add result, c.getValue(n.pVal, scope)
   if i != length:
     add result, ";"
   add result, strNL # add \n if not minified
@@ -269,13 +271,7 @@ proc handleCommand(c: var Compiler, node: Node, scope: ScopeTable = nil) =
       let output = c.getValue(node.cmdValue, scope)
       stdout.styledWriteLine(fgGreen, "Debug", fgDefault, meta, fgMagenta, getTypeInfo(node.cmdValue) & "\n", fgDefault, output)
 
-proc handleReturn(c: var Compiler, node: Node, scope: ScopeTable) =
-    # echo node
-    # echo scope
-    discard
-
-proc handleCallStack(c: var Compiler, node: Node) =
-  # echo c.program.stack.hasKey(node.callStackIdent)
+proc handleCallStack(c: var Compiler, node: Node): string =
   let callable = c.program.stack[node.callStackIdent]
   case callable.nt
   of ntFunction:
@@ -288,14 +284,12 @@ proc handleCallStack(c: var Compiler, node: Node) =
     for n in callable.fnBody.stmtList:
       case n.nt
       of ntReturn:
-        c.handleInnerNode(n, callable, scope, 0, i)
-        return
+        return c.getValue(n.returnStmt, scope)
       else: c.handleInnerNode(n, callable, scope, 0, i)
   else: discard
 
 proc handleInnerNode(c: var Compiler, node, parent: Node,
                     scope: ScopeTable = nil, length: int, ix: var int) =
-  # echo node
   case node.nt:
   of ntProperty:
     if parent == nil:
@@ -325,8 +319,8 @@ proc handleInnerNode(c: var Compiler, node, parent: Node,
     c.handleImportStmt(node, scope)
   of ntCommand:
     c.handleCommand(node, scope)
-  of ntReturn:
-    c.handleReturn(node, scope)
+  # of ntReturn:
+    # c.handleReturn(node, scope)
   else: discard
 
 proc write(c: var Compiler, node: Node, scope: ScopeTable = nil, data: Node = nil) =
@@ -335,7 +329,7 @@ proc write(c: var Compiler, node: Node, scope: ScopeTable = nil, data: Node = ni
     add c.css, c.getSelectorGroup(node, scope)
     if unlikely(node.pseudo.len != 0):
       for k, pseudoNode in node.pseudo:
-        add c.css, c.getSelectorGroup(pseudoNode, scope)
+        add c.css, c.getSelectorGroup(pseudoNode, scope) 
   of ntForStmt:
     c.handleForStmt(node, nil, scope)
   of ntCondStmt:
@@ -347,7 +341,7 @@ proc write(c: var Compiler, node: Node, scope: ScopeTable = nil, data: Node = ni
   of ntCommand:
     c.handleCommand(node)
   of ntCallStack:
-    c.handleCallStack(node)
+    discard c.handleCallStack(node)
   else: discard
 
 proc len*(c: var Compiler): int = c.program.nodes.len
