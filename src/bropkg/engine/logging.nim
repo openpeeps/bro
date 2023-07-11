@@ -1,4 +1,4 @@
-# A super fast statically typed stylesheet language for cool kids
+# A super fast stylesheet language for cool kids
 #
 # (c) 2023 George Lemon | MIT License
 #          Made by Humans from OpenPeeps
@@ -22,7 +22,7 @@ type
     InvalidProperty = "Invalid CSS property $"
     DuplicateVarDeclaration = "Duplicate variable declaration"
     DuplicateSelector = "Duplicated CSS declaration"
-    UnexpectedToken = "Unexpected token $ in this context"
+    UnexpectedToken = "Unexpected token $"
     UndefinedValueVariable = "Undefined value for variable"
     DeclaredEmptySelector = "Declared CSS selector $ has no properties"
     BadIndentation = "Nestable statement requires indentation"
@@ -32,7 +32,6 @@ type
     UnknownPseudoClass = "Unknown pseudo-class"
     MissingClosingBracketArray = "Missing closing bracket in array"
     ImportErrorFileNotFound = "Import error file not found"
-    InvalidValueCaseStmt = "Invalid value for case statement"
     VariableRedefinition = "Compile-time variables are immutable"
     UndefinedPropertyAccessor = "Undefined property accessor $ for object $"
     InvalidInfixMissingValue = "Invalid infix missing assignable token"
@@ -43,17 +42,21 @@ type
     MissingClosingObjectBody = "Missing closing object body"
     DuplicateCaseLabel = "Duplicate case label"
 
+    # Condition - Case statements
+    caseInvalidValueType = "Invalid case statement. Got $, expected $"
+    InvalidValueCaseStmt = "Invalid value for case statement"
+    # Condition - If statements
+
+    # Functions
     UndeclaredFunction = "Undeclared function $"
     FunctionMismatchParam = "Type mismatch for $. Got $ expected $"
     FunctionExtraArg = "Function $ expects $ arguments, $ given"
     FunctionReturnVoid = "Function $ has no return type"
     FunctionInvalidReturn = "Invalid return type for function"
+    fnAttemptRedefineIdent = "Attempt to redefine parameter $"
 
-    InvalidSyntaxCaseStmt = "Invalid syntax for case statement"
     InvalidSyntaxLoopStmt = "Invalid syntax for loop statement"
-    InvalidSyntaxCondStmt = "Invalid syntax for conditional statement"
     ConfigLoadingError = "Could not open json config file"
-    AttemptRedefineIdent = "Attempt to redefine"
     TypeMismatch = "Type mismatch"
     InvalidIdent = "Invalid identifier"
     EndOfFileError = "EOF reached before end of $ statement"
@@ -79,7 +82,7 @@ type
 proc add(logger: Logger, lvl: Level, msg: Message, line, col: int,
         useFmt: bool, args: varargs[string]) =
   let log = Log(msg: msg, args: args.toSeq(),
-                line: line, col: col + 1, useFmt: useFmt)
+                line: line, col: col, useFmt: useFmt)
   case lvl:
     of lvlInfo:
       logger.infoLogs.add(log)
