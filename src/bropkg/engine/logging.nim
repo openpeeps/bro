@@ -51,7 +51,7 @@ type
     UndeclaredFunction = "Undeclared function $"
     FunctionMismatchParam = "Type mismatch for $. Got $ expected $"
     FunctionExtraArg = "Function $ expects $ arguments, $ given"
-    FunctionReturnVoid = "Function $ has no return type"
+    functionReturnVoid = "Function $ has no return type"
     FunctionInvalidReturn = "Invalid return type for function"
     fnAttemptRedefineIdent = "Attempt to redefine parameter $"
 

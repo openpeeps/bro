@@ -15,7 +15,7 @@ type
     ntVoid
     ntRoot
     ntProperty
-    ntVariable
+    ntVariable = "Variable"
     ntVarValue
     ntUniversalSelector
     ntAttrSelector
@@ -125,7 +125,7 @@ type
     case nt*: NodeType
     of ntProperty:
       pName*: string
-      pVal*: Node
+      pVal*: seq[Node] # a seq of CSS values
       pRule*: PropertyRule
     of ntFunction:
       fnName*: string

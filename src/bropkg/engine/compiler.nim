@@ -35,15 +35,23 @@ proc getTypeInfo(node: Node): string =
       of ntArray:
         add result, "$1[$2]($3)" % [$(node.callNode.varValue.nt), "Mix", $(node.callNode.varValue.itemsVal.len)]
       of ntObject:
-        add result: "$1($2)" % [$(node.callNode.varValue.nt), $(node.callNode.varValue.objectFields.len)]
+        add result, "$1($2)" % [$(node.callNode.varValue.nt), $(node.callNode.varValue.objectFields.len)]
       of ntVarValue:
-        add result, $(node.callNode.varValue.val.nt)
-      else: discard
+        add result, "$1[$2]" % [$ntVariable, $(node.callNode.varValue.val.nt)]
+      else:
+        discard
     else:
-      # todo parameter has no body
-      # will need to get the 
       discard
-  else: discard
+  of ntString:
+    add result, "$1($2)" % [$ntString, $node.sVal.len]
+  of ntInt:
+    add result, "$1" % [$ntInt]
+  of ntFloat:
+    add result, "$1" % [$ntFloat]
+  of ntCallStack:
+    add result, "$1[$2]" % [$ntFunction, $node.callStackReturnType]
+  else:
+    discard
 
 proc getCSS*(c: Compiler): string =
   result = c.css
@@ -142,6 +150,12 @@ proc getValue(c: var Compiler, val: Node, scope: ScopeTable): string =
   of ntCallStack:
     add result, c.handleCallStack(val)
   else: discard
+
+proc getValue(c: var Compiler, vals: seq[Node], scope: ScopeTable): string =
+  var strVal: seq[string]
+  for val in vals:
+    add strVal, c.getValue(val, scope)
+  result = strVal.join(" ") # todo make it work with a valid separator (space, colon) 
 
 proc getProperty(c: var Compiler, n: Node, k: string, i: var int,
                 length: int, scope: ScopeTable): string =

@@ -317,6 +317,8 @@ proc parseCompOp(p: var Parser, left: Node, scope: ScopeTable = nil): Node =
     if p.prev.kind in {tkEQ, tkNE}:
       return p.parseBool()
     errorWithArgs(InvalidInfixOperator, p.curr, [p.prev.getOpStr, "Bool"])
+  of tkColor, tkNamedColors:
+    result = p.parseColor(scope)
   else: discard
 
 proc parseMathOp(p: var Parser, left: Node, scope: ScopeTable = nil): Node =

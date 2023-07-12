@@ -13,3 +13,7 @@ proc parseBool(p: var Parser, scope: ScopeTable = nil, excludeOnly, includeOnly:
 proc parseFloat(p: var Parser, scope: ScopeTable = nil, excludeOnly, includeOnly: set[TokenKind] = {}): Node =
   result = newFloat(p.curr.value)
   walk p
+
+proc parseColor(p: var Parser, scope: ScopeTable = nil, excludeOnly, includeOnly: set[TokenKind] = {}): Node =
+  result = newColor(p.curr.value)
+  walk p

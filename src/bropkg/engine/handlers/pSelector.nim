@@ -30,9 +30,10 @@ proc parseSelector(p: var Parser, node: Node, tk: TokenTuple, scope: ScopeTable,
 
 template handleSelectorConcat(parseWithConcat, parseWithoutConcat: untyped) {.dirty.} =
   if unlikely(p.next is tkVarConcat and p.next.line == tk.line):
+    # handle selector name declaration
+    # prefixed/suffixed by var concat
     walk p
     while p.curr.line == tk.line:
-      # handle selector name + var concatenation
       case p.curr.kind
       of tkVarConcat:
         let concatVarCall = p.parseCallCommand(scope)
@@ -73,23 +74,29 @@ proc parseCSSProperty(p: var Parser, scope: ScopeTable = nil, excludeOnly, inclu
     if p.next is tkColon:
       walk p, 2
       result = newProperty(pName.value)
-      case p.curr.kind
-      of tkString:
-        result.pVal = newString(p.curr.value)
-        walk p
-      of tkInteger:
-        result.pVal = newInt(p.curr.value)
-        walk p
-      of tkIdentifier:
-        if p.next.kind == tkLPAR and p.next.line == p.curr.line:
-          let identToken = p.curr
-          let callNode = p.parseCallFnCommand()
-          if likely(callNode != nil):
-            if likely(callNode.callStackReturnType != ntVoid):
-              result.pVal = callNode
-            else:
-              errorWithArgs(functionReturnVoid, identToken, [callNode.callStackIdent])
-      of tkNamedColors:
-        result.pVal = newColor(p.curr.value)
-        walk p
-      else: discard
+      while p.curr.line == pName.line:
+        # walk along the line and parse values
+        case p.curr.kind
+        of tkString:
+          result.pVal.add(newString(p.curr.value))
+          walk p
+        of tkInteger:
+          result.pVal.add(newInt(p.curr.value))
+          walk p
+        of tkIdentifier:
+          if p.next.kind == tkLPAR and p.next.line == p.curr.line:
+            let identToken = p.curr
+            let callNode = p.parseCallFnCommand()
+            if likely(callNode != nil):
+              if likely(callNode.callStackReturnType != ntVoid):
+                result.pVal.add(callNode)
+              else:
+                errorWithArgs(functionReturnVoid, identToken, [callNode.callStackIdent])
+        of tkNamedColors, tkColor:
+          result.pVal.add(newColor(p.curr.value))
+          walk p
+        of tkVarCall:
+          let varCallNode = p.parseCallCommand(scope)
+          if varCallNode != nil:
+            result.pVal.add(varCallNode)
+        else: break
