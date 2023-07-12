@@ -21,6 +21,6 @@ proc parseFor(p: var Parser, scope: ScopeTable = nil, excludeOnly, includeOnly: 
             result.forScopes = scope
           else: error(DuplicateVarDeclaration, itemToken)
         result.forScopes[itemNode.varName] = itemNode
-        result.forBody = p.parseStatement((tk, result), scope, excludeOnly, includeOnly)
+        result.forBody = p.parseStatement((tk, result), result.forScopes, excludeOnly, includeOnly)
         if unlikely(result.forBody == nil):
           return nil # error
