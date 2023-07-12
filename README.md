@@ -24,7 +24,7 @@
 - 🌴 **Abstract Syntax Tree** binary serialization via **MessagePack**
 - 🎉 Built-in `HTML` Documentation Generator
 - 🔥 Works with **NodeJS** & **BunJS** via `NAPI`
-- 🎩 Open Source | `MIT` License
+- 🎩 Open Source | [BSD-4-Clause license](https://github.com/openpeeps/bro/blob/main/LICENSE)
 - 👑 Written in **Nim language**
 - 😋 **Made for Cool Kids**
 
@@ -198,5 +198,5 @@ Benchmarks made with [hyperfine](https://github.com/sharkdp/hyperfine) on<br>
 - 🥰 [Donate to OpenPeeps via PayPal address](https://www.paypal.com/donate/?hosted_button_id=RJK3ZTDWPL55C)
 
 ### 🎩 License
-BRO aka NimSass | MIT license. Proudly made in 🇪🇺 Europe [by Humans from OpenPeeps](https://github.com/openpeeps).<br>
+BRO aka NimSass | [BSD-4-Clause license](https://github.com/openpeeps/bro/blob/main/LICENSE). Proudly made in 🇪🇺 Europe [by Humans from OpenPeeps](https://github.com/openpeeps).<br>
 Copyright &copy; 2023 OpenPeeps & Contributors &mdash; All rights reserved.
