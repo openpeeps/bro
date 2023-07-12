@@ -283,7 +283,7 @@ proc getAssignableNode(p: var Parser, scope: ScopeTable = nil): Node =
 
 # Variable Declaration & Assignments
 #
-include handlers/[pAssignment, pCond, pFor, pCommand, pFunction, pSelector]
+include handlers/[pAssignment, pCond, pFor, pCommand, pFunction, pSelector, pUse]
 
 # Prefix or Infix
 proc getPrefixOrInfix(p: var Parser, scope: ScopeTable, includeOnly, excludeOnly: set[TokenKind] = {}): Node =
@@ -431,6 +431,7 @@ proc parseRoot(p: var Parser, excludeOnly, includeOnly: set[TokenKind] = {}): No
             of tkCase: p.parseCase(nil, excludeOnly, includeOnly)
             of tkEcho: p.parseEchoCommand()
             of tkFor: p.parseFor(nil, excludeOnly, includeOnly)
+            of tkUse: p.parseUse()
             of tkIdentifier:
               if p.next.kind == tkLPAR and p.next.line == p.curr.line:
                 p.parseCallFnCommand()

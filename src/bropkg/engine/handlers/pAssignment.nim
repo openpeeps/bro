@@ -79,7 +79,11 @@ proc parseAnnoArray(p: var Parser, scope: ScopeTable = nil, excludeOnly, include
     let arrItem = p.getAssignableNode()
     if arrItem != nil:
       add aArray.itemsVal, arrItem
-    else: return 
+    else: return
+    if p.curr.kind == tkComma:
+      walk p
+    elif p.curr.kind != tkRB:
+      return
   if p.curr.kind == tkRB:
     walk p
     return aArray

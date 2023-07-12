@@ -2,7 +2,8 @@ proc handleCondStmt(c: var Compiler, node, parent: Node, scope: ScopeTable) =
   # Compiler handler to evaluate conditional statements `if`, `elif`, `else`
   var ix = 0
   var tryElse: bool
-  if evalInfix(node.ifInfix.infixLeft, node.ifInfix.infixRight, node.ifInfix.infixOp, scope):
+  if evalInfix(node.ifInfix.infixLeft, node.ifInfix.infixRight,
+            node.ifInfix.infixOp, scope):
     for ifNode in node.ifStmt.stmtList:
       c.handleInnerNode(ifNode, parent, scope, node.ifStmt.stmtList.len, ix)
     return # condition is truthy
@@ -10,7 +11,8 @@ proc handleCondStmt(c: var Compiler, node, parent: Node, scope: ScopeTable) =
     for elifBranch in node.elifStmt: # walk through seq[Node] of `elif` statements
       case elifBranch.comp.nt
       of ntInfix:
-        if evalInfix(elifBranch.comp.infixLeft, elifBranch.comp.infixRight, elifBranch.comp.infixOp, scope):
+        if evalInfix(elifBranch.comp.infixLeft, elifBranch.comp.infixRight,
+                    elifBranch.comp.infixOp, scope):
           ix = 0
           for elifNode in elifBranch.body.stmtList:
             c.handleInnerNode(elifNode, parent, scope, elifBranch.body.stmtList.len, ix)

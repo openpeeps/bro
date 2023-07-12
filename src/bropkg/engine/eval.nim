@@ -67,7 +67,7 @@ proc evalInfix*(lht, rht: Node, infixOp: InfixOp, scope: ScopeTable): bool =
     of EQ:
       case lht.nt
       of ntCall:
-        let l = call(lht)
+        let l = call(lht, scope)
         case rht.nt
           of ntBool:    l.bVal == rht.bVal
           of ntString:  l.sVal == rht.sVal
@@ -77,25 +77,25 @@ proc evalInfix*(lht, rht: Node, infixOp: InfixOp, scope: ScopeTable): bool =
       of ntBool:
         case rht.nt:
           of ntBool:    lht.bVal == rht.bVal
-          of ntCall:    lht.bVal == call(rht).bVal
+          of ntCall:    lht.bVal == call(rht, scope).bVal
           else: false
       of ntInt:
         case rht.nt:
           of ntInt:     lht.iVal == rht.iVal
-          of ntCall:    lht.iVal == call(rht).iVal
+          of ntCall:    lht.iVal == call(rht, scope).iVal
           of ntFloat:   toFloat(lht.iVal) == rht.fVal
           else: false
       of ntFloat:
         case rht.nt:
           of ntFloat:   lht.fVal == rht.fVal
           of ntInt:     lht.fVal == toFloat(rht.iVal)
-          of ntCall:    lht.fVal == toFloat(call(rht).iVal)
+          of ntCall:    lht.fVal == toFloat(call(rht, scope).iVal)
           else: false
       else: false
     of NE:
       case lht.nt
       of ntCall:
-        let left = call(lht)
+        let left = call(lht, scope)
         case rht.nt
           of ntBool:    left.bVal != rht.bVal
           of ntString:  left.sVal != rht.sVal
@@ -105,19 +105,19 @@ proc evalInfix*(lht, rht: Node, infixOp: InfixOp, scope: ScopeTable): bool =
       of ntBool:
         case rht.nt:
           of ntBool:    lht.bVal != rht.bVal
-          of ntCall:    lht.bVal != call(rht).bVal
+          of ntCall:    lht.bVal != call(rht, scope).bVal
           else: false
       of ntInt:
         case rht.nt:
           of ntInt:     lht.iVal != rht.iVal
-          of ntCall:    lht.iVal != call(rht).iVal
+          of ntCall:    lht.iVal != call(rht, scope).iVal
           of ntFloat:   toFloat(lht.iVal) != rht.fVal
           else: false
       of ntFloat:
         case rht.nt:
           of ntFloat:   lht.fVal != rht.fVal
           of ntInt:     lht.fVal != toFloat(rht.iVal)
-          of ntCall:    lht.fVal != toFloat(call(rht).iVal)
+          of ntCall:    lht.fVal != toFloat(call(rht, scope).iVal)
           else: false
       else: false
     of LT:
@@ -125,18 +125,18 @@ proc evalInfix*(lht, rht: Node, infixOp: InfixOp, scope: ScopeTable): bool =
       of ntInt:
         case rht.nt:
           of ntInt:     lht.iVal < rht.iVal
-          of ntCall:    lht.iVal < call(rht).iVal
+          of ntCall:    lht.iVal < call(rht, scope).iVal
           else: false
       of ntFloat:
         case rht.nt:
           of ntFloat:   lht.fVal < rht.fVal
           of ntInt:     lht.fVal < toFloat(rht.iVal)
-          of ntCall:    lht.fVal < toFloat(call(rht).iVal)
+          of ntCall:    lht.fVal < toFloat(call(rht, scope).iVal)
           else: false
       of ntCall:
         case rht.nt:
-          of ntInt:    call(lht).iVal < rht.iVal
-          of ntCall:   call(lht).iVal < call(rht).iVal
+          of ntInt:    call(lht, scope).iVal < rht.iVal
+          of ntCall:   call(lht, scope).iVal < call(rht, scope).iVal
           else: false
       else: false
     of LTE:
@@ -144,12 +144,12 @@ proc evalInfix*(lht, rht: Node, infixOp: InfixOp, scope: ScopeTable): bool =
       of ntInt:
         case rht.nt:
           of ntInt:     lht.iVal <= rht.iVal
-          of ntCall:    lht.iVal <= call(rht).iVal
+          of ntCall:    lht.iVal <= call(rht, scope).iVal
           else: false
       of ntCall:
         case rht.nt:
-          of ntInt:    call(lht).iVal <= rht.iVal
-          of ntCall:   call(lht).iVal <= call(rht).iVal
+          of ntInt:    call(lht, scope).iVal <= rht.iVal
+          of ntCall:   call(lht, scope).iVal <= call(rht, scope).iVal
           else: false
       else: false
     of GT:
@@ -157,12 +157,12 @@ proc evalInfix*(lht, rht: Node, infixOp: InfixOp, scope: ScopeTable): bool =
       of ntInt:
         case rht.nt:
           of ntInt:     lht.iVal > rht.iVal
-          of ntCall:    lht.iVal > call(rht).iVal
+          of ntCall:    lht.iVal > call(rht, scope).iVal
           else: false
       of ntCall:
         case rht.nt:
-          of ntInt:    call(lht).iVal > rht.iVal
-          of ntCall:   call(lht).iVal > call(rht).iVal
+          of ntInt:    call(lht, scope).iVal > rht.iVal
+          of ntCall:   call(lht, scope).iVal > call(rht, scope).iVal
           else: false
       else: false
     of GTE:
@@ -170,12 +170,12 @@ proc evalInfix*(lht, rht: Node, infixOp: InfixOp, scope: ScopeTable): bool =
       of ntInt:
         case rht.nt:
           of ntInt:     lht.iVal >= rht.iVal
-          of ntCall:    lht.iVal >= call(rht).iVal
+          of ntCall:    lht.iVal >= call(rht, scope).iVal
           else: false
       of ntCall:
         case rht.nt:
-          of ntInt:    call(lht).iVal >= rht.iVal
-          of ntCall:   call(lht).iVal >= call(rht).iVal
+          of ntInt:    call(lht, scope).iVal >= rht.iVal
+          of ntCall:   call(lht, scope).iVal >= call(rht, scope).iVal
           else: false
       else: false
     of AND:

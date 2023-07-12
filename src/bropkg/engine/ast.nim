@@ -280,8 +280,11 @@ proc getInfixOp*(kind: TokenKind, isInfixInfix: bool): InfixOp =
         result = OR
       else: discard
 
-proc call*(node: Node): Node = 
-  result = node.callNode.varValue.val
+proc call*(node: Node, scope: ScopeTable): Node = 
+  if node.callNode != nil:
+    return node.callNode.varValue.val
+  assert scope != nil
+  result = scope[node.callIdent]
 
 proc use*(node: Node) =
   ## Mark a variable as used. If `node`

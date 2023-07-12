@@ -178,26 +178,6 @@ proc getProperty(c: var Compiler, n: Node, k: string, i: var int,
   add result, strNL # add \n if not minified
   inc i
 
-proc handleForStmt(c: var Compiler, node, parent: Node, scope: ScopeTable) =
-  # Handle `for` statements
-  case node.inItems.callNode.nt:
-  of ntVariable:
-    let items = node.inItems.callNode.varValue.itemsVal
-    var ix = 1
-    for i in 0 .. items.high:
-      node.forScopes[node.forItem.varName].varValue = items[i]
-      for ii in 0 .. node.forBody.stmtList.high:
-        c.handleInnerNode(node.forBody.stmtList[ii], parent, node.forScopes, node.forBody.stmtList.len, ix)
-        # c.write(node.forBody[ii], node.forScopes, items[i])
-  of ntStream:
-    var ix = 1
-    for item in items(node.inItems.callNode.streamContent):
-      node.forScopes[node.forItem.varName].varValue = newStream item
-      for i in 0 .. node.forBody.stmtList.high:
-        # c.write(node.forBody[i], node.forScopes, newJson item)
-        c.handleInnerNode(node.forBody.stmtList[i], parent, node.forScopes, node.forBody.stmtList.len, ix)
-  else: discard
-
 proc handleExtendAOT(c: var Compiler, node: Node, scope: ScopeTable) =
   ## TODO collect scope data
   for childSelector in node.extendBy:
@@ -211,7 +191,7 @@ proc handleExtendAOT(c: var Compiler, node: Node, scope: ScopeTable) =
       else: discard
 
 # Writers
-include ./handlers/[wCond]
+include ./handlers/[wCond, wFor]
 
 proc getSelectorGroup(c: var Compiler, node: Node,
                   scope: ScopeTable = nil, parent: Node = nil): string =

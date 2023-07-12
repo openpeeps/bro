@@ -91,7 +91,7 @@ proc parseCSSProperty(p: var Parser, scope: ScopeTable = nil, excludeOnly, inclu
               if likely(callNode.callStackReturnType != ntVoid):
                 result.pVal.add(callNode)
               else:
-                errorWithArgs(functionReturnVoid, identToken, [callNode.callStackIdent])
+                errorWithArgs(fnReturnVoid, identToken, [callNode.callStackIdent])
         of tkNamedColors, tkColor:
           result.pVal.add(newColor(p.curr.value))
           walk p

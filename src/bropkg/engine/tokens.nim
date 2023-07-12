@@ -155,15 +155,15 @@ registerTokens defaultSettings:
     json = "json"
     # preview = tokenize(handleSnippets, '`')
 
-  arrayLit = "Array"
-  boolLit = "Bool"
-  colorLit = "Color"
-  floatLit = "Float"
-  functionLit = "Function"
-  intLit = "Int"
-  objectLit = "Object"
-  sizeLit = "Size"
-  stringLit = "String"
+  arrayLit = "array"
+  boolLit = "bool"
+  colorLit = "color"
+  floatLit = "float"
+  functionLit = "function"
+  intLit = "int"
+  objectLit = "object"
+  sizeLit = "size"
+  stringLit = "string"
 
   id
   color

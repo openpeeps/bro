@@ -48,11 +48,11 @@ type
     # Condition - If statements
 
     # Functions
-    UndeclaredFunction = "Undeclared function $"
-    FunctionMismatchParam = "Type mismatch for $. Got $ expected $"
-    FunctionExtraArg = "Function $ expects $ arguments, $ given"
-    functionReturnVoid = "Function $ has no return type"
-    FunctionInvalidReturn = "Invalid return type for function"
+    fnUndeclared = "Undeclared function $"
+    fnMismatchParam = "Type mismatch for $. Got $ expected $"
+    fnExtraArg = "Function $ expects $ arguments, $ given"
+    fnReturnVoid = "Function $ has no return type"
+    fnInvalidReturn = "Invalid return type for function"
     fnAttemptRedefineIdent = "Attempt to redefine parameter $"
 
     InvalidSyntaxLoopStmt = "Invalid syntax for loop statement"

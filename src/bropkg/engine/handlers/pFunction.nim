@@ -22,7 +22,7 @@ proc parseFn(p: var Parser, excludeOnly, includeOnly: set[TokenKind] = {}): Node
   if p.curr.kind == tkLPAR and p.curr.line == fn.line:
     # parse function parameters
     walk p # (
-    while p.next.kind == tkColon and p.curr.kind == tkVarTyped:
+    while p.next.kind == tkColon and p.curr.kind == tkIdentifier:
       let pName = p.curr
       walk p
       case p.curr.kind
@@ -33,13 +33,13 @@ proc parseFn(p: var Parser, excludeOnly, includeOnly: set[TokenKind] = {}): Node
           of tkTypedLiterals:
             # Set type for current argument
             let nTyped = p.getLiteralType()
-            result.fnParams[pName.value] = (pName.value, nTyped, nil)
-            scope[pName.value] = nil
+            result.fnParams["$" & pName.value] = ("$" & pName.value, nTyped, nil)
+            scope["$" & pName.value] = nil
             types.add(nTyped)
             walk p
             # todo support default assignments
           else: return # UnexpectedToken
-        else: errorWithArgs(fnAttemptRedefineIdent, pName, ["$" & pName.value])
+        else: errorWithArgs(fnAttemptRedefineIdent, pName, [pName.value])
       of tkAssign:
         # Set type and value from given assignment 
         discard # todo
@@ -47,7 +47,6 @@ proc parseFn(p: var Parser, excludeOnly, includeOnly: set[TokenKind] = {}): Node
       if p.curr.kind == tkComma:
         walk p
       else: break
-  
   if p.curr.kind == tkRPAR:
     walk p
     if p.curr.kind == tkColon: # parse return type
@@ -55,11 +54,11 @@ proc parseFn(p: var Parser, excludeOnly, includeOnly: set[TokenKind] = {}): Node
       result.fnReturnType = p.getLiteralType()
       if result.fnReturnType != ntVoid:
         walk p
-      else: error(FunctionInvalidReturn, p.curr)
+      else: error(fnInvalidReturn, p.curr)
     if p.curr.kind == tkAssign: # parse function body
       if fn.line == p.curr.line:
         walk p
-        let stmtNode = p.parseStatement((fn, result), excludeOnly = {tkImport, tkFnDef}, scope = scope)
+        let stmtNode = p.parseStatement((fn, result), scope = scope, excludeOnly = {tkImport, tkFnDef})
         if stmtNode != nil:
           result.fnBody = stmtNode
           p.stackFn(result, types)
@@ -92,12 +91,12 @@ proc parseCallFnCommand(p: var Parser, scope: ScopeTable = nil, excludeOnly, inc
           if likely(args[i].getNodeType == pDef[1]):
             use(args[i])
           else:
-            errorWithArgs(FunctionMismatchParam, ident, [pDef[0], $(args[i].getNodeType), $(pDef[1])])
+            errorWithArgs(fnMismatchParam, ident, [pDef[0], $(args[i].getNodeType), $(pDef[1])])
         except IndexDefect:
-          error(FunctionExtraArg, ident)
+          error(fnExtraArg, ident)
         inc i 
       use fn
       result = newFnCall(fn, args, fnIdentStr)
     else:
-      errorWithArgs(FunctionExtraArg, ident, [ident.value, $len(fn.fnParams), $len(args)])
-  else: errorWithArgs(UndeclaredFunction, ident, [ident.value])
+      errorWithArgs(fnExtraArg, ident, [ident.value, $len(fn.fnParams), $len(args)])
+  else: errorWithArgs(fnUndeclared, ident, [ident.value])
