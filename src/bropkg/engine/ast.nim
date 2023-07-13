@@ -115,7 +115,7 @@ type
   CommandType* = enum
     cmdEcho
 
-  ScopeTable* = OrderedTableRef[string, Node]
+  ScopeTable* = TableRef[string, Node]
 
   CaseCondTuple* = tuple[`of`: Node, body: Node]
   Meta* = tuple[line, pos: int]
@@ -132,7 +132,7 @@ type
       fnParams*: OrderedTable[string, ParamDef]
       fnBody*: Node          # ntStmtList
       fnReturnType*: NodeType
-      fnUsed*: bool
+      fnUsed*, fnClosure*: bool
       fnMeta*: Meta
     of ntComment:
       comment*: string
@@ -140,7 +140,7 @@ type
       varName*: string
       varValue*: Node
       varMeta*: Meta 
-      varUsed*: bool
+      varUsed*, varImmutable*: bool
     of ntVarValue:
       val*: Node
       used*: bool
@@ -208,8 +208,7 @@ type
       forOid*: Oid
       forItem*, inItems*: Node
       forBody*: Node # ntStmtList
-      forScopes*: ScopeTable
-        # Variable scopes Nodes of ntVarValue
+      forStorage*: ScopeTable
     of ntMathStmt:
       mathInfixOp: ArithmeticOperators
       mathLeft, mathRight: Node
@@ -230,6 +229,7 @@ type
     of ntStmtList:
       stmtList*: seq[Node]
       stmtScope*: ScopeTable
+      stmtTraces*: seq[string]
     of ntReturn:
       returnStmt*: Node
     of ntInfo:
@@ -300,6 +300,18 @@ proc use*(node: Node) =
       node.callNode.varUsed = true
     else: discard
   else: discard
+
+proc trace*(stmtNode: Node, key: string) =
+  add stmtNode.stmtTraces, key
+
+proc clean*(stmtNode: Node) =
+  for item in stmtNode.stmtTraces:
+    stmtNode.stmtScope.del(item)
+  setLen(stmtNode.stmtTraces, 0)
+
+proc cleanExtra*(stmtNode: Node, key: string) =
+  stmtNode.clean()
+  stmtNode.stmtScope.del(key)
 
 proc getColor*(node: Node): string =
   result = node.cVal

@@ -1,15 +1,20 @@
-proc parseVarDef(p: var Parser): Node =
+proc parseVarDef(p: var Parser, scope: ScopeTable): Node =
+  if unlikely(scope.hasKey(p.curr.value)):
+    if scope[p.curr.value].varImmutable:
+      error(reassignImmutableVar, p.curr)
   result = newVariable(p.curr)
   walk p # $ident
 
 proc parseRegularAssignment(p: var Parser, scope: ScopeTable = nil, excludeOnly, includeOnly: set[TokenKind] = {}): Node =
-  result = p.parseVarDef()
+  result = p.parseVarDef(scope)
+  if unlikely(result == nil): return nil
   result.varValue = p.getAssignableNode
   if likely(scope != nil):
     scope[result.varName] = result
 
 proc parseArrayAssignment(p: var Parser, scope: ScopeTable = nil, excludeOnly, includeOnly: set[TokenKind] = {}): Node =
-  result = p.parseVarDef()
+  result = p.parseVarDef(scope)
+  if unlikely(result == nil): return nil
   result.varValue = newArray()
   walk p # [
   while p.curr.kind in tkAssignableValue:
@@ -40,7 +45,8 @@ proc parseStreamAssignment(p: var Parser, scope: ScopeTable = nil, excludeOnly, 
   result = newStream(normalizedPath(p.filePath.parentDir / fpath))
 
 proc parseObjectAssignment(p: var Parser, scope: ScopeTable = nil, excludeOnly, includeOnly: set[TokenKind] = {}): Node =
-  result = p.parseVarDef()
+  result = p.parseVarDef(scope)
+  if unlikely(result == nil): return nil
   result.varValue = newObject()
   walk p # {
   while p.curr.kind == tkIdentifier and p.next.kind == tkColon:
