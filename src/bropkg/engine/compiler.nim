@@ -313,8 +313,8 @@ proc handleInnerNode(c: var Compiler, node, parent: Node,
     c.handleImportStmt(node, scope)
   of ntCommand:
     c.handleCommand(node, scope)
-  # of ntReturn:
-    # c.handleReturn(node, scope)
+  of ntCallStack:
+    discard c.handleCallStack(node)
   else: discard
 
 proc write(c: var Compiler, node: Node, scope: ScopeTable = nil, data: Node = nil) =
