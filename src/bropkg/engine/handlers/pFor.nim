@@ -6,20 +6,17 @@ proc parseFor(p: var Parser, scope: ScopeTable = nil, excludeOnly, includeOnly: 
     let itemToken = p.curr
     let itemNode = p.parseVarDef(scope)
     itemNode.varImmutable = true
-    if p.curr is tkIn and p.next.kind in {tkVarCall, tkVarTyped, tkVarCallAccessor}:
-      # todo support annonymous arrays or objects
-      # todo check if next token is iterable (array or object)
+    if p.curr is tkIn and p.next.kind in {tkVarCall, tkVarTyped, tkVarCallAccessor, tkLB, tkLC}:
+      # todo when var, check if is iterable (array or object)
       walk p # tkIn
-      p.curr.kind = tkVarCall
+      if p.curr.kind notin {tkLB, tkLC}:
+        p.curr.kind = tkVarCall
       var itemsNode = p.parsePrefix(scope = scope)
       if likely(itemsNode != nil and p.curr is tkColon):
         walk p # tkColon
         result = newForStmt(itemNode, itemsNode)
         if scope == nil:
           var scope = ScopeTable()
-        # elif not scope.hasKey(itemNode.varName):
-          # result.forScope = scope
-        # else: error(DuplicateVarDeclaration, itemToken)
         scope[itemNode.varName] = itemNode
         result.forBody = p.parseStatement((tk, result), scope, excludeOnly, includeOnly)
         if likely(result.forBody != nil):

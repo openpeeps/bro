@@ -1,7 +1,9 @@
 proc handleForStmt(c: var Compiler, node, parent: Node, scope: ScopeTable) =
   # Handle `for` statements
   var itemsNode = 
-    if node.inItems.callNode != nil:
+    if node.inItems.nt in {ntArray, ntObject}:
+      node.inItems
+    elif node.inItems.callNode != nil:
       node.inItems.callNode
     else:
       assert scope != nil

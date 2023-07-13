@@ -408,8 +408,8 @@ proc getPrefixFn(p: var Parser, excludeOnly, includeOnly: set[TokenKind] = {}): 
     of tkReturn:  parseReturnCommand
     of tkEcho:    parseEchoCommand
     of tkBool:    parseBool
-    of tkLB:      parseAnnoArray
-    of tkLC:      parseAnnoObject
+    of tkLB:      parseAnoArray
+    of tkLC:      parseAnoObject
     of tkCase:    parseCase
     of tkIf:      parseCond
     of tkFor:     parseFor

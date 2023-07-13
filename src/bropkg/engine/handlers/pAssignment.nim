@@ -78,13 +78,13 @@ proc parseAssignment(p: var Parser, scope: ScopeTable = nil, excludeOnly, includ
     of tkAssignableValue: p.parseRegularAssignment(scope)
     else: nil
 
-proc parseAnnoArray(p: var Parser, scope: ScopeTable = nil, excludeOnly, includeOnly: set[TokenKind] = {}): Node =
-  walk p # {
-  let aArray = newArray()
+proc parseAnoArray(p: var Parser, scope: ScopeTable = nil, excludeOnly, includeOnly: set[TokenKind] = {}): Node =
+  walk p # [
+  let anno = newArray()
   while p.curr.kind != tkRB:
     let arrItem = p.getAssignableNode()
     if arrItem != nil:
-      add aArray.itemsVal, arrItem
+      add anno.itemsVal, arrItem
     else: return
     if p.curr.kind == tkComma:
       walk p
@@ -92,16 +92,16 @@ proc parseAnnoArray(p: var Parser, scope: ScopeTable = nil, excludeOnly, include
       return
   if p.curr.kind == tkRB:
     walk p
-    return aArray
+    return anno
 
-proc parseAnnoObject(p: var Parser, scope: ScopeTable = nil, excludeOnly, includeOnly: set[TokenKind] = {}): Node =
+proc parseAnoObject(p: var Parser, scope: ScopeTable = nil, excludeOnly, includeOnly: set[TokenKind] = {}): Node =
   walk p # [
-  let aObject = newArray()
+  let anno = newArray()
   while p.curr.kind != tkRC:
     let arrItem = p.getAssignableNode()
     if arrItem != nil:
-      add aObject.varValue.itemsVal, arrItem
+      add anno.varValue.itemsVal, arrItem
     else: return 
   if p.curr.kind == tkRC:
     walk p
-    return aObject
+    return anno
