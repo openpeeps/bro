@@ -14,7 +14,7 @@ type
   Message* = enum
     InvalidIndentation = "Invalid indentation"
     UnrecognizedToken = "Unrecognized token"
-    UndeclaredVariable = "Undeclared variable"
+    UndeclaredVariable = "Undeclared variable $"
     AssignUndeclaredVar = "Assigning an undeclared variable"
     MissingAssignmentToken = "Missing assignment token"
     UndeclaredCSSSelector = "Undeclared CSS selector"
@@ -42,19 +42,22 @@ type
     MissingClosingObjectBody = "Missing closing object body"
     DuplicateCaseLabel = "Duplicate case label"
 
+    reassignImmutableVar = "Cannot reassign value to an immutable variable"
+
     # Condition - Case statements
     caseInvalidValueType = "Invalid case statement. Got $, expected $"
-    InvalidValueCaseStmt = "Invalid value for case statement"
+    caseInvalidValue = "Invalid value for case statement"
     # Condition - If statements
 
     # Functions
     fnUndeclared = "Undeclared function $"
     fnMismatchParam = "Type mismatch for $. Got $ expected $"
     fnExtraArg = "Function $ expects $ arguments, $ given"
-    fnReturnVoid = "Function $ has no return type"
-    fnInvalidReturn = "Invalid return type for function"
+    fnReturnVoid = "Return type mismatch for $. Got $ expected $"
+    fnInvalidReturn = "Type mismatch return type for function"
     fnAttemptRedefineIdent = "Attempt to redefine parameter $"
 
+    InvalidContext = "Invalid $ in this context"
     InvalidSyntaxLoopStmt = "Invalid syntax for loop statement"
     ConfigLoadingError = "Could not open json config file"
     TypeMismatch = "Type mismatch"
