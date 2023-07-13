@@ -1,7 +1,7 @@
 proc parseEchoCommand(p: var Parser, scope: ScopeTable = nil, excludeOnly, includeOnly: set[TokenKind] = {}): Node =
   # Parse an `echo` command. Echo can print literals, functions and infix operations
   let tk = p.curr
-  walk p  
+  walk p
   if p.curr.kind == tkIdentifier and p.next isnot tkLPAR:
     if scope != nil:
       if scope.hasKey(p.curr.value):

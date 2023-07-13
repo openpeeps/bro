@@ -2,19 +2,22 @@ proc `$`(types: openarray[NodeType]): string =
   let t = types.map(proc(x: NodeType): string = $(x))
   add result, "|" & t.join("|")
 
-proc identifyFn(ident: string, types: openarray[NodeType]): string =
+proc identify(ident: string, types: openarray[NodeType]): string =
   result = ident
   if types.len > 0:
     add result, $(types)
 
 proc stackFn(p: var Parser, fn: Node, types: openarray[NodeType]) =
-  p.program.stack[fn.fnName.identifyFn(types)] = fn
+  p.program.stack[fn.fnName.identify(types)] = fn
 
-proc parseFn(p: var Parser, excludeOnly, includeOnly: set[TokenKind] = {}): Node =
+proc stack(scope: ScopeTable, fn: Node, types: openarray[NodeType]) =
+  scope[fn.fnName.identify(types)] = fn
+
+proc parseFn(p: var Parser, scope: ScopeTable = nil, excludeOnly, includeOnly: set[TokenKind] = {}): Node =
   let
     fn = p.curr
     fnName = p.next
-    scope = ScopeTable()
+    scope = if scope == nil: ScopeTable() else: scope
   walk p # `fn`
   result = newFunction(fnName)
   walk p # function identifier
@@ -58,10 +61,17 @@ proc parseFn(p: var Parser, excludeOnly, includeOnly: set[TokenKind] = {}): Node
     if p.curr.kind == tkAssign: # parse function body
       if fn.line == p.curr.line:
         walk p
-        let stmtNode = p.parseStatement((fn, result), scope = scope, excludeOnly = {tkImport, tkFnDef})
+        let stmtNode = p.parseStatement((fn, result), scope = scope, excludeOnly = {tkImport, tkUse})
         if stmtNode != nil:
           result.fnBody = stmtNode
-          p.stackFn(result, types)
+          if p.lastParent != nil:
+            if p.lastParent.fnName != result.fnName:
+              result.fnClosure = true
+              stack(scope, result, types)
+            else:
+              p.stackFn(result, types)
+          else:
+            p.stackFn(result, types)
     else: return nil
 
 proc parseCallFnCommand(p: var Parser, scope: ScopeTable = nil, excludeOnly, includeOnly: set[TokenKind] = {}): Node =
@@ -81,22 +91,26 @@ proc parseCallFnCommand(p: var Parser, scope: ScopeTable = nil, excludeOnly, inc
     if p.curr is tkComma:
       walk p
   walk p # )
-  let fnIdentStr = identifyFn(ident.value, types)
-  if p.program.stack.hasKey(fnIdentStr):
-    let fn = p.program.stack[fnIdentStr]
-    if likely(args.len == fn.fnParams.len):
-      var i = 0  
-      for pKey, pDef in fn.fnParams:
-        try:
-          if likely(args[i].getNodeType == pDef[1]):
-            use(args[i])
-          else:
-            errorWithArgs(fnMismatchParam, ident, [pDef[0], $(args[i].getNodeType), $(pDef[1])])
-        except IndexDefect:
-          error(fnExtraArg, ident)
-        inc i 
-      use fn
-      result = newFnCall(fn, args, fnIdentStr)
-    else:
-      errorWithArgs(fnExtraArg, ident, [ident.value, $len(fn.fnParams), $len(args)])
-  else: errorWithArgs(fnUndeclared, ident, [ident.value])
+  var fn: Node
+  let fnIdentName = identify(ident.value, types)
+  if p.program.stack.hasKey(fnIdentName):
+    fn = p.program.stack[fnIdentName]
+  elif scope.hasKey(fnIdentName):
+    fn = scope[fnIdentName]
+  else:
+    errorWithArgs(fnUndeclared, ident, [ident.value])
+  if likely(args.len == fn.fnParams.len):
+    var i = 0  
+    for pKey, pDef in fn.fnParams:
+      try:
+        if likely(args[i].getNodeType == pDef[1]):
+          use(args[i])
+        else:
+          errorWithArgs(fnMismatchParam, ident, [pDef[0], $(args[i].getNodeType), $(pDef[1])])
+      except IndexDefect:
+        error(fnExtraArg, ident)
+      inc i 
+    use fn
+    result = newFnCall(fn, args, fnIdentName)
+  else:
+    errorWithArgs(fnExtraArg, ident, [ident.value, $len(fn.fnParams), $len(args)])

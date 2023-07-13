@@ -1,7 +1,3 @@
-template checkColon() =
-  if p.curr is tkColon: walk p
-  else: error(BadIndentation, p.curr)
-
 proc parseCond(p: var Parser, scope: ScopeTable = nil, excludeOnly, includeOnly: set[TokenKind] = {}): Node =
   let tk = p.curr # tkIf
   walk p
@@ -14,6 +10,7 @@ proc parseCond(p: var Parser, scope: ScopeTable = nil, excludeOnly, includeOnly:
       if likely(ifStmt != nil):
         result.ifStmt = ifStmt
       else: return
+      ifStmt.clean()
       while p.curr is tkElif:
         walk p # tkElif
         let elifCompNode = p.getPrefixOrInfix(scope)
@@ -56,13 +53,13 @@ proc parseCase(p: var Parser, scope: ScopeTable = nil, excludeOnly, includeOnly:
               add caseNode.caseCond, (ofCond, ofBody)
             else: error(BadIndentation, p.curr)
           else: errorWithArgs(caseInvalidValueType, tkOfIdent, [$(ofCond.getNodeType), $(caseVarType)])
-        else: error(InvalidValueCaseStmt, p.curr)
+        else: error(caseInvalidValue, p.curr)
       if p.curr is tkElse:
         walk p
         checkColon
         let elseBody = p.parseStatement((tkOfTuple, caseNode), scope, excludeOnly, includeOnly) 
         if likely(elseBody != nil):
           caseNode.caseElse = elseBody
-        else: error(InvalidValueCaseStmt, p.curr)
+        else: error(caseInvalidValue, p.curr)
       return caseNode
     error(BadIndentation, p.curr)
