@@ -51,10 +51,11 @@ type
 
     # Functions
     fnUndeclared = "Undeclared function $"
-    fnMismatchParam = "Type mismatch for $. Got $ expected $"
+    fnMismatchParam = "Type mismatch for $ | Got $ expected $"
     fnExtraArg = "Function $ expects $ arguments, $ given"
-    fnReturnVoid = "Return type mismatch for $. Got $ expected $"
-    fnInvalidReturn = "Type mismatch return type for function"
+    fnReturnVoid = "Invalid return type for $ | Got void"
+    fnReturnTypeMismatch = "Invalid return type for $ | Got $ expected $"
+    fnInvalidReturn = "Invalid return type"
     fnAttemptRedefineIdent = "Attempt to redefine parameter $"
 
     InvalidContext = "Invalid $ in this context"
