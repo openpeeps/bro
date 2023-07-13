@@ -111,6 +111,6 @@ proc parseCallFnCommand(p: var Parser, scope: ScopeTable = nil, excludeOnly, inc
         error(fnExtraArg, ident)
       inc i 
     use fn
-    result = newFnCall(fn, args, fnIdentName)
+    result = newFnCall(fn, args, fnIdentName, ident.value)
   else:
     errorWithArgs(fnExtraArg, ident, [ident.value, $len(fn.fnParams), $len(args)])

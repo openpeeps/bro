@@ -49,7 +49,7 @@ proc getTypeInfo(node: Node): string =
   of ntFloat:
     add result, "$1" % [$ntFloat]
   of ntCallStack:
-    add result, "$1[$2]" % [$ntFunction, $node.callStackReturnType]
+    add result, "$1[$2]" % [$ntFunction, $node.stackReturnType]
   else:
     discard
 
@@ -266,13 +266,13 @@ proc handleCommand(c: var Compiler, node: Node, scope: ScopeTable = nil) =
       stdout.styledWriteLine(fgGreen, "Debug", fgDefault, meta, fgMagenta, getTypeInfo(node.cmdValue) & "\n", fgDefault, output)
 
 proc handleCallStack(c: var Compiler, node: Node): string =
-  let callable = c.program.stack[node.callStackIdent]
+  let callable = c.program.stack[node.stackIdent]
   case callable.nt
   of ntFunction:
     var i = 0
     var scope = ScopeTable() 
     for pName in callable.fnParams.keys():
-      scope[pName] = node.callStackArgs[i]
+      scope[pName] = node.stackArgs[i]
       inc i
     i = 0
     for n in callable.fnBody.stmtList:

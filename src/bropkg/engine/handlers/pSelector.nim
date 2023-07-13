@@ -88,10 +88,10 @@ proc parseCSSProperty(p: var Parser, scope: ScopeTable = nil, excludeOnly, inclu
             let identToken = p.curr
             let callNode = p.parseCallFnCommand()
             if likely(callNode != nil):
-              if likely(callNode.callStackReturnType != ntVoid):
+              if likely(callNode.stackReturnType != ntVoid):
                 result.pVal.add(callNode)
               else:
-                errorWithArgs(fnReturnVoid, identToken, [callNode.callStackIdent])
+                errorWithArgs(fnReturnVoid, identToken, [callNode.stackIdentName])
         of tkNamedColors, tkColor:
           result.pVal.add(newColor(p.curr.value))
           walk p

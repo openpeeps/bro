@@ -13,8 +13,8 @@ proc parseEchoCommand(p: var Parser, scope: ScopeTable = nil, excludeOnly, inclu
   if node != nil:
     case node.nt
     of ntCallStack:
-      if node.callStackReturnType == ntVoid:
-        errorWithArgs(fnReturnVoid, tk, [node.callStackIdent])
+      if node.stackReturnType == ntVoid:
+        errorWithArgs(fnReturnVoid, tk, [node.stackIdentName])
     else: discard
     return newEcho(node, tk)
 
@@ -25,8 +25,8 @@ proc parseReturnCommand(p: var Parser, scope: ScopeTable = nil, excludeOnly, inc
   if node != nil:
     case node.nt
     of ntCallStack:
-      if node.callStackReturnType == ntVoid:
-        errorWithArgs(fnReturnVoid, tk, [node.callStackIdent])
+      if node.stackReturnType == ntVoid:
+        errorWithArgs(fnReturnVoid, tk, [node.stackIdentName])
     else: discard
     if node != nil:
       result = newReturn(node)

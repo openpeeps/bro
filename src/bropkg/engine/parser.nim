@@ -344,25 +344,34 @@ proc parseInfix(p: var Parser, left: Node): Node =
 #
 proc parseStatement(p: var Parser, parent: (TokenTuple, Node),
                     scope: ScopeTable = nil, excludeOnly, includeOnly: set[TokenKind] = {}): Node =
+  var isFn: bool
+  var returnType: NodeType
   if p.lastParent == nil:
     p.lastParent = parent[1]
+    isFn = p.lastParent.nt == ntFunction
   if p.curr isnot tkEOF:
     result = newStmt()
     result.stmtScope = scope
+    var tk = p.curr
     while p.curr isnot tkEOF and (p.curr.line > parent[0].line and p.curr.pos > parent[0].pos):
-      let
-        tk = p.curr
-        node = p.parsePrefix(excludeOnly, includeOnly, result.stmtScope)
+      tk = p.curr
+      let node = p.parsePrefix(excludeOnly, includeOnly, result.stmtScope)
       if node != nil:
         case node.nt
         of ntReturn:
           if unlikely(p.lastParent.fnReturnType != node.returnStmt.nt):
-            errorWithArgs(fnReturnVoid, tk, [p.lastParent.fnName, $(node.returnStmt.nt), $(p.lastParent.fnReturnType)])
+            errorWithArgs(fnReturnTypeMismatch, tk,
+              [p.lastParent.fnName, $(node.returnStmt.nt), $(p.lastParent.fnReturnType)])
+          returnType = node.returnStmt.nt
         of ntVariable:
           result.trace(node.varName)
         else: discard
         add result.stmtList, node
       else: return nil
+    if isFn:
+      if p.lastParent.fnReturnType != returnType:
+        errorWithArgs(fnReturnTypeMismatch, tk,
+          [p.lastParent.fnName, $(returnType), $(p.lastParent.fnReturnType)])
     if result.stmtList.len == 0:
       return nil # Nestab
 

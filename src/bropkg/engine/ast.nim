@@ -12,7 +12,7 @@ when not defined release:
 
 type
   NodeType* = enum
-    ntVoid
+    ntVoid = "void"
     ntRoot
     ntProperty
     ntVariable = "Variable"
@@ -24,19 +24,19 @@ type
     ntPseudoElements
     ntIDSelector
     ntAtRule
-    ntFunction = "Function"
+    ntFunction = "function"
     ntComment
     ntTagSelector
-    ntString = "String"
-    ntInt = "Int"
-    ntFloat = "Float"
-    ntBool = "Bool"
-    ntArray = "Array"
-    ntObject = "Object"
+    ntString = "string"
+    ntInt = "int"
+    ntFloat = "float"
+    ntBool = "bool"
+    ntArray = "array"
+    ntObject = "object"
     ntAccessor # $myarr[0] $myobj.field
-    ntColor = "Color"
-    ntSize = "Size"
-    ntStream = "Stream"
+    ntColor = "color"
+    ntSize = "size"
+    ntStream = "stream"
     ntCall
     ntCallStack
     ntInfix
@@ -174,10 +174,10 @@ type
       callIdent*: string
       callNode*: Node
     of ntCallStack:
-      callStackIdent*: string
-      callStackType*: NodeType
-      callStackReturnType*: NodeType
-      callStackArgs*: seq[Node]
+      stackIdent*, stackIdentName*: string
+      stackType*: NodeType
+      stackReturnType*: NodeType
+      stackArgs*: seq[Node]
     of ntInfix:
       infixOp*: InfixOp
       infixLeft*, infixRight*: Node
@@ -402,9 +402,9 @@ proc newCall*(ident: string, node: Node): Node =
   # assert node.nt in {ntVariable, ntJsonValue}
   result = Node(nt: ntCall, callIdent: ident, callNode: node)
 
-proc newFnCall*[N: Node](node: N, args: seq[N], ident: string): Node =
-  result = Node(nt: ntCallStack, callStackArgs: args, callStackIdent: ident,
-                callStackReturnType: node.fnReturnType)
+proc newFnCall*[N: Node](node: N, args: seq[N], ident, name: string): Node =
+  result = Node(nt: ntCallStack, stackArgs: args, stackIdent: ident,
+                stackIdentName: name, stackReturnType: node.fnReturnType)
 
 proc newInfix*(infixLeft, infixRight: Node, infixOp: InfixOp): Node =
   ## Create a new ntInfix node
