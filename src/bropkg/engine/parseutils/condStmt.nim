@@ -1,13 +1,13 @@
 proc parseInfixNode(p: var Parser, scope: ScopeTable, infixInfixNode: Node = nil): Node =
   if p.curr.kind in tkComparable or p.curr.isColor:
-    let assignLeft = p.getAssignableNode(scope)
+    let assignLeft = p.getAssignableNode(p.curr, scope)
     assert assignLeft != nil # todo error msg
     var infixNode = newInfix(assignLeft)
     if p.curr.kind in tkOperators:
       infixNode.infixOp = getInfixOp(p.curr.kind, infixInfixNode != nil)
       walk p
       if p.curr.kind in tkComparable or p.curr.isColor:
-        let assignRight = p.getAssignableNode(scope)
+        let assignRight = p.getAssignableNode(p.curr, scope)
         assert assignRight != nil # todo error msg
         infixNode.infixRight = assignRight
         return infixNode
