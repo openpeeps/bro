@@ -49,7 +49,7 @@ proc runCommand*(v: Values) =
       display(error)
     display(" 👉 " & p.logger.filePath)
   else:
-    let c = newCompiler(p.getProgram, cssPath, minify = v.flag("min"))
+    let c = newCompiler(p.getProgram, minify = v.flag("min"))
     if hasOutput:
       if v.flag("gzip"):
         writeFile(cssPath.changeFileExt(".css.gzip"), compress(c.getCSS, dataFormat = dfGzip))
