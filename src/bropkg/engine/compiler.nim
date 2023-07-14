@@ -5,8 +5,8 @@
 #          https://github.com/openpeeps/bro
 
 import pkg/jsony
-import std/[tables, strutils, macros, json, algorithm, terminal]
-import ./ast, ./sourcemap, ./logging, ./eval
+import std/[tables, strutils, json, algorithm, terminal]
+import ./ast, ./sourcemap, ./eval
 
 type
   Warning* = tuple[msg: string, line, col: int]
@@ -180,12 +180,12 @@ proc getProperty(c: var Compiler, n: Node, k: string, i: var int,
 
 proc handleExtendAOT(c: var Compiler, node: Node, scope: ScopeTable) =
   ## TODO collect scope data
-  for childSelector in node.extendBy:
-    for aot in c.program.selectors[childSelector].aotStmts:
+  for child in node.extendFrom:
+    for aot in c.program.selectors[child].aotStmts:
       case aot.nt:
       of ntInfix:
         if not evalInfix(aot.infixLeft, aot.infixRight, aot.infixOp, scope):
-          node.extendBy.delete(node.extendBy.find(childSelector))
+          node.extendFrom.delete(node.extendFrom.find(child))
       of ntForStmt:
         discard # todo
       else: discard
@@ -196,7 +196,8 @@ include ./handlers/[wCond, wFor]
 proc getSelectorGroup(c: var Compiler, node: Node,
                   scope: ScopeTable = nil, parent: Node = nil): string =
   # Write CSS selectors and properties
-  if node.extendBy.len != 0:
+  if node.extendFrom.len != 0:
+    # when selector extends from
     c.handleExtendAOT(node, scope)
   var i = 1
   if likely(node.innerNodes.len != 0):
@@ -210,6 +211,9 @@ proc getSelectorGroup(c: var Compiler, node: Node,
       add result, node.parents.join(" ") & spaces(1) & node.ident
     else:
       add result, node.ident
+    if node.extendBy.len != 0:
+      # write other selectors that extends from current selector
+      add result, "," & node.extendBy.join(", ")
     for idConcat in node.identConcat:
       case idConcat.nt
       of ntCall:
@@ -340,7 +344,7 @@ proc write(c: var Compiler, node: Node, scope: ScopeTable = nil, data: Node = ni
 
 proc len*(c: var Compiler): int = c.program.nodes.len
 
-proc newCompiler*(p: Program, outputPath: string, minify = false, enableSortingProps = true): Compiler =
+proc newCompiler*(p: Program, minify = false, enableSortingProps = true): Compiler =
   var c = Compiler(program: p, minify: minify, sortPropsEnabled: enableSortingProps)
   strCL = "{"
   strCR = "}"
@@ -363,3 +367,6 @@ proc newCompiler*(p: Program, outputPath: string, minify = false, enableSortingP
   setLen strNL, 0
   setLen strCL, 0
   setLen strCR, 0
+
+proc toCSS*(p: Program, minify = false, enableSortingProps = true): string =
+  newCompiler(p, minify, enableSortingProps).getCSS
