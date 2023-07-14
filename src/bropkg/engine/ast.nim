@@ -4,7 +4,8 @@
 #          Made by Humans from OpenPeeps
 #          https://github.com/openpeeps/bro
 
-import std/[tables, strutils, json, times, oids]
+import std/[tables, strutils, json, oids]
+import ./stdlib
 from ./tokens import TokenKind, TokenTuple
 
 when not defined release:
@@ -51,6 +52,7 @@ type
     ntStmtList
     ntInfo
     ntReturn
+    ntUse
 
   PropertyRule* = enum
     propRuleNone
@@ -121,6 +123,11 @@ type
   Meta* = tuple[line, pos: int]
   ParamDef* = (string, NodeType, Node)
 
+  Statement = object
+    stmtList*: seq[Node]
+    stmtScope*: ScopeTable
+    stmtTraces*: seq[string]
+
   Node* = ref object
     case nt*: NodeType
     of ntProperty:
@@ -187,10 +194,6 @@ type
       ifStmt*: Node # ntStmtList
       elifStmt*: seq[tuple[comp: Node, body: Node]]
       elseStmt*: Node # ntStmtList
-
-      # ifBody*: seq[Node]
-      # elifNode*: seq[tuple[infix: Node, body: seq[Node]]]
-      # elseBody*: seq[Node]
     of ntCaseStmt:
       caseOid*: Oid
       caseIdent*: Node # ntCall
@@ -232,6 +235,8 @@ type
       stmtTraces*: seq[string]
     of ntReturn:
       returnStmt*: Node
+    of ntUse:
+      imports: seq[Program]
     of ntInfo:
       nodeType*: NodeType
     else: discard
@@ -242,6 +247,8 @@ type
     nodes*: seq[Node]
     selectors*: Table[string, Node]
     stack*: ScopeTable
+    meta: Meta
+      ## Count lines and columns when using Macros
 
 when not defined release:
   proc `$`*(node: Node): string =
@@ -485,10 +492,11 @@ proc newCaseStmt*(caseIdent: Node): Node =
   result = Node(nt: ntCaseStmt, caseIdent: caseIdent)
 
 proc newFunction*(tk: TokenTuple): Node =
+  ## Create a new function (low-level API)
   result = Node(nt: ntFunction, fnName: tk.value, fnMeta: (tk.line, tk.pos))
 
 proc newEcho*(val: Node, tk: TokenTuple): Node =
-  ## Create a new `echo` command
+  ## Create a new `echo` command (low-level API)
   result = Node(nt: ntCommand, cmdIdent: cmdEcho, cmdValue: val, cmdMeta: (tk.line, tk.pos))
 
 proc newReturn*(stmtNode: Node): Node =
@@ -500,3 +508,47 @@ proc newStmt*(stmtScope: ScopeTable = nil): Node =
   if stmtScope != nil:
     result.stmtScope = stmtScope
   else: new(result.stmtScope)
+
+
+#
+# High Level API
+#
+proc newStylesheet*: Program = 
+  new(result)
+  result.meta = (1, 1)
+
+proc add*(p: Program, node: Node) =
+  ## Add a new `node` to `Stylesheet`
+  assert node != nil
+  case node.nt
+  of ntCommand:
+    node.cmdMeta.line = p.meta.line 
+  of ntVariable:
+    node.varMeta.line = p.meta.line
+  of ntReturn:
+    raiseAssert("Cannot call `return` command at root level")
+  else: discard
+  p.nodes.add(node)
+  inc p.meta.line
+
+proc newBool*(style: Program, bVal: bool) =
+  ## Create a new ntbool node
+  style.add Node(nt: ntBool, bVal: bVal) 
+
+proc newEcho*(style: Program, val: Node) =
+  ## Create a new `echo` (high-level API)
+  assert val != nil, "Expect a node value. Got nil"
+  assert val.nt in {ntString, ntInt}, "Got " & $(val.nt)
+  style.add Node(nt: ntCommand, cmdIdent: cmdEcho, cmdValue: val)
+
+proc newFunction*(style: Program, name: string) =
+  ## Create a new function (high-level API)
+  style.add Node(nt: ntFunction, fnName: name)
+
+proc newVariable*(style: Program, name: string, value: Node) =
+  ## Create a new variable node
+  style.add Node(nt: ntVariable, varName: name, varValue: newValue(value))
+
+proc newVariable*(style: Program, name: string, value: string) =
+  ## Create a new variable node
+  style.add Node(nt: ntVariable, varName: name, varValue: newValue(newString(value)))
