@@ -18,8 +18,8 @@ proc parseMultiSelector(p: var Parser, node: Node) =
   if p.lastParent != nil:
     if p.lastParent.parents.len != 0:
       node.parents = concat(p.lastParent.parents, @[p.lastParent.ident])
-    # else:
-      # add node.parents, p.lastParent.ident
+    else:
+      add node.parents, p.lastParent.ident
     p.lastParent = nil
 
 proc parseSelector(p: var Parser, node: Node, tk: TokenTuple, scope: ScopeTable, eatIdent = false): Node =
@@ -91,6 +91,7 @@ newPrefixProc "parseProperty":
                 result.pVal.add(callNode)
               else:
                 errorWithArgs(fnReturnVoid, identToken, [callNode.stackIdentName])
+          else: return
         of tkNamedColors, tkColor:
           result.pVal.add(newColor(p.curr.value))
           walk p

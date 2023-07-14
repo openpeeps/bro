@@ -408,6 +408,7 @@ proc parseStatement(p: var Parser, parent: (TokenTuple, Node),
       if p.lastParent.fnReturnType != returnType:
         errorWithArgs(fnReturnTypeMismatch, tk,
           [p.lastParent.fnName, $(returnType), $(p.lastParent.fnReturnType)])
+    p.lastParent = nil
     if result.stmtList.len == 0:
       return nil # Nestab
 
@@ -437,6 +438,8 @@ proc parseSelectorStmt(p: var Parser, parent: (TokenTuple, Node),
               parent[1].innerNodes[node.ident].innerNodes[k] = v
           # parent[1].innerNodes[node.ident] = node
       else: return
+    p.lastParent = nil
+
 #
 # Prefix Statements
 #
