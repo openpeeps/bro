@@ -46,11 +46,11 @@ else:
           ? stdout  "Return CSS to stdout"
         
         --- "Development"
-        $ "watch" `style` `delay` `output` ["sync"]:
+        $ "watch" `style` `output` `delay` ["sync"]:
           ? "Watch for changes and compile"
           ? style    "Your main .bass file"
-          ? delay    "Delay time in ms for watcher (default 550)"
           ? output   "Where to save the final CSS output"
+          ? delay    "Delay time in ms for watcher (default 550)"
           ? sync     "Fast http server to handle CSS reload & browser syncing"
 
         $ "map" `style`:
