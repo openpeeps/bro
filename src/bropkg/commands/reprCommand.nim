@@ -4,7 +4,7 @@
 #          Made by Humans from OpenPeeps
 #          https://github.com/openpeeps/bro
 
-import std/[times, os, strutils]
+import std/[times, os]
 import ../engine/[ast, compiler]
 
 import pkg/zippy
@@ -32,7 +32,7 @@ proc runCommand*(v: Values) =
   let t = cpuTime()
   var astStruct: Program
   unpack(readFile(astPath), astStruct)
-  let c = newCompiler(astStruct, astPath.changeFileExt("css"), minify = v.flag("minify"))
+  let c = newCompiler(astStruct, minify = v.flag("minify"))
   if likely(not v.flag("gzip")):
     writeFile(astPath.changeFileExt("css"), c.getCSS)
   else:
