@@ -3,6 +3,7 @@
 # (c) 2023 George Lemon | MIT License
 #          Made by Humans from OpenPeeps
 #          https://github.com/openpeeps/bro
+
 import pkg/[watchout, httpx, websocketx]
 import pkg/kapsis/[runtime, cli]
 import std/[times, os, strutils, net, threadpool,
@@ -24,7 +25,7 @@ proc runProgram(fpath, fname: string) {.thread.} =
     else:
       display(fname, indent = 3)
       let cssPath = fpath.changeFileExt("css")
-      var c = newCompiler(p.getProgram, cssPath)
+      var c = newCompiler(p.getProgram)
       if hasOutput:
         writeFile(cssPath, c.getCSS)
       else:
@@ -63,6 +64,9 @@ proc runCommand*(v: Values) =
       QuitFailure.quit
 
   if v.flag("sync"):
+    if not hasOutput:
+      display("Output path is required when using --sync\n" & cssPath)
+      QuitFailure.quit
     display("✨ Watching for changes...")
     display("🪄 CSS Reload & Browser Sync: http://localhost:9009", br="after")
   else:
