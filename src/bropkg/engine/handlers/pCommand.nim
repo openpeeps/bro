@@ -1,4 +1,4 @@
-proc parseEchoCommand(p: var Parser, scope: ScopeTable = nil, excludeOnly, includeOnly: set[TokenKind] = {}): Node =
+newPrefixProc "parseEchoCommand":
   # Parse an `echo` command. Echo can print literals, functions and infix operations
   let tk = p.curr
   walk p
@@ -18,7 +18,7 @@ proc parseEchoCommand(p: var Parser, scope: ScopeTable = nil, excludeOnly, inclu
     else: discard
     return newEcho(node, tk)
 
-proc parseReturnCommand(p: var Parser, scope: ScopeTable = nil, excludeOnly, includeOnly: set[TokenKind] = {}): Node =
+newPrefixProc "parseReturnCommand":
   let tk = p.curr
   walk p
   let node = p.getPrefixOrInfix(excludeOnly = {tkEcho, tkReturn, tkVarDef, tkFnDef}, scope = scope)
@@ -31,7 +31,7 @@ proc parseReturnCommand(p: var Parser, scope: ScopeTable = nil, excludeOnly, inc
     if node != nil:
       result = newReturn(node)
 
-proc parseCallCommand(p: var Parser, scope: ScopeTable = nil, excludeOnly, includeOnly: set[TokenKind] = {}): Node =
+newPrefixProc "parseCallCommand":
   if scope != nil:
     if scope.hasKey(p.curr.value):
       walk p

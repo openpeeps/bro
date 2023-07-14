@@ -4,10 +4,10 @@
 #          Made by Humans from OpenPeeps
 #          https://github.com/openpeeps/bro
 
-import pkg/[stashtable]
-import ./tokens, ./ast, ./logging, ./memtable, ./properties, ./memo
-import std/[os, strutils, critbits, sequtils, hashes, algorithm,
-          tables, json, memfiles, times, enumutils, oids]
+import pkg/stashtable
+import std/[os, strutils, critbits, sequtils, hashes,
+          tables, json, memfiles, times, oids, macros]
+import ./tokens, ./ast, ./logging, ./stdlib, ./properties, ./memo
 
 when compileOption("app", "console"):
   import pkg/kapsis/cli
@@ -20,17 +20,18 @@ export logging
 type
   ParserType = enum
     Main
-    Partial 
+    Secondary 
 
   Warning* = tuple[msg: string, line, col: int]
-  Subparsers = StashTable[string, Program, 1000]
-    # A stash table containing other Parser instances from `@import` statement
+  
+  Stylesheets = StashTable[string, Program, 1000]
+    # Where we'll store other Stylesheet instances
   Imports = OrderedTableRef[string, Node]
+
   Parser* = object
     lex: Lexer
     prev, curr, next: TokenTuple
     program: Program
-    memtable: Memtable
     propsTable: PropertiesTable
     when compileOption("app", "console"):
       error: seq[Row]
@@ -41,13 +42,15 @@ type
     warnings*: seq[Warning]
     currentSelector, lastParent: Node
     imports: Imports
-    subparsers: Subparsers
-    projectPath: string
+      ## Nodes imported from other `Stylesheet` instances
+    stylesheets: Stylesheets
+      ## Other `Stylesheet` instances
+    lib: StandardLibrary
     case ptype: ParserType
     of Main:
-      projectDirectory: string
+      directory: string
     else: discard
-    filePath, cachePath: string
+    path, filePath, cachePath: string
 
   PrefixFunction = proc(p: var Parser, scope: ScopeTable = nil, excludeOnly, includeOnly: set[TokenKind] = {}): Node
   InfixFunction = proc(p: var Parser, left: Node, scope: ScopeTable = nil): Node
@@ -173,6 +176,7 @@ proc parseSelectorStmt(p: var Parser, parent: (TokenTuple, Node), scope: ScopeTa
 proc parseCallCommand(p: var Parser, scope: ScopeTable = nil, excludeOnly, includeOnly: set[TokenKind] = {}): Node
 proc parseCallFnCommand(p: var Parser, scope: ScopeTable = nil, excludeOnly, includeOnly: set[TokenKind] = {}): Node
 proc getPrefixOrInfix(p: var Parser, scope: ScopeTable, includeOnly, excludeOnly: set[TokenKind] = {}): Node
+proc importThread(th: (string, Stylesheets)) {.thread.}
 
 #
 # Parse utils
@@ -188,6 +192,31 @@ proc walk(p: var Parser, offset = 1) =
     p.prev = p.curr
     p.curr = p.next
     p.next = p.lex.getToken()
+
+macro newPrefixProc(name: static string, body: untyped) =
+  # Create a new prefix procedure with `name` and `body`
+  ident(name).newProc(
+    [
+      ident("Node"), # return type
+      nnkIdentDefs.newTree(
+        ident("p"),
+        nnkVarTy.newTree(ident("Parser")),
+        newEmptyNode()
+      ),
+      nnkIdentDefs.newTree(
+        ident("scope"),
+        ident("ScopeTable"),
+        newEmptyNode()
+      ),
+      nnkIdentDefs.newTree(
+        ident("excludeOnly"),
+        ident("includeOnly"),
+        nnkBracketExpr.newTree(ident("set"), ident("TokenKind")),
+        newNimNode(nnkCurly)
+      )
+    ],
+    body
+  )
 
 proc getLiteralType(p: var Parser): NodeType =
   result =
@@ -275,10 +304,17 @@ proc getAssignableNode(p: var Parser, scope: ScopeTable = nil): Node =
       result = newValue(p.curr.value.newColor)
       walk p
 
-
 # Variable Declaration & Assignments
-#
-include handlers/[pAssignment, pCond, pFor, pCommand, pFunction, pSelector, pUse]
+include handlers/[pImport, pExtend, pAssignment, pCond, pFor, pCommand, pFunction, pSelector]
+
+proc parseDotExpr(p: var Parser, scope: ScopeTable, excludeOnly, includeOnly: set[TokenKind] = {}): Node = 
+  if unlikely(p.prev is tkVarCall and p.prev.line == p.curr.line):
+    echo "ntDotExpr"
+    return
+  walk p
+  p.curr.kind = tkClass
+  p.curr.value = "." & p.curr.value
+  return p.parseClass(scope, excludeOnly, includeOnly)
 
 # Prefix or Infix
 proc getPrefixOrInfix(p: var Parser, scope: ScopeTable, includeOnly, excludeOnly: set[TokenKind] = {}): Node =
@@ -391,6 +427,8 @@ proc parseSelectorStmt(p: var Parser, parent: (TokenTuple, Node),
           parent[1].innerNodes[$node.condOid] = node
         of ntCaseStmt:
           parent[1].innerNodes[$node.caseOid] = node
+        of ntExtend:
+          discard
         else:
           if not parent[1].innerNodes.hasKey(node.ident):
             parent[1].innerNodes[node.ident] = node
@@ -410,6 +448,12 @@ proc getPrefixFn(p: var Parser, excludeOnly, includeOnly: set[TokenKind] = {}): 
     if p.curr notin includeOnly:
       errorWithArgs(InvalidContext, p.curr, [p.curr.value])
   case p.curr.kind
+    of tkIdentifier:
+      if p.next.kind == tkLPAR and p.next.line == p.curr.line:
+        parseCallFnCommand
+      elif tkIdentifier notin excludeOnly:
+        parseProperty
+      else: nil
     of tkInteger: parseInt
     of tkString:  parseString
     of tkVarCall: parseCallCommand
@@ -422,15 +466,10 @@ proc getPrefixFn(p: var Parser, excludeOnly, includeOnly: set[TokenKind] = {}): 
     of tkCase:    parseCase
     of tkIf:      parseCond
     of tkFor:     parseFor
-    of tkClass:   parseSelectorClass
+    of tkDotExpr: parseDotExpr
     of tkFnDef:   parseFn
     of tkComment: parseComment
-    of tkIdentifier:
-      if p.next.kind == tkLPAR and p.next.line == p.curr.line:
-        parseCallFnCommand
-      elif tkIdentifier notin excludeOnly:
-        parseCSSProperty
-      else: nil
+    of tkExtend:  parseExtend
     else: nil
 
 proc parsePrefix(p: var Parser, excludeOnly, includeOnly: set[TokenKind] = {}, scope: ScopeTable = nil): Node =
@@ -443,14 +482,14 @@ proc parseRoot(p: var Parser, excludeOnly, includeOnly: set[TokenKind] = {}): No
   result = case p.curr.kind:
             of tkVarDef: p.parseAssignment(p.program.stack)
             of tkVarCall: p.parseCallCommand()
-            of tkFnDef: p.parseFn()
-            of tkClass: p.parseSelectorClass()
+            of tkFnDef: p.parseFn(nil)
+            of tkDotExpr: p.parseDotExpr(nil, excludeOnly, includeOnly)
             of tkComment: p.parseComment(nil)
             of tkIf: p.parseCond(nil, excludeOnly, includeOnly)
             of tkCase: p.parseCase(nil, excludeOnly, includeOnly)
-            of tkEcho: p.parseEchoCommand()
+            of tkEcho: p.parseEchoCommand(nil)
             of tkFor: p.parseFor(nil, excludeOnly, includeOnly)
-            of tkUse: p.parseUse()
+            of tkImport: p.parseImport(nil, excludeOnly, includeOnly)
             of tkIdentifier:
               if p.next.kind == tkLPAR and p.next.line == p.curr.line:
                 p.parseCallFnCommand()
@@ -467,10 +506,14 @@ template startParseProgram(src: string, scope: ScopeTable) =
   else:
     p.lex = Lexer.init(readFile(src))
     p.logger = Logger(filePath: src)
+    p.stylesheets = newStashTable[string, Program, 1000]()
+  p.imports = Imports()
+  p.propsTable = initPropsTable()
+  p.lib = StandardLibrary()
   p.program = Program(stack: scope)
   p.curr = p.lex.getToken()
   p.next = p.lex.getToken()
-  p.memtable = Memtable()
+  # p.memtable = Memtable()
   while p.curr isnot tkEOF:
     if p.lex.hasError:
       echo "Lexer errors:"
@@ -483,12 +526,27 @@ template startParseProgram(src: string, scope: ScopeTable) =
     else: break
   p.lex.close()
 
+proc importThread(th: (string, Stylesheets)) {.thread.} =
+  {.gcsafe.}:
+    proc newImporter(): Parser =
+      var p = Parser(ptype: Secondary, filePath: th[0])
+      startParseProgram(th[0], ScopeTable())
+      result = p
+    var subParser = newImporter()
+    if subParser.hasErrors:
+      for error in subParser.logger.errors:
+        display(error)
+      display(" 👉 " & subParser.logger.filePath)
+      return
+    th[1].withValue(th[0]):
+      value[] = subParser.getProgram
+
 proc parseProgram*(src: string): Parser =
-  var p = Parser(ptype: Main, imports: Imports(), propsTable: initPropsTable())
+  var p = Parser(ptype: Main)
   when not defined wasm:
     p.filePath = src 
-    p.projectDirectory = src.parentDir()
-    p.projectPath = src.parentDir()
+    p.directory = src.parentDir()
+    p.path = src.parentDir()
   startParseProgram(src, ScopeTable())
   for k, v in p.program.stack:
     # check for unused variables/functions

@@ -1,4 +1,4 @@
-proc parseFor(p: var Parser, scope: ScopeTable = nil, excludeOnly, includeOnly: set[TokenKind] = {}): Node =
+newPrefixProc "parseFor":
   # Parse `for x in y:` loops of objects, arrays or ranges.
   let tk = p.curr
   if p.next.kind == tkVarCall:

@@ -1,18 +1,19 @@
 proc parseVarDef(p: var Parser, scope: ScopeTable): Node =
-  if unlikely(scope.hasKey(p.curr.value)):
-    if scope[p.curr.value].varImmutable:
-      error(reassignImmutableVar, p.curr)
+  if scope != nil:
+    if unlikely(scope.hasKey(p.curr.value)):
+      if scope[p.curr.value].varImmutable:
+        error(reassignImmutableVar, p.curr)
   result = newVariable(p.curr)
   walk p # $ident
 
-proc parseRegularAssignment(p: var Parser, scope: ScopeTable = nil, excludeOnly, includeOnly: set[TokenKind] = {}): Node =
+newPrefixProc "parseRegularAssignment":
   result = p.parseVarDef(scope)
   if unlikely(result == nil): return nil
   result.varValue = p.getAssignableNode
   if likely(scope != nil):
     scope[result.varName] = result
 
-proc parseArrayAssignment(p: var Parser, scope: ScopeTable = nil, excludeOnly, includeOnly: set[TokenKind] = {}): Node =
+newPrefixProc "parseArrayAssignment":
   result = p.parseVarDef(scope)
   if unlikely(result == nil): return nil
   result.varValue = newArray()
@@ -28,7 +29,7 @@ proc parseArrayAssignment(p: var Parser, scope: ScopeTable = nil, excludeOnly, i
   if not scope.isNil():
     scope[result.varName] = result
 
-proc parseStreamAssignment(p: var Parser, scope: ScopeTable = nil, excludeOnly, includeOnly: set[TokenKind] = {}): Node =
+newPrefixProc "parseStreamAssignment":
   # Parse JSON/YAML from external sources
   var fpath: string
   walk p
@@ -44,7 +45,7 @@ proc parseStreamAssignment(p: var Parser, scope: ScopeTable = nil, excludeOnly, 
   else: return
   result = newStream(normalizedPath(p.filePath.parentDir / fpath))
 
-proc parseObjectAssignment(p: var Parser, scope: ScopeTable = nil, excludeOnly, includeOnly: set[TokenKind] = {}): Node =
+newPrefixProc "parseObjectAssignment":
   result = p.parseVarDef(scope)
   if unlikely(result == nil): return nil
   result.varValue = newObject()
@@ -69,16 +70,16 @@ proc parseObjectAssignment(p: var Parser, scope: ScopeTable = nil, excludeOnly, 
   if scope != nil:
     scope[result.varName] = result
 
-proc parseAssignment(p: var Parser, scope: ScopeTable = nil, excludeOnly, includeOnly: set[TokenKind] = {}): Node =
+newPrefixProc "parseAssignment":
   result =
     case p.next.kind:
     of tkLB:              p.parseArrayAssignment(scope)
     of tkLC:              p.parseObjectAssignment(scope)
-    of tkJSON:            p.parseStreamAssignment()
+    of tkJSON:            p.parseStreamAssignment(scope)
     of tkAssignableValue: p.parseRegularAssignment(scope)
     else: nil
 
-proc parseAnoArray(p: var Parser, scope: ScopeTable = nil, excludeOnly, includeOnly: set[TokenKind] = {}): Node =
+newPrefixProc "parseAnoArray":
   walk p # [
   let anno = newArray()
   while p.curr.kind != tkRB:
@@ -94,7 +95,7 @@ proc parseAnoArray(p: var Parser, scope: ScopeTable = nil, excludeOnly, includeO
     walk p
     return anno
 
-proc parseAnoObject(p: var Parser, scope: ScopeTable = nil, excludeOnly, includeOnly: set[TokenKind] = {}): Node =
+newPrefixProc "parseAnoObject":
   walk p # [
   let anno = newArray()
   while p.curr.kind != tkRC:

@@ -1,4 +1,4 @@
-proc parseCond(p: var Parser, scope: ScopeTable = nil, excludeOnly, includeOnly: set[TokenKind] = {}): Node =
+newPrefixProc "parseCond":
   let tk = p.curr # tkIf
   walk p
   let compNode = p.getPrefixOrInfix(scope)
@@ -31,7 +31,7 @@ proc parseCond(p: var Parser, scope: ScopeTable = nil, excludeOnly, includeOnly:
         else: error(BadIndentation, p.curr)
     else: error(BadIndentation, p.curr)
 
-proc parseCase(p: var Parser, scope: ScopeTable = nil, excludeOnly, includeOnly: set[TokenKind] = {}): Node =
+newPrefixProc "parseCase":
   let tk = p.curr # case
   walk p # tkCase
   if p.curr is tkVarCall: # todo support function calls

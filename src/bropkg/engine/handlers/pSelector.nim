@@ -18,8 +18,8 @@ proc parseMultiSelector(p: var Parser, node: Node) =
   if p.lastParent != nil:
     if p.lastParent.parents.len != 0:
       node.parents = concat(p.lastParent.parents, @[p.lastParent.ident])
-    else:
-      add node.parents, p.lastParent.ident
+    # else:
+      # add node.parents, p.lastParent.ident
     p.lastParent = nil
 
 proc parseSelector(p: var Parser, node: Node, tk: TokenTuple, scope: ScopeTable, eatIdent = false): Node =
@@ -54,8 +54,7 @@ template handleSelectorConcat(parseWithConcat, parseWithoutConcat: untyped) {.di
     parseWithoutConcat
   p.program.selectors[tk.value] = result
 
-proc parseSelectorClass(p: var Parser, scope: ScopeTable = nil,
-                    excludeOnly, includeOnly: set[TokenKind] = {}): Node =
+newPrefixProc "parseClass":
   let tk = p.curr
   var concatNodes: seq[Node] # ntVariable
   handleSelectorConcat:
@@ -67,7 +66,7 @@ proc parseSelectorClass(p: var Parser, scope: ScopeTable = nil,
     p.currentSelector = node
     result = p.parseSelector(node, tk, scope, eatIdent = true)
 
-proc parseCSSProperty(p: var Parser, scope: ScopeTable = nil, excludeOnly, includeOnly: set[TokenKind] = {}): Node =
+newPrefixProc "parseProperty":
   ## Parse `key: value` pair as CSS Property
   if likely(p.propsTable.hasKey(p.curr.value)):
     let pName = p.curr

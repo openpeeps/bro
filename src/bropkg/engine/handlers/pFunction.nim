@@ -13,7 +13,7 @@ proc stackFn(p: var Parser, fn: Node, types: openarray[NodeType]) =
 proc stack(scope: ScopeTable, fn: Node, types: openarray[NodeType]) =
   scope[fn.fnName.identify(types)] = fn
 
-proc parseFn(p: var Parser, scope: ScopeTable = nil, excludeOnly, includeOnly: set[TokenKind] = {}): Node =
+newPrefixProc "parseFn":
   let
     fn = p.curr
     fnName = p.next
@@ -52,13 +52,15 @@ proc parseFn(p: var Parser, scope: ScopeTable = nil, excludeOnly, includeOnly: s
       else: break
   if p.curr.kind == tkRPAR:
     walk p
-    if p.curr.kind == tkColon: # parse return type
+    if p.curr.kind == tkColon:
+      # return type
       walk p
       result.fnReturnType = p.getLiteralType()
       if result.fnReturnType != ntVoid:
         walk p
       else: error(fnInvalidReturn, p.curr)
-    if p.curr.kind == tkAssign: # parse function body
+    if p.curr.kind == tkAssign:
+      # function body
       if fn.line == p.curr.line:
         walk p
         let stmtNode = p.parseStatement((fn, result), scope = scope, excludeOnly = {tkImport, tkUse})
@@ -74,7 +76,7 @@ proc parseFn(p: var Parser, scope: ScopeTable = nil, excludeOnly, includeOnly: s
             p.stackFn(result, types)
     else: return nil
 
-proc parseCallFnCommand(p: var Parser, scope: ScopeTable = nil, excludeOnly, includeOnly: set[TokenKind] = {}): Node =
+newPrefixProc "parseCallFnCommand":
   # Parse function calls with/without arguments,
   # matching the following pattern: `fn ($a: String, $b: Int ...): String =`
   let ident = p.curr
