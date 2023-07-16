@@ -48,15 +48,16 @@ proc runCommand*(v: Values) =
     for error in p.logger.errors:
       display(error)
     display(" 👉 " & p.logger.filePath)
-  else:
-    let c = newCompiler(p.getProgram, minify = v.flag("min"))
-    if hasOutput:
-      if v.flag("gzip"):
-        writeFile(cssPath.changeFileExt(".css.gzip"), compress(c.getCSS, dataFormat = dfGzip))
-      else:
-        writeFile(cssPath, c.getCSS)
+    QuitFailure.quit
+
+  let c = newCompiler(p.getProgram, minify = v.flag("min"))
+  if hasOutput:
+    if v.flag("gzip"):
+      writeFile(cssPath.changeFileExt(".css.gzip"), compress(c.getCSS, dataFormat = dfGzip))
     else:
-      display(c.getCSS)
-    if hasOutput:
-      display "Done in " & $(cpuTime() - t)
-    QuitSuccess.quit
+      writeFile(cssPath, c.getCSS)
+  else:
+    display(c.getCSS)
+  if hasOutput:
+    display "Done in " & $(cpuTime() - t)
+  QuitSuccess.quit
