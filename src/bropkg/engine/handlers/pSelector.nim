@@ -16,11 +16,13 @@ proc parseMultiSelector(p: var Parser, node: Node) =
   node.multipleSelectors = selectors
   setLen(selectors, 0)
   if p.lastParent != nil:
-    if p.lastParent.parents.len != 0:
-      node.parents = concat(p.lastParent.parents, @[p.lastParent.ident])
-    else:
-      add node.parents, p.lastParent.ident
-    p.lastParent = nil
+    if p.lastParent.nt in {ntProperty, ntTagSelector, ntClassSelector,
+                          ntPseudoClassSelector, ntIDSelector}:
+      if p.lastParent.parents.len != 0:
+        node.parents = concat(p.lastParent.parents, @[p.lastParent.ident])
+      else:
+        add node.parents, p.lastParent.ident
+      p.lastParent = nil
 
 proc parseSelector(p: var Parser, node: Node, tk: TokenTuple, scope: ScopeTable, eatIdent = false): Node =
   if eatIdent: walk p # selector ident

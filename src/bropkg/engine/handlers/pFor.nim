@@ -20,5 +20,5 @@ newPrefixProc "parseFor":
         scope[itemNode.varName] = itemNode
         result.forBody = p.parseStatement((tk, result), scope, excludeOnly, includeOnly)
         if likely(result.forBody != nil):
-          result.forBody.cleanExtra(itemNode.varName)
+          result.forBody.cleanup(itemNode.varName)
         else: return nil

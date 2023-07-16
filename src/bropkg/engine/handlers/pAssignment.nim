@@ -1,8 +1,12 @@
 proc parseVarDef(p: var Parser, scope: ScopeTable): Node =
   if scope != nil:
     if unlikely(scope.hasKey(p.curr.value)):
-      if scope[p.curr.value].varImmutable:
-        error(reassignImmutableVar, p.curr)
+      let scopedVar = scope[p.curr.value]
+      if scopedVar != nil:
+        if scopedVar.varImmutable:
+          error(reassignImmutableVar, p.curr)
+      else:
+          error(reassignImmutableVar, p.curr)
   result = newVariable(p.curr)
   walk p # $ident
 
@@ -10,8 +14,6 @@ newPrefixProc "parseRegularAssignment":
   result = p.parseVarDef(scope)
   if unlikely(result == nil): return nil
   result.varValue = p.getAssignableNode
-  if likely(scope != nil):
-    scope[result.varName] = result
 
 newPrefixProc "parseArrayAssignment":
   result = p.parseVarDef(scope)
@@ -26,8 +28,6 @@ newPrefixProc "parseArrayAssignment":
       walk p # ]
       break
     else: return
-  if not scope.isNil():
-    scope[result.varName] = result
 
 newPrefixProc "parseStreamAssignment":
   # Parse JSON/YAML from external sources
@@ -67,8 +67,6 @@ newPrefixProc "parseObjectAssignment":
         if p.curr.line == p.prev.line: return
       else: return
     else: return
-  if scope != nil:
-    scope[result.varName] = result
 
 newPrefixProc "parseAssignment":
   result =
@@ -78,6 +76,8 @@ newPrefixProc "parseAssignment":
     of tkJSON:            p.parseStreamAssignment(scope)
     of tkAssignableValue: p.parseRegularAssignment(scope)
     else: nil
+  if not p.hasErrors:
+    p.stack(result, scope) # add in scope
 
 newPrefixProc "parseAnoArray":
   walk p # [

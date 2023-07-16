@@ -1,19 +1,19 @@
-proc parseString(p: var Parser, scope: ScopeTable = nil, excludeOnly, includeOnly: set[TokenKind] = {}): Node =
+newPrefixProc "parseString":
   result = newString(p.curr.value)
   walk p
 
-proc parseInt(p: var Parser, scope: ScopeTable = nil, excludeOnly, includeOnly: set[TokenKind] = {}): Node =
+newPrefixProc "parseInt":
   result = newInt(p.curr.value)
   walk p
 
-proc parseBool(p: var Parser, scope: ScopeTable = nil, excludeOnly, includeOnly: set[TokenKind] = {}): Node =
+newPrefixProc "parseBool":
   result = newBool(p.curr.value)
   walk p
 
-proc parseFloat(p: var Parser, scope: ScopeTable = nil, excludeOnly, includeOnly: set[TokenKind] = {}): Node =
+newPrefixProc "parseFloat":
   result = newFloat(p.curr.value)
   walk p
 
-proc parseColor(p: var Parser, scope: ScopeTable = nil, excludeOnly, includeOnly: set[TokenKind] = {}): Node =
+newPrefixProc "parseColor":
   result = newColor(p.curr.value)
   walk p

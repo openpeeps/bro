@@ -144,7 +144,9 @@ registerTokens defaultSettings:
   varTyped
   varCall
   varCallAccessor
-  class = tokenize(handleClassSelector, '.')
+  # class = tokenize(handleClassSelector, '.')
+  class
+  dotExpr = '.'
   divide = '/':
     comment = '/' .. EOL
   at = '@':
@@ -178,6 +180,11 @@ registerTokens defaultSettings:
   `when` = "when"
   `echo` = "echo"
   `return` = "return"
+  this = "this"
+  selectorType = "Selector"
+  classType = "Class"
+  idType = "ID"
+
   # CSSCalc     > "calc"
   # CSSAttr     > "attr"
   # CSSConicGradient > "conic-gradient"

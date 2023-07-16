@@ -52,7 +52,9 @@ type
     else: discard
     path, filePath, cachePath: string
 
-  PrefixFunction = proc(p: var Parser, scope: ScopeTable = nil, excludeOnly, includeOnly: set[TokenKind] = {}): Node
+  PrefixFunction = proc(p: var Parser, scope: ScopeTable = nil,
+                        excludeOnly, includeOnly: set[TokenKind] = {},
+                        returnType = ntVoid, isFunctionWrap = false): Node
   InfixFunction = proc(p: var Parser, left: Node, scope: ScopeTable = nil): Node
 
 const
@@ -167,14 +169,27 @@ proc getPrefixFn(p: var Parser, excludeOnly, includeOnly: set[TokenKind] = {}): 
 proc getInfixFn(p: var Parser): InfixFunction
 
 proc parseRoot(p: var Parser, excludeOnly, includeOnly: set[TokenKind] = {}): Node
-proc parsePrefix(p: var Parser, excludeOnly, includeOnly: set[TokenKind] = {}, scope: ScopeTable = nil): Node
+proc parsePrefix(p: var Parser, excludeOnly, includeOnly: set[TokenKind] = {},
+          scope: ScopeTable = nil, returnType = ntVoid, isFunctionWrap = false): Node
+
 proc parseInfix(p: var Parser, left: Node): Node
 
-proc parseStatement(p: var Parser, parent: (TokenTuple, Node), scope: ScopeTable = nil, excludeOnly, includeOnly: set[TokenKind] = {}): Node
-proc parseSelectorStmt(p: var Parser, parent: (TokenTuple, Node), scope: ScopeTable = nil, excludeOnly, includeOnly: set[TokenKind] = {})
+proc parseStatement(p: var Parser, parent: (TokenTuple, Node), scope: ScopeTable = nil,
+          excludeOnly, includeOnly: set[TokenKind] = {},
+          returnType = ntVoid, isFunctionWrap = false): Node
 
-proc parseCallCommand(p: var Parser, scope: ScopeTable = nil, excludeOnly, includeOnly: set[TokenKind] = {}): Node
-proc parseCallFnCommand(p: var Parser, scope: ScopeTable = nil, excludeOnly, includeOnly: set[TokenKind] = {}): Node
+proc parseSelectorStmt(p: var Parser, parent: (TokenTuple, Node), scope: ScopeTable = nil,
+          excludeOnly, includeOnly: set[TokenKind] = {},
+          returnType = ntVoid, isFunctionWrap = false)
+
+proc parseCallCommand(p: var Parser, scope: ScopeTable = nil,
+          excludeOnly, includeOnly: set[TokenKind] = {},
+          returnType = ntVoid, isFunctionWrap = false): Node
+
+proc parseCallFnCommand(p: var Parser, scope: ScopeTable = nil,
+          excludeOnly, includeOnly: set[TokenKind] = {},
+          returnType = ntVoid, isFunctionWrap = false): Node
+
 proc getPrefixOrInfix(p: var Parser, scope: ScopeTable, includeOnly, excludeOnly: set[TokenKind] = {}): Node
 proc importThread(th: (string, Stylesheets)) {.thread.}
 
@@ -213,10 +228,43 @@ macro newPrefixProc(name: static string, body: untyped) =
         ident("includeOnly"),
         nnkBracketExpr.newTree(ident("set"), ident("TokenKind")),
         newNimNode(nnkCurly)
+      ),
+      nnkIdentDefs.newTree(
+        ident("returnType"),
+        newEmptyNode(),
+        ident("ntVoid"),
+      ),
+      nnkIdentDefs.newTree(
+        ident("isFunctionWrap"),
+        newEmptyNode(),
+        ident("false")
       )
     ],
     body
   )
+
+proc globalScope(p: var Parser, node: Node) =
+  ## Add `node` to global scope
+  case node.nt:
+  of ntFunction:
+    p.program.stack[node.fnIdent] = node
+  of ntVariable:
+    p.program.stack[node.varName] = node
+  else: discard
+
+proc localScope(scope: ScopeTable, node: Node) =
+  ## Add `node` to current `scope`
+  case node.nt:
+  of ntFunction:
+    scope[node.fnIdent] = node
+  of ntVariable:
+    scope[node.varName] = node
+  else: discard
+
+proc stack(p: var Parser, node: Node, scope: ScopeTable = nil) =
+  ## Stack `node` into local/global scope
+  if scope == nil:  p.globalScope(node)
+  else:             scope.localScope(node)
 
 proc getLiteralType(p: var Parser): NodeType =
   result =
@@ -279,7 +327,7 @@ template checkColon() =
 #
 include handlers/pLiteral
 
-proc parseComment(p: var Parser, scope: ScopeTable, excludeOnly, includeOnly: set[TokenKind] = {}): Node =
+newPrefixProc "parseComment":
   result = newComment("")
   walk p
 
@@ -305,9 +353,10 @@ proc getAssignableNode(p: var Parser, scope: ScopeTable = nil): Node =
       walk p
 
 # Variable Declaration & Assignments
-include handlers/[pImport, pExtend, pAssignment, pCond, pFor, pCommand, pFunction, pSelector]
+include handlers/[pImport, pExtend, pAssignment, pCond,
+                  pFor, pCommand, pFunction, pSelector, pThis]
 
-proc parseDotExpr(p: var Parser, scope: ScopeTable, excludeOnly, includeOnly: set[TokenKind] = {}): Node = 
+newPrefixProc "parseDotExpr":
   if unlikely(p.prev is tkVarCall and p.prev.line == p.curr.line):
     echo "ntDotExpr"
     return
@@ -334,19 +383,19 @@ proc parseCompOp(p: var Parser, left: Node, scope: ScopeTable = nil): Node =
   walk p # op
   case p.curr.kind
   of tkInteger:
-    result = p.parseInt()
+    result = p.parseInt(scope)
   of tkFloat:
-    result = p.parseFloat()
+    result = p.parseFloat(scope)
   of tkString:
     if p.prev.kind in {tkEQ, tkNE}:
-      return p.parseString()
+      return p.parseString(scope)
     errorWithArgs(InvalidInfixOperator, p.curr, [p.prev.getOpStr, "String"])
   of tkVarCall:
     echo "tkVarCall"
     echo p.curr
   of tkBool:
     if p.prev.kind in {tkEQ, tkNE}:
-      return p.parseBool()
+      return p.parseBool(scope)
     errorWithArgs(InvalidInfixOperator, p.curr, [p.prev.getOpStr, "Bool"])
   of tkColor, tkNamedColors:
     result = p.parseColor(scope)
@@ -378,45 +427,47 @@ proc parseInfix(p: var Parser, left: Node): Node =
 #
 # Statement List
 #
-proc parseStatement(p: var Parser, parent: (TokenTuple, Node),
-                    scope: ScopeTable = nil, excludeOnly, includeOnly: set[TokenKind] = {}): Node =
-  var isFn: bool
-  var returnType: NodeType
+proc parseStatement(p: var Parser, parent: (TokenTuple, Node), scope: ScopeTable = nil,
+                    excludeOnly, includeOnly: set[TokenKind] = {},
+                    returnType = ntVoid, isFunctionWrap = false): Node =
   if p.lastParent == nil:
     p.lastParent = parent[1]
-    isFn = p.lastParent.nt == ntFunction
   if p.curr isnot tkEOF:
     result = newStmt()
     result.stmtScope = scope
     var tk = p.curr
     while p.curr isnot tkEOF and (p.curr.line > parent[0].line and p.curr.pos > parent[0].pos):
       tk = p.curr
-      let node = p.parsePrefix(excludeOnly, includeOnly, result.stmtScope)
-      if node != nil:
+      let node =
+        p.parsePrefix(excludeOnly, includeOnly,
+          result.stmtScope, returnType, isFunctionWrap)
+      if node != nil and not p.hasErrors:
         case node.nt
         of ntReturn:
-          if unlikely(p.lastParent.fnReturnType != node.returnStmt.nt):
-            errorWithArgs(fnReturnTypeMismatch, tk,
-              [p.lastParent.fnName, $(node.returnStmt.nt), $(p.lastParent.fnReturnType)])
-          returnType = node.returnStmt.nt
+          if node.returnStmt.nt != returnType:
+            if node.returnStmt.nt == ntCallStack:
+              if node.returnStmt.stackReturnType != returnType:
+                errorWithArgs(fnReturnTypeMismatch, tk, [$(node.returnStmt.stackReturnType), $(returnType)])  
+              else: discard
+            else:
+              errorWithArgs(fnReturnTypeMismatch, tk, [$(node.returnStmt.nt), $(returnType)])  
+        of ntFunction:
+          result.trace(node.fnIdent)
         of ntVariable:
           result.trace(node.varName)
         else: discard
         add result.stmtList, node
       else: return nil
-    if isFn:
-      if p.lastParent.fnReturnType != returnType:
-        errorWithArgs(fnReturnTypeMismatch, tk,
-          [p.lastParent.fnName, $(returnType), $(p.lastParent.fnReturnType)])
-    p.lastParent = nil
+      p.lastParent = nil
     if result.stmtList.len == 0:
       return nil # Nestab
 
 proc parseSelectorStmt(p: var Parser, parent: (TokenTuple, Node),
-        scope: ScopeTable = nil, excludeOnly, includeOnly: set[TokenKind] = {}) =
+        scope: ScopeTable = nil, excludeOnly, includeOnly: set[TokenKind] = {},
+        returnType = ntVoid, isFunctionWrap = false) =
   if p.curr isnot tkEOF:
     while p.curr.kind != tkEOF and (p.curr.line > parent[0].line and p.curr.pos > parent[0].pos):
-      let node = p.parsePrefix(excludeOnly, includeOnly, scope)
+      let node = p.parsePrefix(excludeOnly, includeOnly, scope, returnType, isFunctionWrap)
       if likely(node != nil):
         p.lastParent = parent[1]
         case node.nt:
@@ -428,8 +479,15 @@ proc parseSelectorStmt(p: var Parser, parent: (TokenTuple, Node),
           parent[1].innerNodes[$node.condOid] = node
         of ntCaseStmt:
           parent[1].innerNodes[$node.caseOid] = node
-        of ntExtend:
-          discard
+        of ntExtend: discard
+        of ntCall:
+          parent[1].innerNodes[$node.callOid] = node
+        of ntCallStack:
+          if node.stackReturnType in {ntProperty, ntTagSelector, ntClassSelector,
+                                      ntPseudoClassSelector, ntIDSelector}:
+            # todo implement types for CSS selectors, example 
+            parent[1].innerNodes[$node.stackOid] = node
+          else: error(invalidCallContext, p.prev)
         else:
           if not parent[1].innerNodes.hasKey(node.ident):
             parent[1].innerNodes[node.ident] = node
@@ -451,61 +509,65 @@ proc getPrefixFn(p: var Parser, excludeOnly, includeOnly: set[TokenKind] = {}): 
     if p.curr notin includeOnly:
       errorWithArgs(InvalidContext, p.curr, [p.curr.value])
   case p.curr.kind
-    of tkIdentifier:
-      if p.next.kind == tkLPAR and p.next.line == p.curr.line:
-        parseCallFnCommand
-      elif tkIdentifier notin excludeOnly:
-        parseProperty
-      else: nil
-    of tkInteger: parseInt
-    of tkString:  parseString
-    of tkVarCall: parseCallCommand
-    of tkVarDef:  parseAssignment
-    of tkReturn:  parseReturnCommand
-    of tkEcho:    parseEchoCommand
-    of tkBool:    parseBool
-    of tkLB:      parseAnoArray
-    of tkLC:      parseAnoObject
-    of tkCase:    parseCase
-    of tkIf:      parseCond
-    of tkFor:     parseFor
-    of tkDotExpr: parseDotExpr
-    of tkFnDef:   parseFn
-    of tkComment: parseComment
-    of tkExtend:  parseExtend
+  of tkIdentifier:
+    if p.next.kind == tkLPAR and p.next.line == p.curr.line:
+      parseCallFnCommand
+    elif tkIdentifier notin excludeOnly:
+      parseProperty
     else: nil
+  of tkInteger: parseInt
+  of tkString:  parseString
+  of tkVarCall: parseCallCommand
+  of tkVarDef:  parseAssignment
+  of tkReturn:  parseReturnCommand
+  of tkEcho:    parseEchoCommand
+  of tkBool:    parseBool
+  of tkLB:      parseAnoArray
+  of tkLC:      parseAnoObject
+  of tkCase:    parseCase
+  of tkIf:      parseCond
+  of tkFor:     parseFor
+  of tkDotExpr: parseDotExpr
+  of tkFnDef:   parseFn
+  of tkComment: parseComment
+  of tkExtend:  parseExtend
+  of tkThis:    parseThis
+  else: nil
 
-proc parsePrefix(p: var Parser, excludeOnly, includeOnly: set[TokenKind] = {}, scope: ScopeTable = nil): Node =
+proc parsePrefix(p: var Parser, excludeOnly, includeOnly: set[TokenKind] = {}, scope: ScopeTable = nil,
+            returnType = ntVoid, isFunctionWrap = false): Node =
   let prefixFn = p.getPrefixFn(excludeOnly, includeOnly)
   if prefixFn != nil:
-    return p.prefixFn(scope)
+    return p.prefixFn(scope, excludeOnly, includeOnly, returnType, isFunctionWrap)
 
 proc parseRoot(p: var Parser, excludeOnly, includeOnly: set[TokenKind] = {}): Node =
   # Parse nodes at root-level
-  result = case p.curr.kind:
-            of tkVarDef: p.parseAssignment(p.program.stack)
-            of tkVarCall: p.parseCallCommand()
-            of tkFnDef: p.parseFn(nil)
-            of tkDotExpr: p.parseDotExpr(nil, excludeOnly, includeOnly)
-            of tkComment: p.parseComment(nil)
-            of tkIf: p.parseCond(nil, excludeOnly, includeOnly)
-            of tkCase: p.parseCase(nil, excludeOnly, includeOnly)
-            of tkEcho: p.parseEchoCommand(nil)
-            of tkFor: p.parseFor(nil, excludeOnly, includeOnly)
-            of tkImport: p.parseImport(nil, excludeOnly, includeOnly)
-            of tkIdentifier:
-              if p.next.kind == tkLPAR and p.next.line == p.curr.line:
-                p.parseCallFnCommand()
-              else: nil
-            else: nil
+  result =
+    case p.curr.kind:
+    of tkVarDef:  p.parseAssignment(p.program.stack)
+    of tkVarCall: p.parseCallCommand()
+    of tkFnDef:   p.parseFn(nil)
+    of tkDotExpr: p.parseDotExpr(nil, excludeOnly, includeOnly)
+    of tkComment: p.parseComment(nil)
+    of tkIf:      p.parseCond(nil, excludeOnly, includeOnly)
+    of tkCase:    p.parseCase(nil, excludeOnly, includeOnly)
+    of tkEcho:    p.parseEchoCommand(nil)
+    of tkFor:     p.parseFor(nil, excludeOnly, includeOnly)
+    of tkImport:  p.parseImport(nil, excludeOnly, includeOnly)
+    of tkIdentifier:
+      if p.next.kind == tkLPAR and p.next.line == p.curr.line:
+        p.parseCallFnCommand()
+      else: nil
+    else: nil
   if result == nil and not p.hasErrors:
     let tk = if p.curr isnot tkEOF: p.curr else: p.prev
     errorWithArgs(UnexpectedToken, tk, [tk.value])
 
+
 template startParseProgram(src: string, scope: ScopeTable) =
   when defined wasm:
     p.lex = Lexer.init(src) # read from string
-    p.logger = Lexer.init(filePath: "")
+    p.logger = Logger(filePath: "")
   else:
     p.lex = Lexer.init(readFile(src))
     p.logger = Logger(filePath: src)
@@ -516,7 +578,6 @@ template startParseProgram(src: string, scope: ScopeTable) =
   p.program = Program(stack: scope)
   p.curr = p.lex.getToken()
   p.next = p.lex.getToken()
-  # p.memtable = Memtable()
   while p.curr isnot tkEOF:
     if p.lex.hasError:
       echo "Lexer errors:"
@@ -527,6 +588,7 @@ template startParseProgram(src: string, scope: ScopeTable) =
     if likely(node != nil):
       add p.program.nodes, node
     else: break
+  # echo p.program.nodes
   p.lex.close()
 
 proc importThread(th: (string, Stylesheets)) {.thread.} =

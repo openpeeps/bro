@@ -1,42 +1,27 @@
-proc `$`(types: openarray[NodeType]): string =
-  let t = types.map(proc(x: NodeType): string = $(x))
-  add result, "|" & t.join("|")
-
-proc identify(ident: string, types: openarray[NodeType]): string =
-  result = ident
-  if types.len > 0:
-    add result, $(types)
-
-proc stackFn(p: var Parser, fn: Node, types: openarray[NodeType]) =
-  p.program.stack[fn.fnName.identify(types)] = fn
-
-proc stack(scope: ScopeTable, fn: Node, types: openarray[NodeType]) =
-  scope[fn.fnName.identify(types)] = fn
-
 newPrefixProc "parseFn":
   let
     fn = p.curr
     fnName = p.next
     scope = if scope == nil: ScopeTable() else: scope
   walk p # `fn`
-  result = newFunction(fnName)
+  var fnNode = newFunction(fnName)
   walk p # function identifier
   var types: seq[NodeType]
   if p.curr.kind == tkLPAR and p.curr.line == fn.line:
     # parse function parameters
     walk p # (
     while p.next.kind == tkColon and p.curr.kind == tkIdentifier:
-      let pName = p.curr
       walk p
+      let pName = p.prev
       case p.curr.kind
       of tkColon:
-        if likely(result.fnParams.hasKey(pName.value) == false):
+        if likely(fnNode.fnParams.hasKey(pName.value) == false):
           walk p
           case p.curr.kind:
           of tkTypedLiterals:
             # Set type for current argument
             let nTyped = p.getLiteralType()
-            result.fnParams["$" & pName.value] = ("$" & pName.value, nTyped, nil)
+            fnNode.fnParams["$" & pName.value] = ("$" & pName.value, nTyped, nil)
             scope["$" & pName.value] = nil
             types.add(nTyped)
             walk p
@@ -50,35 +35,48 @@ newPrefixProc "parseFn":
       if p.curr.kind == tkComma:
         walk p
       else: break
+  fnNode.fnIdent = identify(fnNode.fnName, types)
   if p.curr.kind == tkRPAR:
     walk p
+    # parse function return type
     if p.curr.kind == tkColon:
-      # return type
       walk p
-      result.fnReturnType = p.getLiteralType()
-      if result.fnReturnType != ntVoid:
+      fnNode.fnReturnType = p.getLiteralType()
+      if fnNode.fnReturnType != ntVoid:
         walk p
       else: error(fnInvalidReturn, p.curr)
+
+    # parse function body
     if p.curr.kind == tkAssign:
-      # function body
       if fn.line == p.curr.line:
         walk p
-        let stmtNode = p.parseStatement((fn, result), scope = scope, excludeOnly = {tkImport, tkUse})
+        let stmtNode =
+          p.parseStatement((fn, fnNode), scope = scope,
+            excludeOnly = {tkImport, tkUse},
+            returnType = fnNode.fnReturnType, isFunctionWrap = true)
         if stmtNode != nil:
-          result.fnBody = stmtNode
+          fnNode.fnBody = stmtNode
+          stmtNode.cleanup # out of scope
           if p.lastParent != nil:
-            if p.lastParent.fnName != result.fnName:
-              result.fnClosure = true
-              stack(scope, result, types)
-            else:
-              p.stackFn(result, types)
+            case p.lastParent.nt
+            of ntFunction:
+              # check for name collisions. main function <> closures
+              if p.lastParent.fnName != fnNode.fnName:
+                fnNode.fnClosure = true
+              scope.localScope(fnNode) # add closure to local scope
+            of ntCondStmt, ntCaseStmt, ntForStmt:
+              scope.localScope(fnNode) # add blocks to local scope
+            else: discard
           else:
-            p.stackFn(result, types)
-    else: return nil
+            if isFunctionWrap:
+              scope.localScope(fnNode)
+            else:
+              p.globalScope(fnNode) # add in glboal scope
+      result = fnNode
 
 newPrefixProc "parseCallFnCommand":
-  # Parse function calls with/without arguments,
-  # matching the following pattern: `fn ($a: String, $b: Int ...): String =`
+  # Parse function calls with or without arguments,
+  # looking for the following pattern: `fn myfn($a: string, $b: Int = 0): string =`
   let ident = p.curr
   walk p, 2 # (
   var
@@ -97,10 +95,11 @@ newPrefixProc "parseCallFnCommand":
   let fnIdentName = identify(ident.value, types)
   if p.program.stack.hasKey(fnIdentName):
     fn = p.program.stack[fnIdentName]
-  elif scope.hasKey(fnIdentName):
-    fn = scope[fnIdentName]
-  else:
-    errorWithArgs(fnUndeclared, ident, [ident.value])
+  elif scope != nil:
+    if scope.hasKey(fnIdentName):
+      fn = scope[fnIdentName]
+    else: errorWithArgs(fnUndeclared, ident, [ident.value])
+  else: errorWithArgs(fnUndeclared, ident, [ident.value])
   if likely(args.len == fn.fnParams.len):
     var i = 0  
     for pKey, pDef in fn.fnParams:

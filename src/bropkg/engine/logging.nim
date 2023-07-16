@@ -16,7 +16,6 @@ type
     UnrecognizedToken = "Unrecognized token"
     UndeclaredVariable = "Undeclared variable $"
     AssignUndeclaredVar = "Assigning an undeclared variable"
-    MissingAssignmentToken = "Missing assignment token"
     UndeclaredCSSSelector = "Undeclared CSS selector"
     ExtendRedundancyError = "Selector $ extends $ multiple times"
     InvalidProperty = "Invalid CSS property $"
@@ -30,7 +29,6 @@ type
     DuplicateExtendStatement = "Cannot be extended more than once"
     InvalidNestSelector = "Invalid nest for given selector"
     UnknownPseudoClass = "Unknown pseudo-class"
-    MissingClosingBracketArray = "Missing closing bracket in array"
     ImportErrorFileNotFound = "Import error file not found"
     VariableRedefinition = "Compile-time variables are immutable"
     UndefinedPropertyAccessor = "Undefined property accessor $ for object $"
@@ -38,11 +36,18 @@ type
     InvalidInfixOperator = "Invalid infix operator $ for $"
     DeclaredNotUsed = "Declared and not used $"
     TryingAccessNonObject = "Trying to get property $ on a non-object variable $"
-    DuplicateObjectKey = "Duplicate key in object"
-    MissingClosingObjectBody = "Missing closing object body"
-    DuplicateCaseLabel = "Duplicate case label"
+    duplicateObjectKey = "Duplicate key in object"
+    duplicateCaseLabel = "Duplicate case label"
 
+    missingAssignmentToken = "Missing assignment token"
+    missingRB = "Missing closing bracket"
+    missingRC = "Missing closing curly bracket"
     reassignImmutableVar = "Cannot reassign value to an immutable variable"
+
+    invalidCallContext = "Invalid call in this context"
+
+    # Use/Imports
+    useDuplicateModule = "Module $ already in use"
 
     # Condition - Case statements
     caseInvalidValueType = "Invalid case statement. Got $, expected $"
@@ -54,7 +59,7 @@ type
     fnMismatchParam = "Type mismatch for $ | Got $ expected $"
     fnExtraArg = "Function $ expects $ arguments, $ given"
     fnReturnVoid = "Invalid return type for $ | Got void"
-    fnReturnTypeMismatch = "Invalid return type for $ | Got $ expected $"
+    fnReturnTypeMismatch = "Invalid return type | Got $ expected $"
     fnInvalidReturn = "Invalid return type"
     fnAttemptRedefineIdent = "Attempt to redefine parameter $"
 
@@ -157,24 +162,28 @@ proc warn*(logger: Logger, msg: Message, line, col: int, strFmt: bool, args: var
   logger.add(lvlWarn, msg, line, col, true, args)
 
 template error*(msg: Message, tk: TokenTuple) =
-  p.logger.newError(msg, tk.line, tk.pos, false)
-  p.hasErrors = true
+  if not p.hasErrors:
+    p.logger.newError(msg, tk.line, tk.pos, false)
+    p.hasErrors = true
   return # block code execution
 
 template error*(msg: Message, tk: TokenTuple, args: openarray[string]) =
-  p.logger.newError(msg, tk.line, tk.pos, false, args)
-  p.hasErrors = true
+  if not p.hasErrors:
+    p.logger.newError(msg, tk.line, tk.pos, false, args)
+    p.hasErrors = true
   return # block code execution
 
 template error*(msg: Message, tk: TokenTuple, strFmt: bool,
             extraLines: seq[string], extraLabel: string, args: varargs[string]) =
-  newErrorMultiLines(p.logger, msg, tk.line, tk.pos, strFmt, extraLines, extraLabel, args)
-  p.hasErrors = true
+  if not p.hasErrors:
+    newErrorMultiLines(p.logger, msg, tk.line, tk.pos, strFmt, extraLines, extraLabel, args)
+    p.hasErrors = true
   return # block code execution
 
 template errorWithArgs*(msg: Message, tk: TokenTuple, args: openarray[string]) =
-  p.logger.newError(msg, tk.line, tk.pos, true, args)
-  p.hasErrors = true
+  if not p.hasErrors:
+    p.logger.newError(msg, tk.line, tk.pos, true, args)
+    p.hasErrors = true
   return # block code execution
 
 proc error*(logger: Logger, msg: Message, line, col: int, args: varargs[string]) =

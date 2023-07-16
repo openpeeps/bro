@@ -5,7 +5,7 @@
 #          https://github.com/openpeeps/bro
 
 import pkg/jsony
-import std/[tables, strutils, json, algorithm, terminal]
+import std/[tables, strutils, json, algorithm, oids, terminal]
 import ./ast, ./sourcemap, ./eval
 
 type
@@ -24,7 +24,7 @@ var strNL, strCL, strCR: string
 proc write(c: var Compiler, node: Node, scope: ScopeTable = nil, data: Node = nil)
 proc getSelectorGroup(c: var Compiler, node: Node, scope: ScopeTable = nil, parent: Node = nil): string
 proc handleInnerNode(c: var Compiler, node, parent: Node, scope: ScopeTable = nil, length: int, ix: var int)
-proc handleCallStack(c: var Compiler, node: Node): string
+proc handleCallStack(c: var Compiler, node: Node, scope: ScopeTable): string
 
 proc getTypeInfo(node: Node): string =
   # Return type info for given Node
@@ -148,7 +148,7 @@ proc getValue(c: var Compiler, val: Node, scope: ScopeTable): string =
     else:
       add result, c.getValue(scope[val.callIdent], nil)
   of ntCallStack:
-    add result, c.handleCallStack(val)
+    add result, c.handleCallStack(val, scope)
   else: discard
 
 proc getValue(c: var Compiler, vals: seq[Node], scope: ScopeTable): string =
@@ -269,7 +269,7 @@ proc handleCommand(c: var Compiler, node: Node, scope: ScopeTable = nil) =
       let output = c.getValue(node.cmdValue, scope)
       stdout.styledWriteLine(fgGreen, "Debug", fgDefault, meta, fgMagenta, getTypeInfo(node.cmdValue) & "\n", fgDefault, output)
 
-proc handleCallStack(c: var Compiler, node: Node): string =
+proc handleCallStack(c: var Compiler, node: Node, scope: ScopeTable): string =
   let callable = c.program.stack[node.stackIdent]
   case callable.nt
   of ntFunction:
@@ -295,7 +295,6 @@ proc handleInnerNode(c: var Compiler, node, parent: Node,
     else:
       parent.properties[node.pName] = node
   of ntClassSelector, ntTagSelector, ntIDSelector, ntRoot:
-    # echo parent == nil
     if parent == nil:
       add c.css, c.getSelectorGroup(node, scope)
     else:
@@ -318,7 +317,7 @@ proc handleInnerNode(c: var Compiler, node, parent: Node,
   of ntCommand:
     c.handleCommand(node, scope)
   of ntCallStack:
-    discard c.handleCallStack(node)
+    discard c.handleCallStack(node, scope)
   else: discard
 
 proc write(c: var Compiler, node: Node, scope: ScopeTable = nil, data: Node = nil) =
@@ -339,7 +338,7 @@ proc write(c: var Compiler, node: Node, scope: ScopeTable = nil, data: Node = ni
   of ntCommand:
     c.handleCommand(node)
   of ntCallStack:
-    discard c.handleCallStack(node)
+    discard c.handleCallStack(node, scope)
   else: discard
 
 proc len*(c: var Compiler): int = c.program.nodes.len

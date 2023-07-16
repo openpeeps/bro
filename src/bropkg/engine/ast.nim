@@ -4,7 +4,7 @@
 #          Made by Humans from OpenPeeps
 #          https://github.com/openpeeps/bro
 
-import std/[tables, strutils, json, oids]
+import std/[tables, strutils, json, sequtils, oids]
 import ./stdlib
 from ./tokens import TokenKind, TokenTuple
 
@@ -52,7 +52,6 @@ type
     ntStmtList
     ntInfo
     ntReturn
-    ntUse
 
   PropertyRule* = enum
     propRuleNone
@@ -135,7 +134,7 @@ type
       pVal*: seq[Node] # a seq of CSS values
       pRule*: PropertyRule
     of ntFunction:
-      fnName*: string
+      fnIdent*, fnName*: string
       fnParams*: OrderedTable[string, ParamDef]
       fnBody*: Node          # ntStmtList
       fnReturnType*: NodeType
@@ -178,9 +177,11 @@ type
       streamContent*: JsonNode
       usedStream*: bool
     of ntCall:
+      callOid*: Oid
       callIdent*: string
       callNode*: Node
     of ntCallStack:
+      stackOid*: Oid
       stackIdent*, stackIdentName*: string
       stackType*: NodeType
       stackReturnType*: NodeType
@@ -235,8 +236,6 @@ type
       stmtTraces*: seq[string]
     of ntReturn:
       returnStmt*: Node
-    of ntUse:
-      imports: seq[Program]
     of ntInfo:
       nodeType*: NodeType
     else: discard
@@ -311,13 +310,13 @@ proc use*(node: Node) =
 proc trace*(stmtNode: Node, key: string) =
   add stmtNode.stmtTraces, key
 
-proc clean*(stmtNode: Node) =
+proc cleanup*(stmtNode: Node) =
   for item in stmtNode.stmtTraces:
     stmtNode.stmtScope.del(item)
   setLen(stmtNode.stmtTraces, 0)
 
-proc cleanExtra*(stmtNode: Node, key: string) =
-  stmtNode.clean()
+proc cleanup*(stmtNode: Node, key: string) =
+  stmtNode.cleanup()
   stmtNode.stmtScope.del(key)
 
 proc getColor*(node: Node): string =
@@ -341,6 +340,15 @@ proc getNodeType*(node: Node): NodeType =
     of ntFunction: ntFunction
     else:
       node.val.nt
+
+proc `$`(types: openarray[NodeType]): string =
+  let t = types.map(proc(x: NodeType): string = $(x))
+  add result, "|" & t.join("|")
+
+proc identify*(ident: string, types: openarray[NodeType]): string =
+  result = ident
+  if types.len > 0:
+    add result, $(types)
 
 # API
 
@@ -407,10 +415,10 @@ proc newArray*(): Node =
 proc newCall*(ident: string, node: Node): Node =
   ## Create a new ntCall node
   # assert node.nt in {ntVariable, ntJsonValue}
-  result = Node(nt: ntCall, callIdent: ident, callNode: node)
+  result = Node(nt: ntCall, callIdent: ident, callOid: genOid(), callNode: node)
 
 proc newFnCall*[N: Node](node: N, args: seq[N], ident, name: string): Node =
-  result = Node(nt: ntCallStack, stackArgs: args, stackIdent: ident,
+  result = Node(nt: ntCallStack, stackArgs: args, stackOid: genOid(), stackIdent: ident,
                 stackIdentName: name, stackReturnType: node.fnReturnType)
 
 proc newInfix*(infixLeft, infixRight: Node, infixOp: InfixOp): Node =
@@ -426,7 +434,7 @@ proc newInfix*(infixLeft: Node): Node =
 
 proc newIf*(infix: Node): Node =
   ## Create a new ntCondStmt
-  assert infix.nt == ntInfix
+  assert infix.nt in {ntInfix}
   result = Node(nt: ntCondStmt, condOid: genOid(), ifInfix: infix)
 
 proc newImport*(nodes: seq[Node], importPath: string): Node =
@@ -509,13 +517,12 @@ proc newStmt*(stmtScope: ScopeTable = nil): Node =
     result.stmtScope = stmtScope
   else: new(result.stmtScope)
 
-
 #
 # High Level API
 #
 proc newStylesheet*: Program = 
   new(result)
-  result.meta = (1, 1)
+  result.meta = (0, 1)
 
 proc add*(p: Program, node: Node) =
   ## Add a new `node` to `Stylesheet`
@@ -535,6 +542,15 @@ proc newBool*(style: Program, bVal: bool) =
   ## Create a new ntbool node
   style.add Node(nt: ntBool, bVal: bVal) 
 
+proc newClass*(name: string, properties = KeyValueTable(), multipleSelectors = @[""], concat: seq[Node] = @[]): Node =
+  ## Create a new ntClassSelector node
+  Node(nt: ntClassSelector, ident: name, properties: properties, multipleSelectors: multipleSelectors, identConcat: concat)
+
+proc newProperty*(selector: Node, pName: string, pVal: seq[Node]) =
+  ## Create a new ntProperty node
+  selector.properties[pName] =
+    Node(nt: ntProperty, pName: pName, pVal: pVal)
+
 proc newEcho*(style: Program, val: Node) =
   ## Create a new `echo` (high-level API)
   assert val != nil, "Expect a node value. Got nil"
@@ -544,6 +560,10 @@ proc newEcho*(style: Program, val: Node) =
 proc newFunction*(style: Program, name: string) =
   ## Create a new function (high-level API)
   style.add Node(nt: ntFunction, fnName: name)
+
+proc newTag*(name: string, properties = KeyValueTable(), multipleSelectors = @[""], concat: seq[Node] = @[]): Node =
+  ## Create a new `ntTag` node
+  Node(nt: ntTagSelector, ident: name, properties: properties, multipleSelectors: multipleSelectors, identConcat: concat)
 
 proc newVariable*(style: Program, name: string, value: Node) =
   ## Create a new variable node
