@@ -4,7 +4,7 @@
 --deepcopy:on
 --define:msgpack_obj_to_map
 --define:httpxServerName:"BroStyleSync"
---define:nimPreviewHashRef
+# --define:nimPreviewHashRef
 
 when defined release:
   --opt:speed
@@ -14,6 +14,9 @@ when defined release:
   --passC:"-flto"
   --passL:"-flto"
   --define:nimAllocPagesViaMalloc
+# else:
+#   --profiler:on
+#   --stacktrace:on
 
 when defined wasm:
   --nimcache:tmp
