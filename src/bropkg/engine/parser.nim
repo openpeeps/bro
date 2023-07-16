@@ -266,6 +266,15 @@ proc stack(p: var Parser, node: Node, scope: ScopeTable = nil) =
   if scope == nil:  p.globalScope(node)
   else:             scope.localScope(node)
 
+proc inScope*(p: var Parser, name: string, scope: ScopeTable): bool =
+  ## Determine if a function/variable is available in global/local scope
+  if scope != nil: 
+    result = scope.hasKey(name)
+    if not result:
+      return p.program.stack.hasKey(name)
+  else:
+    result = p.program.stack.hasKey(name)
+
 proc getLiteralType(p: var Parser): NodeType =
   result =
     case p.curr.kind:
@@ -588,7 +597,6 @@ template startParseProgram(src: string, scope: ScopeTable) =
     if likely(node != nil):
       add p.program.nodes, node
     else: break
-  # echo p.program.nodes
   p.lex.close()
 
 proc importThread(th: (string, Stylesheets)) {.thread.} =

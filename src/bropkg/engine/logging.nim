@@ -62,6 +62,7 @@ type
     fnReturnTypeMismatch = "Invalid return type | Got $ expected $"
     fnInvalidReturn = "Invalid return type"
     fnAttemptRedefineIdent = "Attempt to redefine parameter $"
+    fnOverload = "Attempt to redefine function $"
 
     InvalidContext = "Invalid $ in this context"
     InvalidSyntaxLoopStmt = "Invalid syntax for loop statement"

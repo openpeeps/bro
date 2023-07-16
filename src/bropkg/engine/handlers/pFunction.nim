@@ -36,6 +36,8 @@ newPrefixProc "parseFn":
         walk p
       else: break
   fnNode.fnIdent = identify(fnNode.fnName, types)
+  if unlikely(p.inScope(fnNode.fnIdent, scope)):
+    errorWithArgs(fnOverload, fnName, [fnName.value])
   if p.curr.kind == tkRPAR:
     walk p
     # parse function return type
