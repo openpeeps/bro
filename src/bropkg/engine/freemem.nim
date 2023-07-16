@@ -1,4 +1,4 @@
-proc malloc_trim*(size: csize_t): cint {.importc, varargs, header: "malloc.h", discardable.}
+proc malloc_trim*(size: csize_t): cint {.importc, varargs, header: "stdlib.h", discardable.}
 
 template freem*(obj: untyped) =
   reset(obj)
