@@ -58,8 +58,7 @@ proc runCommand*(v: Values) =
       let
         t = getMonotime()
         broCommand = execCmdEx("bro " & file.getPath & " " & cssPath)
-      if broCommand.exitCode != 0:
-        display(broCommand.output)
+      display(broCommand.output)
       display("Done in " & $(getMonotime() - t).inMilliseconds & "ms")
     else:
       display("Stylesheet is empty")
@@ -68,12 +67,10 @@ proc runCommand*(v: Values) =
   let
     t = getMonotime()
     broCommand = execCmdEx("bro " & stylesheetPath & " " & cssPath)
-  if broCommand.exitCode == 0:
-    display("Done in " & $(getMonotime() - t).inMilliseconds & "ms")
-    startThread(watchoutCallback, watchFiles, delay, shouldJoinThread = v.flag("sync") == false)
-  else:
-    display(broCommand.output)
-    display("Done in " & $(getMonotime() - t).inMilliseconds & "ms")
+  display(broCommand.output)
+  display("Done in " & $(getMonotime() - t).inMilliseconds & "ms")
+  startThread(watchoutCallback, watchFiles, delay, shouldJoinThread = v.flag("sync") == false)
+
   if v.flag("sync"):
     const inlineCSS = """
 * {margin:0; padding:0;}
