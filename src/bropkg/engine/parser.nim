@@ -7,7 +7,7 @@
 import pkg/stashtable
 import std/[os, strutils, critbits, sequtils, hashes,
           tables, json, memfiles, times, oids, macros]
-import ./tokens, ./ast, ./logging, ./stdlib, ./properties, ./memo
+import ./tokens, ./ast, ./logging, ./stdlib, ./properties
 
 when compileOption("app", "console"):
   import pkg/kapsis/cli
