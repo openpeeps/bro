@@ -6,33 +6,12 @@
 
 import pkg/[watchout, httpx, websocketx]
 import pkg/kapsis/[runtime, cli]
-import std/[times, os, strutils, net, threadpool,
+import std/[times, monotimes, os, strutils, net, osproc,
           options, asyncdispatch, htmlgen]
 
-import ../engine/[parser, compiler, freemem]
+import ../engine/[parser, compiler]
 
 var hasOutput: bool
-
-proc runProgram(fpath, fname: string) {.thread.} =
-  {.gcsafe.}:
-    let t = cpuTime()
-    var p = parser.parseProgram(fpath)
-    for warning in p.logger.warnings:
-      display(warning)
-    if p.hasErrors:
-      for error in p.logger.errors:
-        display(error)
-    else:
-      display(fname, indent = 3)
-      let cssPath = fpath.changeFileExt("css")
-      var c = newCompiler(p.getProgram)
-      if hasOutput:
-        writeFile(cssPath, c.getCSS)
-      else:
-        display(c.getCSS)
-      display("Done in " & $(cpuTime() - t), br="before")
-      freem(c)
-    freem(p)
 
 proc runCommand*(v: Values) =
   var stylesheetPath: string
@@ -76,14 +55,25 @@ proc runCommand*(v: Values) =
     display("✨ Changes detected")
     display(file.getPath, indent = 2, br="after")
     if stylesheetPath.getFileSize > 0:
-      runProgram(file.getPath, file.getName())
+      let
+        t = getMonotime()
+        broCommand = execCmdEx("bro " & file.getPath & " " & cssPath)
+      if broCommand.exitCode != 0:
+        display(broCommand.output)
+      display("Done in " & $(getMonotime() - t).inMilliseconds & "ms")
     else:
       display("Stylesheet is empty")
 
   watchFiles.add(stylesheetPath)
-  spawn(runProgram(stylesheetPath, v.get("style")))
-  sync()
-  startThread(watchoutCallback, watchFiles, delay, shouldJoinThread = v.flag("sync") == false)
+  let
+    t = getMonotime()
+    broCommand = execCmdEx("bro " & stylesheetPath & " " & cssPath)
+  if broCommand.exitCode == 0:
+    display("Done in " & $(getMonotime() - t).inMilliseconds & "ms")
+    startThread(watchoutCallback, watchFiles, delay, shouldJoinThread = v.flag("sync") == false)
+  else:
+    display(broCommand.output)
+    display("Done in " & $(getMonotime() - t).inMilliseconds & "ms")
   if v.flag("sync"):
     const inlineCSS = """
 * {margin:0; padding:0;}
@@ -270,7 +260,6 @@ document.addEventListener('DOMContentLoaded', function() {
             while ws.readyState == Open:
               await ws.send($toUnix(cssStylesheetPath.getLastModificationTime))
             ws.close()
-            freem(ws)
           except WebSocketClosedError:
             echo "Socket closed"
           except WebSocketProtocolMismatchError:
