@@ -1,0 +1,12 @@
+// A super fast stylesheet language for cool kids
+//
+// Arrays Module partially implementing Nim's `sequtils`
+// https://nim-lang.github.io/Nim/sequtils.html
+//
+// (c) 2023 George Lemon | MIT License
+//          Made by Humans from OpenPeeps
+//          https://github.com/openpeeps/bro
+
+fn contains*(seq: array, item: string): bool
+fn concat*(seq: varargs[array]): array
+fn insert*(dest, src: array, pos = 0)
