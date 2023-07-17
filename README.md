@@ -168,7 +168,7 @@ Benchmarks made with [hyperfine](https://github.com/sharkdp/hyperfine) on<br>
   - [ ] Groups of Selectors [ref](https://www.w3.org/TR/selectors-3/#grouping)
   - [ ] Combinators [ref](https://www.w3.org/TR/selectors-3/#combinators)
 - [x] Compile-time
-  - [x] Compile-time Variables `$myvar: 12px`
+  - [x] Compile-time Variables `$myvar = 12px`
   - [x] Arrays/Objects
     - [ ] Anonymous arrays and objects
   - [ ] Compile-time Constants
