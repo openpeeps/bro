@@ -1,10 +1,10 @@
 name: test
 on:
-  push:
-    paths-ignore:
-      - LICENSE
-      - README.*
-      - examples
+#   push:
+#     paths-ignore:
+#       - LICENSE
+#       - README.*
+#       - examples
   pull_request:
     paths-ignore:
       - LICENSE
