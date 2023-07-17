@@ -167,18 +167,17 @@ Benchmarks made with [hyperfine](https://github.com/sharkdp/hyperfine) on<br>
   - [ ] Pseudo-elements [ref](https://www.w3.org/TR/selectors-3/#pseudo-elements)
   - [ ] Groups of Selectors [ref](https://www.w3.org/TR/selectors-3/#grouping)
   - [ ] Combinators [ref](https://www.w3.org/TR/selectors-3/#combinators)
-- [x] Partials
 - [x] Compile-time
   - [x] Compile-time Variables `$myvar: 12px`
   - [ ] Compile-time Constants
   - [ ] Functions
-  - [ ] Conditionals (`if`, `elif`, `else`)
-  - [ ] For/Loop statements `for $x in $y`
+  - [x] Conditionals (`if`, `elif`, `else`, and `case`)
+  - [x] For/Loop statements `for $x in $y`
   - [ ] Magically `@when` instead of `@media`
   - [ ] Typed properties declaration
-  - [ ] Warnings for unused `variables`, `functions`
-  - [ ] CSS Variable Declaration using `var`
-- 
+  - [x] Warnings unused `variables`, `functions`
+  - [ ] CSS Variable Declaration using `var` instead of `--`
+  - [ ] String/Variable concatenation using `&` and backticks
 - [ ] Handle single/multi line comments
 - [ ] `Preview` snippets (Building docs from Stylesheets)
 - [x] Command Line Interface 
