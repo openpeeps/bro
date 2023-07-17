@@ -9,14 +9,11 @@ when defined napibuild:
   from std/sequtils import toSeq
 
   init proc(module: Module) =
-    module.registerFn(3, "compile"):
-      if not Env.expect(args,
-        "BroError", ("src", napi_string), ("minify", napi_boolean), ("sorted", napi_boolean)):
-        return
-      let sourcePath = args[0].getStr
+    proc toCSS(src: string, minify: bool, sorted: bool) {.export_napi.} =
+      let sourcePath = args.get("src").getStr
       var p = parseProgram(sourcePath)
       if not p.hasErrors:
-        return %* newCompiler(p.getProgram, sourcePath, args[1].getBool, args[2].getBool).getCSS
+        return %* newCompiler(p.getProgram, args.get("minify").getBool, args.get("sorted").getBool).getCSS()
       else:
         let errors = p.logger.errors.toSeq
         assert error($(errors[0]), "BroParsingError")
