@@ -31,7 +31,7 @@ newPrefixProc "parseReturnCommand":
     if node != nil:
       result = newReturn(node)
 
-proc parseVarCall(p: var Parser, tk: TokenTuple, varName: string, scope: ScopeTable): Node =
+proc parseVarCall(p: var Parser, tk: TokenTuple, varName: string, scope: ScopeTable, skipWalk = true): Node =
   # Parse given identifier and return it as `ntCall` node
   if scope != nil:
     if scope.hasKey(varName):
@@ -42,11 +42,10 @@ proc parseVarCall(p: var Parser, tk: TokenTuple, varName: string, scope: ScopeTa
     of ntVarValue: 
       gVal.varUsed = true
     else: discard
-    walk p
+    if not skipWalk: walk p
     return newCall(varName, gVal)
   errorWithArgs(UndeclaredVariable, tk, [varName])
 
 newPrefixProc "parseCallCommand":
   # Parse variable calls
-  result = p.parseVarCall(p.curr, p.curr.value, scope)
-  walk p
+  result = p.parseVarCall(p.curr, p.curr.value, scope, false)

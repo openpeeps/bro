@@ -108,12 +108,6 @@ handlers:
     inc lex.bufpos # `
     while true:
       case lex.buf[lex.bufpos]
-      of '`':
-        inc lex.bufpos # `
-        break
-      of EndOfFile:
-        lex.setError("EOF reached before closing accent quoted string")
-        return
       of '$':
         add lex.token, '$' 
         inc lex.bufpos
@@ -137,9 +131,16 @@ handlers:
           if varName.len > 0:
             add lex.token, varName
             add lex.attr, varName
+            setLen(varName, 0)
+      of '`':
+        inc lex.bufpos
+        lex.kind = kind
+        return
+      of EndOfFile:
+        lex.setError("EOF reached before closing accent quoted string")
+        return
       else:
         add lex
-    lex.kind = kind
 
 registerTokens defaultSettings:
   `case` = "case"
