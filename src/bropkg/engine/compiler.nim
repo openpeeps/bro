@@ -5,7 +5,7 @@
 #          https://github.com/openpeeps/bro
 
 import pkg/jsony
-import std/[tables, strutils, json, algorithm, oids, terminal]
+import std/[tables, strutils, sequtils, json, algorithm, oids, terminal]
 import ./ast, ./sourcemap, ./eval
 
 type
@@ -115,6 +115,12 @@ proc getValue(c: var Compiler, val: Node, scope: ScopeTable): string =
     add result, jsony.toJson(val.itemsVal)
   of ntObject:
     add result, jsony.toJson(val.objectFields)
+  of ntAccQuoted:
+    var accValues: seq[string]
+    for accVar in val.accVars:
+      add accValues, accVar.callIdent[1..^1] # variable name without `$`
+      add accValues, c.getValue(accVar, scope)
+    add result, val.accVal.format(accValues)
   of ntStream:
     case val.streamContent.kind:
     of JString:

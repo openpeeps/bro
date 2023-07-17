@@ -38,6 +38,7 @@ type
     ntColor = "color"
     ntSize = "size"
     ntStream = "stream"
+    ntAccQuoted
     ntCall
     ntCallStack
     ntInfix
@@ -169,6 +170,9 @@ type
       usedObject*: bool
     of ntAccessor:
       accessorType: NodeType # either ntArray or ntObject
+    of ntAccQuoted:
+      accVal*: string
+      accVars*: seq[Node] # seq[ntVariable]
     of ntSize:
       sizeVal*: int
       sizeUnit*: Units
@@ -359,6 +363,9 @@ proc newProperty*(pName: string): Node =
 proc newString*(sVal: string): Node =
   ## Create a new ntString node
   result = Node(nt: ntString, sVal: sVal)
+
+proc newAccQuoted*(str: string): Node =
+  result = Node(nt: ntAccQuoted, accVal: str)
 
 proc newInt*(iVal: string): Node =
   ## Create a new ntInt node

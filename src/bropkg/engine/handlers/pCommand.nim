@@ -31,17 +31,22 @@ newPrefixProc "parseReturnCommand":
     if node != nil:
       result = newReturn(node)
 
-newPrefixProc "parseCallCommand":
+proc parseVarCall(p: var Parser, tk: TokenTuple, varName: string, scope: ScopeTable): Node =
+  # Parse given identifier and return it as `ntCall` node
   if scope != nil:
-    if scope.hasKey(p.curr.value):
-      walk p
-      return newCall(p.prev.value, scope[p.prev.value])
-  if likely(p.program.stack.hasKey(p.curr.value)):
-    let gVal = p.program.stack[p.curr.value]
+    if scope.hasKey(varName):
+      return newCall(varName, scope[varName])
+  if likely(p.program.stack.hasKey(varName)):
+    let gVal = p.program.stack[varName]
     case gVal.nt:
     of ntVarValue: 
       gVal.varUsed = true
     else: discard
     walk p
-    return newCall(p.prev.value, gVal)
-  errorWithArgs(UndeclaredVariable, p.curr, [p.curr.value])
+    return newCall(varName, gVal)
+  errorWithArgs(UndeclaredVariable, tk, [varName])
+
+newPrefixProc "parseCallCommand":
+  # Parse variable calls
+  result = p.parseVarCall(p.curr, p.curr.value, scope)
+  walk p

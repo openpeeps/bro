@@ -192,6 +192,7 @@ proc parseCallFnCommand(p: var Parser, scope: ScopeTable = nil,
 
 proc getPrefixOrInfix(p: var Parser, scope: ScopeTable, includeOnly, excludeOnly: set[TokenKind] = {}): Node
 proc importThread(th: (string, Stylesheets)) {.thread.}
+proc parseVarCall(p: var Parser, tk: TokenTuple, varName: string, scope: ScopeTable): Node
 
 #
 # Parse utils
@@ -541,6 +542,7 @@ proc getPrefixFn(p: var Parser, excludeOnly, includeOnly: set[TokenKind] = {}): 
   of tkComment: parseComment
   of tkExtend:  parseExtend
   of tkThis:    parseThis
+  of tkAccQuoted: parseAccQuoted
   else: nil
 
 proc parsePrefix(p: var Parser, excludeOnly, includeOnly: set[TokenKind] = {}, scope: ScopeTable = nil,

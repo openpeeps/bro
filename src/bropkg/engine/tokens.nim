@@ -103,6 +103,44 @@ handlers:
     else:
       lex.kind = kind
 
+  proc handleAccQuoted(lex: var Lexer, kind: TokenKind) =
+    lexReady lex
+    inc lex.bufpos # `
+    while true:
+      case lex.buf[lex.bufpos]
+      of '`':
+        inc lex.bufpos # `
+        break
+      of EndOfFile:
+        lex.setError("EOF reached before closing accent quoted string")
+        return
+      of '$':
+        add lex.token, '$' 
+        inc lex.bufpos
+        if lex.current == '{':
+          inc lex.bufpos
+          var varName: string
+          while true:
+            case lex.buf[lex.bufpos]:
+            of '}':
+              inc lex.bufpos
+              break
+            of EndOfFile, NewLines:
+              lex.setError("EOF reached before closing curly bracket")
+              return
+            of IdentChars:
+              add varName, lex.buf[lex.bufpos]
+              inc lex.bufpos
+            else:
+              lex.setError("Invalid variable name")
+              return
+          if varName.len > 0:
+            add lex.token, varName
+            add lex.attr, varName
+      else:
+        add lex
+    lex.kind = kind
+
 registerTokens defaultSettings:
   `case` = "case"
   `of` = "of"
@@ -147,6 +185,7 @@ registerTokens defaultSettings:
   # class = tokenize(handleClassSelector, '.')
   class
   dotExpr = '.'
+  accQuoted = tokenize(handleAccQuoted, '`')
   divide = '/':
     comment = '/' .. EOL
   at = '@':
@@ -155,7 +194,6 @@ registerTokens defaultSettings:
     use = "use"
     mix = "mixin"
     json = "json"
-    # preview = tokenize(handleSnippets, '`')
 
   arrayLit = "array"
   boolLit = "bool"
