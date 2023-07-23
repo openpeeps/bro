@@ -55,14 +55,15 @@ newPrefixProc "parseFn":
       if fnNode.fnReturnType != ntVoid:
         walk p
       else: error(fnInvalidReturn, p.curr)
-    scope.add(fnScope) # add the pre-initialized ScopeTabke to seq[scope]
+    # add the pre-initialized ScopeTable to seq[scope]
+    scope.add(fnScope)
     # parse function body
     if p.curr.kind == tkAssign:
       if fn.line == p.curr.line:
         walk p
         let stmtNode = p.parseStatement((fn, fnNode), scope = scope,
-                              excludeOnly = {tkImport, tkUse, tkDotExpr},
-                              returnType = fnNode.fnReturnType, isFunctionWrap = true, skipInitScope = true)
+                            excludeOnly = {tkImport, tkUse, tkDotExpr},
+                            returnType = fnNode.fnReturnType, isFunctionWrap = true, skipInitScope = true)
         if likely(stmtNode != nil):
           fnNode.fnBody = stmtNode
           if unlikely(isFunctionWrap):
@@ -123,7 +124,7 @@ newPrefixProc "parseCallFnCommand":
     use(fn) # mark function as used
     # try get a memoized return
     let strargs = hashed($(args))
-    result = getMemoized(p.mCall, strargs)
+    result = memoized(p.mCall, strargs)
     if result == nil:
       # otherwise, create a new ntCallStack, then memoize it
       result = newFnCall(fn, args, fnIdentName, ident.value)

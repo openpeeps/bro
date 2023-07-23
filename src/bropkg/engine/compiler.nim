@@ -5,7 +5,7 @@
 #          https://github.com/openpeeps/bro
 
 import pkg/jsony
-import std/[tables, strutils, sequtils, json, algorithm, oids, terminal]
+import std/[tables, strutils, sequtils, json, critbits, algorithm, oids, terminal]
 import ./ast, ./sourcemap, ./eval
 
 type
@@ -110,7 +110,7 @@ proc getValue(c: var Compiler, val: Node, scope: ScopeTable): string =
   of ntColor:
     add result, val.cVal
   of ntVariable:
-    add result, c.getValue(val, nil)
+    add result, c.getValue(val, scope)
   of ntArray:
     add result, jsony.toJson(val.itemsVal)
   of ntObject:
@@ -242,7 +242,7 @@ proc getSelectorGroup(c: var Compiler, node: Node,
       else: discard
     add result, strCL # {
     i = 1
-    if length != 1 and c.sortPropsEnabled: node.properties.sort(system.cmp) # todo make it optional
+    # if length != 1 and c.sortPropsEnabled: node.properties.sort(system.cmp) # todo make it optional
     for propName, propNode in node.properties:
       add result, c.getProperty(propNode, propName, i, length, scope)
     add result, strCR # }

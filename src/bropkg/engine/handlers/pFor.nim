@@ -15,10 +15,10 @@ newPrefixProc "parseFor":
       if likely(itemsNode != nil and p.curr is tkColon):
         walk p # tkColon
         result = newForStmt(itemNode, itemsNode)
-        # if scope == nil:
-          # var scope = ScopeTable()
-        # scope[itemNode.varName] = itemNode
-        result.forBody = p.parseStatement((tk, result), scope, excludeOnly, includeOnly)
+        let forScope = ScopeTable()
+        forScope[itemNode.varName] = itemNode
+        scope.add(forScope) # add a pre-initialized ScopeTable to seq[ScopeTable]
+        result.forBody = p.parseStatement((tk, result), scope, excludeOnly, includeOnly, skipInitScope = true)
         if likely(result.forBody != nil):
           result.forBody.cleanup(itemNode.varName)
         else: return nil

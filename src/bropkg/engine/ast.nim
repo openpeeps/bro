@@ -4,7 +4,7 @@
 #          Made by Humans from OpenPeeps
 #          https://github.com/openpeeps/bro
 
-import std/[tables, strutils, json, sequtils, oids]
+import std/[tables, strutils, critbits, json, sequtils, oids]
 import ./stdlib
 from ./tokens import TokenKind, TokenTuple
 
@@ -58,7 +58,7 @@ type
     propRuleDefault
     propRuleImportant
 
-  KeyValueTable* = OrderedTable[string, Node]
+  KeyValueTable* = CritBitTree[Node]
 
   ColorType* = enum
     cNamed, cHex, cRGB, cRGBA, cHSL, cHSLA
@@ -135,7 +135,7 @@ type
       pRule*: PropertyRule
     of ntFunction:
       fnIdent*, fnName*: string
-      fnParams*: OrderedTable[string, ParamDef]
+      fnParams*: CritBitTree[ParamDef]
       fnBody*: Node          # ntStmtList
       fnReturnType*: NodeType
       fnUsed*, fnClosure*: bool

@@ -26,7 +26,7 @@ when not declared SomeFloat:
   type
     SomeFloat = SomeReal
 
-import endians, macros, strutils, streams
+import endians, macros, strutils, streams, critbits
 
 const pack_value_nil* = chr(0xc0)
 

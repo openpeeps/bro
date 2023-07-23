@@ -36,7 +36,7 @@ proc parseVarCall(p: var Parser, tk: TokenTuple, varName: string, scope: var seq
   let currentScope = p.getScope(varName, scope)
   let hashedVarName = hash(varName & $(currentScope.index))
   if currentScope.st != nil:
-    result = getMemoized(p.mVar, hashedVarName)
+    result = memoized(p.mVar, hashedVarName)
     if result == nil:
       result = newCall(varName, currentScope.st[varName])
       p.mVar.memoize(hashedVarName, result)
