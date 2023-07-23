@@ -9,8 +9,6 @@ import pkg/kapsis/[runtime, cli]
 import std/[times, os, strutils, net, osproc,
           options, asyncdispatch, htmlgen]
 
-import ../engine/[parser, compiler]
-
 var hasOutput: bool
 
 proc runCommand*(v: Values) =
