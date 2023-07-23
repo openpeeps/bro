@@ -103,7 +103,7 @@ proc parseProperties(p: var CSSParser, selector: Node) =
     while p.curr.kind notin {tkkSemiColon, tkkRC, tkkEOF}:
       # parse properyt values
       # todo, implement types
-      values.add(newValue(newString(p.curr.value)))
+      values.add(newString(p.curr.value))
       walk p
     if p.curr.kind == tkkSemiColon:
       walk p

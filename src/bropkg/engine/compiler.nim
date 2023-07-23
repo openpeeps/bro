@@ -36,10 +36,10 @@ proc getTypeInfo(node: Node): string =
         add result, "$1[$2]($3)" % [$(node.callNode.varValue.nt), "Mix", $(node.callNode.varValue.itemsVal.len)]
       of ntObject:
         add result, "$1($2)" % [$(node.callNode.varValue.nt), $(node.callNode.varValue.objectFields.len)]
-      of ntVarValue:
-        add result, "$1[$2]" % [$ntVariable, $(node.callNode.varValue.val.nt)]
       else:
-        discard
+        add result, "$1[$2]" % [$ntVariable, $(node.callNode.varValue.nt)]
+      # else:
+        # discard
     else:
       discard
   of ntString:
@@ -93,8 +93,8 @@ proc dumpHook*(s: var string, v: Node) =
     s.add($v.bVal)
   of ntColor:
     s.add($v.cVal)
-  of ntVarValue:
-    s.dumpHook(v.val)
+  of ntVariable:
+    s.dumpHook(v.varValue)
   else: discard
 
 proc getValue(c: var Compiler, val: Node, scope: ScopeTable): string =
@@ -109,8 +109,8 @@ proc getValue(c: var Compiler, val: Node, scope: ScopeTable): string =
     add result, $val.bVal
   of ntColor:
     add result, val.cVal
-  of ntVarValue:
-    add result, c.getValue(val.val, nil)
+  of ntVariable:
+    add result, c.getValue(val, nil)
   of ntArray:
     add result, jsony.toJson(val.itemsVal)
   of ntObject:
@@ -229,7 +229,7 @@ proc getSelectorGroup(c: var Compiler, node: Node,
         else:
           scopeVar = scope[idConcat.callNode.varName]
           var varValue = scopeVar.varValue
-          case varValue.val.nt
+          case varValue.nt
           of ntColor:
             # todo handle colors at parser level
             idConcat.callNode.varValue = varValue
@@ -277,16 +277,15 @@ proc handleCommand(c: var Compiler, node: Node, scope: ScopeTable = nil) =
       stdout.styledWriteLine(fgGreen, "Debug", fgDefault, meta, fgMagenta, getTypeInfo(node.cmdValue) & "\n", fgDefault, output)
 
 proc handleCallStack(c: var Compiler, node: Node, scope: ScopeTable): string =
-  var callable: Node
-  var stmtScope: ScopeTable
+  var
+    callable: Node
+    stmtScope: ScopeTable
   if scope != nil:
     if scope.hasKey(node.stackIdent):
       callable = scope[node.stackIdent]
   else:
     callable = c.program.stack[node.stackIdent]
-    stmtScope = callable.fnBody.stmtScope
-  # if callable.fnMemoized != nil:
-    # return callable.fnMemoized.str
+  stmtScope = callable.fnBody.stmtScope
   case callable.nt
   of ntFunction:
     var i = 0

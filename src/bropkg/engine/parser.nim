@@ -5,16 +5,16 @@
 #          https://github.com/openpeeps/bro
 
 import pkg/[stashtable, jsony]
-import std/[os, strutils, sequtils, critbits, sequtils, hashes,
-          tables, json, memfiles, times, oids, macros]
+import std/[os, strutils, sequtils, critbits, sequtils,
+          tables, json, memfiles, times, oids, macros, jsonutils]
 
 import ./tokens, ./ast, ./css, ./memoization, ./logging, ./stdlib, ./properties
 
 when compileOption("app", "console"):
   import pkg/kapsis/cli
 
-when not defined release:
-  import std/[jsonutils] 
+# when not defined release:
+  # import std/[jsonutils] 
 
 export logging
 
@@ -205,6 +205,9 @@ proc parseVarCall(p: var Parser, tk: TokenTuple, varName: string, scope: var seq
 when not defined release:
   proc `$`(node: Node): string = pretty(jsonutils.toJson(node), 2)
   proc `$`(program: Program): string = pretty(jsonutils.toJson(program), 2)
+else:
+  proc `$`(node: Node): string = $(jsonutils.toJson(node))
+  proc `$`(program: Program): string = $(jsonutils.toJson(program))  
 
 proc walk(p: var Parser, offset = 1) =
   var i = 0
@@ -279,21 +282,24 @@ proc localScope(scope: ScopeTable, node: Node) =
 
 proc stack(p: var Parser, node: Node, scope: var seq[ScopeTable]) =
   ## Stack `node` into local/global scope
-  if scope.len == 0:
-    p.globalScope(node)
+  if scope.len == 1:
+    localScope(scope[0], node)
   else:
     localScope(scope[^1], node)
 
-proc getScope*(p: var Parser, name: string, scopetables: var seq[ScopeTable]): ScopeTable =
+proc getScope(p: var Parser, name: string, scopetables: var seq[ScopeTable]): tuple[st: ScopeTable, index: int] =
+  ## Search through available `scopetables` and return
+  ## the `ScopeTable` together with its `index` number.
+  ## `index` is used by memoization module
   if scopetables.len > 0:
     for i in countdown(scopetables.high, scopetables.low):
       if scopetables[i].hasKey(name):
-        return scopetables[i]
+        return (scopetables[i], i)
   if p.program.stack.hasKey(name):
-    return p.program.stack
+    return (p.program.stack, 0)
 
-proc inScope*(p: var Parser, name: string, scopetables: var seq[ScopeTable]): bool =
-  result = p.getScope(name, scopetables) != nil
+proc inScope(p: var Parser, name: string, scopetables: var seq[ScopeTable]): bool =
+  result = p.getScope(name, scopetables).st != nil
 
 proc getLiteralType(p: var Parser): NodeType =
   result =
@@ -380,22 +386,22 @@ newPrefixProc "parseComment":
 proc getAssignableNode(p: var Parser, scope: var seq[ScopeTable]): Node =
   case p.curr.kind:
   of tkColor, tkNamedColors:
-    result = newValue(p.curr.value.newColor)
+    result = newColor(p.curr.value)
     walk p
   of tkString:
-    result = newValue(p.curr.value.newString)
+    result = newString(p.curr.value)
     walk p
   of tkInteger:
-    result = newValue(p.curr.value.newInt)
+    result = newInt(p.curr.value)
     walk p
   of tkBool:
-    result = newValue(p.curr.value.newBool)
+    result = newBool(p.curr.value)
     walk p
   of tkVarCall:
     result = p.parseCallCommand(scope)
   else:
     if p.curr.isColor:
-      result = newValue(p.curr.value.newColor)
+      result = newColor(p.curr.value)
       walk p
 
 # Variable Declaration & Assignments
@@ -682,14 +688,14 @@ proc parseProgram*(src: string): Parser =
     p.path = src.parentDir()
   var scope = newSeq[ScopeTable]()
   startParseProgram(src, scope)
-  # for k, v in p.program.stack:
-  #   # check for unused variables/functions
-  #   case v.nt:
-  #   of ntVariable:
-  #     if unlikely(v.varUsed == false):
-  #       p.logger.warn(DeclaredNotUsed, v.varMeta.line, v.varMeta.pos, true, k)
-  #   of ntFunction:
-  #     if unlikely(v.fnUsed == false):
-  #       p.logger.warn(DeclaredNotUsed, v.fnMeta.line, v.fnMeta.pos, true, v.fnName)
-  #   else: discard
+  for k, v in p.program.stack:
+    # check for unused variables/functions
+    case v.nt:
+    of ntVariable:
+      if unlikely(v.varUsed == false):
+        p.logger.warn(DeclaredNotUsed, v.varMeta.line, v.varMeta.pos, true, k)
+    of ntFunction:
+      if unlikely(v.fnUsed == false):
+        p.logger.warn(DeclaredNotUsed, v.fnMeta.line, v.fnMeta.pos, true, v.fnName)
+    else: discard
   result = p

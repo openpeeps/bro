@@ -32,14 +32,19 @@ newPrefixProc "parseReturnCommand":
       result = newReturn(node)
 
 proc parseVarCall(p: var Parser, tk: TokenTuple, varName: string, scope: var seq[ScopeTable], skipWalk = true): Node =
-  # Parse given identifier and return it as `ntCall` node
-  let scopeTable = p.getScope(varName, scope)
-  if scopeTable != nil:
-    return newCall(varName, scopeTable[varName])
+  # Parse given identifier and return it as `ntCall` node.
+  let currentScope = p.getScope(varName, scope)
+  let hashedVarName = hash(varName & $(currentScope.index))
+  if currentScope.st != nil:
+    result = getMemoized(p.mVar, hashedVarName)
+    if result == nil:
+      result = newCall(varName, currentScope.st[varName])
+      p.mVar.memoize(hashedVarName, result)
+    return result
   if likely(p.program.stack.hasKey(varName)):
     let gVal = p.program.stack[varName]
     case gVal.nt:
-    of ntVarValue: 
+    of ntVariable: 
       gVal.varUsed = true
     else: discard
     if not skipWalk:

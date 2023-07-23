@@ -17,7 +17,6 @@ type
     ntRoot
     ntProperty
     ntVariable = "Variable"
-    ntVarValue
     ntUniversalSelector
     ntAttrSelector
     ntClassSelector = "Class"
@@ -147,10 +146,7 @@ type
       varName*: string
       varValue*: Node
       varMeta*: Meta 
-      varUsed*, varImmutable*: bool
-    of ntVarValue:
-      val*: Node
-      used*: bool
+      varUsed*, varImmutable*, varArg*: bool
     of ntString:
       sVal*: string
     of ntInt:
@@ -289,9 +285,11 @@ proc getInfixOp*(kind: TokenKind, isInfixInfix: bool): InfixOp =
         result = OR
       else: discard
 
-proc call*(node: Node, scope: ScopeTable): Node = 
+proc call*(node: Node, scope: ScopeTable): Node =
   if node.callNode != nil:
-    return node.callNode.varValue.val
+    # if unlikely(node.callNode.varArg):
+      # return scope[node.callident].varValue
+    return node.callNode.varValue
   assert scope != nil
   result = scope[node.callIdent]
 
@@ -337,17 +335,12 @@ proc getNodeType*(node: Node): NodeType =
   result =
     case node.nt
     of ntCall:
-      case node.callNode.varValue.nt:
-      of ntVarValue:
-        node.callNode.varValue.val.nt
-      else:
-        node.callNode.varValue.nt
+      node.callNode.varValue.nt
     of ntInfix: ntBool
     of ntMathStmt: ntInt # todo ntInt or ntFloat
     of ntArray, ntObject, ntBool, ntString, ntInt, ntFloat: node.nt   # anonymous array
     of ntFunction: ntFunction
-    else:
-      node.val.nt
+    else: node.nt
 
 proc `$`(types: openarray[NodeType]): string =
   let t = types.map(proc(x: NodeType): string = $(x))
@@ -386,7 +379,7 @@ proc newBool*(bVal: string): Node =
 
 proc newColor*(cVal: string): Node =
   ## Create a new ntColor node
-  result = Node(nt: ntColor, cVal: cVal)
+  result = Node(nt: ntColor, cVal: cVal) 
 
 proc newSize*(size: int, unit: Units): Node =
   let lt = case unit:
@@ -394,8 +387,7 @@ proc newSize*(size: int, unit: Units): Node =
             else: ltAbsolute
   result = Node(nt: ntSize, sizeVal: size, sizeType: lt)
 
-proc newInfo*(node: Node): Node =
-  result = Node(nt: ntInfo, nodeType: node.getNodeType)
+proc newInfo*(node: Node): Node = Node(nt: ntInfo, nodeType: node.getNodeType)
 
 # proc newJson*(jsonVal: JsonNode): Node =
 #   ## Create a new ntJsonValue node
@@ -411,26 +403,19 @@ proc newStream*(src: string): Node =
   except JsonParsingError:
     echo "internal error"
 
-proc newStream*(jsonNode: JsonNode): Node =
-  ## Create a new Stream node from `jsonNode`
-  result = Node(nt: ntStream, streamContent: jsonNode)
-
-proc newObject*(): Node =
-  ## Create a new ntObject node
-  result = Node(nt: ntObject)
-
-proc newArray*(): Node =
-  ## Create a new ntArray node
-  result = Node(nt: ntArray)
+proc newStream*(jsonNode: JsonNode): Node = Node(nt: ntStream, streamContent: jsonNode) ## Create a new Stream node from `jsonNode`
+proc newObject*(): Node = Node(nt: ntObject) ## Create a new ntObject node
+proc newArray*(): Node = Node(nt: ntArray) ## Create a new ntArray node
 
 proc newCall*(ident: string, node: Node): Node =
   ## Create a new ntCall node
   # assert node.nt in {ntVariable, ntJsonValue}
-  result = Node(nt: ntCall, callIdent: ident, callOid: genOid(), callNode: node)
+  Node(nt: ntCall, callIdent: ident, callOid: genOid(), callNode: node)
 
 proc newFnCall*[N: Node](node: N, args: seq[N], ident, name: string): Node =
-  result = Node(nt: ntCallStack, stackArgs: args, stackOid: genOid(), stackIdent: ident,
-                stackIdentName: name, stackReturnType: node.fnReturnType)
+  Node(nt: ntCallStack, stackArgs: args, stackOid: genOid(),
+        stackIdent: ident, stackIdentName: name,
+        stackReturnType: node.fnReturnType)
 
 proc newInfix*(infixLeft, infixRight: Node, infixOp: InfixOp): Node =
   ## Create a new ntInfix node
@@ -452,23 +437,14 @@ proc newImport*: Node =
   ## Create a new `ntImport` node
   result = Node(nt: ntImport)
 
-proc newVariable*(varName: string, varValue: Node, tk: TokenTuple): Node =
+proc newVariable*(varName: string, varValue: Node, tk: TokenTuple, isImmutable, isArg = false): Node =
   ## Create a new `ntVariable` (declaration) node
-  result = Node(nt: ntVariable, varName: varName, varValue: varValue, varMeta: (tk.line, tk.pos))
+  result = Node(nt: ntVariable, varName: varName, varValue: varValue,
+                varImmutable: isImmutable, varArg: isArg, varMeta: (tk.line, tk.pos))
 
 proc newVariable*(tk: TokenTuple): Node =
   ## Create a new `ntVariable` (declaration) node
   result = Node(nt: ntVariable, varName: tk.value, varMeta: (tk.line, tk.pos))
-
-proc newValue*(val: Node): Node =
-  ## Create a new ntVarValue node
-  assert val.nt in {ntColor, ntString, ntInt, ntBool, ntFloat, ntCall}
-  result = Node(nt: ntVarValue, val: val)
-
-proc newValue*(tk: TokenTuple, valNode: Node): Node =
-  ## Create a new ntVarValue node
-  assert valNode.nt in {ntColor, ntString, ntInt, ntBool, ntFloat, ntCall}
-  result = Node(nt: ntVarValue, val: valNode)
 
 proc newComment*(str: string): Node =
   ## Create a new ntComment node
@@ -574,8 +550,8 @@ proc newTag*(name: string, properties = KeyValueTable(), multipleSelectors = @["
 
 proc newVariable*(style: Program, name: string, value: Node) =
   ## Create a new variable node
-  style.add Node(nt: ntVariable, varName: name, varValue: newValue(value))
+  style.add Node(nt: ntVariable, varName: name, varValue: value)
 
 proc newVariable*(style: Program, name: string, value: string) =
   ## Create a new variable node
-  style.add Node(nt: ntVariable, varName: name, varValue: newValue(newString(value)))
+  style.add Node(nt: ntVariable, varName: name, varValue: newString(value))

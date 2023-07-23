@@ -41,7 +41,7 @@ newPrefixProc "parseStreamAssignment":
     # get file path from a variable
     let call = p.parseCallCommand(scope)
     if call != nil:
-      fpath = call.varValue.val.sVal
+      fpath = call.varValue.sVal
   else: return
   result = newStream(normalizedPath(p.filePath.parentDir / fpath))
 

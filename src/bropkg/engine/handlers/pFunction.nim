@@ -28,8 +28,9 @@ newPrefixProc "parseFn":
             # Set type for current argument
             let nTyped = p.getLiteralType()
             fnNode.fnParams["$" & pName.value] = ("$" & pName.value, nTyped, nil)
-            fnScope["$" & pName.value] = newVariable("$" & pName.value, newValue(Node(nt: nTyped)), pName)
-            fnScope["$" & pName.value].varImmutable = true
+            fnScope["$" & pName.value] =
+              newVariable("$" & pName.value, Node(nt: nTyped),
+                          tk = pName, isImmutable = true, isArg = true)
             types.add(nTyped)
             walk p
             # todo support default assignments
@@ -54,10 +55,7 @@ newPrefixProc "parseFn":
       if fnNode.fnReturnType != ntVoid:
         walk p
       else: error(fnInvalidReturn, p.curr)
-    
-    # add pre initialized scope to scope var
-    scope.add(fnScope)
-
+    scope.add(fnScope) # add the pre-initialized ScopeTabke to seq[scope]
     # parse function body
     if p.curr.kind == tkAssign:
       if fn.line == p.curr.line:
@@ -69,7 +67,7 @@ newPrefixProc "parseFn":
           fnNode.fnBody = stmtNode
           if unlikely(isFunctionWrap):
             fnNode.fnClosure = true
-            scope[^1].localScope(fnNode)
+            scope[^2].localScope(fnNode)
           else:
             p.globalScope(fnNode)
         else: return nil
@@ -79,7 +77,9 @@ newPrefixProc "parseFn":
 newPrefixProc "parseCallFnCommand":
   # Parse function calls with or without arguments,
   # looking for the following pattern: 
-  # `fn myfn($a: string, $b: Int = 0): string =`
+  # ```bass
+  # fn myfn($a: string, $b: Int = 0): string =
+  # ```
   let ident = p.curr
   walk p, 2 # (
   var
@@ -87,15 +87,20 @@ newPrefixProc "parseCallFnCommand":
     types: seq[NodeType]
   while p.curr isnot tkRPAR:
     if unlikely(p.curr is tkEOF): return
-    let arg = p.getPrefixOrInfix(scope, excludeOnly = {
-                    tkEcho, tkReturn, tkVarDef, tkFnDef})
-    if arg != nil:
+    let arg = p.getPrefixOrInfix(scope, excludeOnly = {tkEcho, tkReturn, tkVarDef, tkFnDef})
+    if likely(arg != nil):
       add args, arg
-      add types, arg.nt
+      case arg.nt:
+      of ntCall:
+        add types, arg.callNode.varValue.nt # todo is this nil safe?
+      else:
+        add types, arg.nt
     else: return
     if p.curr is tkComma:
       walk p
   walk p # )
+
+  # now try identify the function call
   var fn: Node
   let fnIdentName = identify(ident.value, types)
   if p.program.stack.hasKey(fnIdentName):
@@ -110,18 +115,18 @@ newPrefixProc "parseCallFnCommand":
     for pKey, pDef in fn.fnParams:
       try:
         if likely(args[i].getNodeType == pDef[1]):
-          use(args[i])
-        else: errorWithArgs(fnMismatchParam, ident,
-                              [pDef[0], $(args[i].getNodeType), $(pDef[1])])
+          use(args[i]) # mark argument as used
+        else: errorWithArgs(fnMismatchParam, ident, [pDef[0], $(args[i].getNodeType), $(pDef[1])])
       except IndexDefect:
         error(fnExtraArg, ident)
       inc i 
-    use fn
-    let strargs = jsony.toJson(args)
+    use(fn) # mark function as used
+    # try get a memoized return
+    let strargs = hashed($(args))
     result = getMemoized(p.mCall, strargs)
     if result == nil:
+      # otherwise, create a new ntCallStack, then memoize it
       result = newFnCall(fn, args, fnIdentName, ident.value)
       p.mCall.memoize(strargs, result)
   else:
-    errorWithArgs(fnExtraArg, ident,
-        [ident.value, $len(fn.fnParams), $len(args)])
+    errorWithArgs(fnExtraArg, ident, [ident.value, $len(fn.fnParams), $len(args)])
