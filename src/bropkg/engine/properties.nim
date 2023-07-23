@@ -11,7 +11,7 @@
 ##          Made by Humans from OpenPeep
 ##          https://github.com/openpeep/bro
 import
-  std / tables
+  std / [tables, critbits]
 
 type
   Separator* = enum
@@ -22,29 +22,28 @@ type
   Property* = ref object
     status: Status
     longhands: seq[string]
-    values: TableRef[string, Status]
+    values: CritBitTree[Status]
     url: string
 
-  PropertiesTable* = TableRef[string, Property]
+  PropertiesTable* = CritBitTree[Property]
 
 proc hasStrictValue*(prop: Property; key: string): tuple[
     exists: bool, status: Status] =
-  if prop.values != nil:
-    if prop.values.hasKey(key):
-      result.exists = true
-      result.status = prop.values[key]
+  if prop.values.contains(key):
+    result.exists = true
+    result.status = prop.values[key]
 
 proc initPropsTable*(): PropertiesTable =
-  result = newTable[string, Property]()
+  # result = toCritBitTree[string, Property]()
   ## 
   ## Property `accent-color`
   ## 
   result["accent-color"] = Property(url: "https://www.w3.org/TR/css-ui-4/#widget-accent",
-                                        values: newTable({"auto": Implemented}))
+                                        values: toCritBitTree({"auto": Implemented}))
   ## 
   ## Property `align-tracks`
   ## 
-  result["align-tracks"] = Property(url: "https://drafts.csswg.org/css-grid-3/#tracks-alignment", values: newTable({
+  result["align-tracks"] = Property(url: "https://drafts.csswg.org/css-grid-3/#tracks-alignment", values: toCritBitTree({
       "normal": Implemented, "first": Implemented, "last": Implemented,
       "baseline": Implemented, "space-between": Implemented,
       "space-around": Implemented, "space-evenly": Implemented,
@@ -55,7 +54,7 @@ proc initPropsTable*(): PropertiesTable =
   ## Property `caret-color`
   ## 
   result["caret-color"] = Property(url: "https://drafts.csswg.org/css-ui-3/#propdef-caret-color",
-                                       values: newTable({"auto": Implemented}))
+                                       values: toCritBitTree({"auto": Implemented}))
   ## 
   ## Property `color`
   ## 
@@ -63,12 +62,12 @@ proc initPropsTable*(): PropertiesTable =
   ## 
   ## Property `direction`
   ## 
-  result["direction"] = Property(url: "https://www.w3.org/TR/css-writing-modes-3/#propdef-direction", values: newTable(
+  result["direction"] = Property(url: "https://www.w3.org/TR/css-writing-modes-3/#propdef-direction", values: toCritBitTree(
       {"ltr": Implemented, "rtl": Implemented}))
   ## 
   ## Property `display`
   ## 
-  result["display"] = Property(url: "https://www.w3.org/TR/css-display-3/#the-display-properties", values: newTable({
+  result["display"] = Property(url: "https://www.w3.org/TR/css-display-3/#the-display-properties", values: toCritBitTree({
       "inline": Implemented, "block": Implemented, "flow": Implemented,
       "flow-root": Implemented, "list-item": Implemented,
       "inline-block": Implemented, "table": Implemented,
@@ -87,7 +86,7 @@ proc initPropsTable*(): PropertiesTable =
   ## 
   ## Property `font-family`
   ## 
-  result["font-family"] = Property(url: "https://www.w3.org/TR/css-fonts-3/#font-family-prop", values: newTable({
+  result["font-family"] = Property(url: "https://www.w3.org/TR/css-fonts-3/#font-family-prop", values: toCritBitTree({
       "serif": Implemented, "sans-serif": Implemented, "cursive": Implemented,
       "fantasy": Implemented, "monospace": Implemented,
       "system-ui": Unimplemented, "emoji": Unimplemented, "math": Unimplemented,
@@ -97,7 +96,7 @@ proc initPropsTable*(): PropertiesTable =
   ## 
   ## Property `font-size`
   ## 
-  result["font-size"] = Property(url: "https://www.w3.org/TR/css-fonts-3/#font-size-prop", values: newTable({
+  result["font-size"] = Property(url: "https://www.w3.org/TR/css-fonts-3/#font-size-prop", values: toCritBitTree({
       "x-small": Implemented, "xx-small": Implemented, "small": Implemented,
       "medium": Implemented, "large": Implemented, "x-large": Implemented,
       "xx-large": Implemented, "xxx-large": Implemented, "smaller": Implemented,
@@ -108,22 +107,22 @@ proc initPropsTable*(): PropertiesTable =
   ## 
   result["font-size-adjust"] = Property(
       url: "https://www.w3.org/TR/css-fonts-4/#font-size-adjust-prop",
-      values: newTable({"none": Implemented}))
+      values: toCritBitTree({"none": Implemented}))
   ## 
   ## Property `font-style`
   ## 
-  result["font-style"] = Property(url: "https://www.w3.org/TR/css-fonts-4/#font-style-prop", values: newTable(
+  result["font-style"] = Property(url: "https://www.w3.org/TR/css-fonts-4/#font-style-prop", values: toCritBitTree(
       {"normal": Implemented, "italic": Implemented, "oblique": Implemented}))
   ## 
   ## Property `font-weight`
   ## 
-  result["font-weight"] = Property(url: "https://www.w3.org/TR/css-fonts-4/#font-weight-prop", values: newTable({
+  result["font-weight"] = Property(url: "https://www.w3.org/TR/css-fonts-4/#font-weight-prop", values: toCritBitTree({
       "normal": Implemented, "bold": Implemented, "bolder": Implemented,
       "lighter": Implemented}))
   ## 
   ## Property `font-stretch`
   ## 
-  result["font-stretch"] = Property(url: "https://www.w3.org/TR/css-fonts-4/#font-stretch-prop", values: newTable({
+  result["font-stretch"] = Property(url: "https://www.w3.org/TR/css-fonts-4/#font-stretch-prop", values: toCritBitTree({
       "normal": Implemented, "ultra-condensed": Implemented,
       "extra-condensed": Implemented, "condensed": Implemented,
       "semi-condensed": Implemented, "semi-expanded": Implemented,
@@ -132,14 +131,14 @@ proc initPropsTable*(): PropertiesTable =
   ## 
   ## Property `text-edge`
   ## 
-  result["text-edge"] = Property(url: "https://www.w3.org/TR/css-inline-3/#text-edges", values: newTable({
+  result["text-edge"] = Property(url: "https://www.w3.org/TR/css-inline-3/#text-edges", values: toCritBitTree({
       "leading": Implemented, "text": Implemented, "ex": Implemented,
       "ideographic": Implemented, "ideographic-ink": Implemented,
       "alphabetic": Implemented, "cap": Implemented}))
   ## 
   ## Property `text-rendering`
   ## 
-  result["text-rendering"] = Property(url: "https://www.w3.org/TR/SVG11/painting.html#TextRenderingProperty", values: newTable({
+  result["text-rendering"] = Property(url: "https://www.w3.org/TR/SVG11/painting.html#TextRenderingProperty", values: toCritBitTree({
       "auto": Implemented, "optimizeSpeed": Implemented,
       "optimizeLegibility": Implemented, "geometricPrecision": Implemented}))
   ## 
@@ -147,17 +146,17 @@ proc initPropsTable*(): PropertiesTable =
   ## 
   result["font-feature-settings"] = Property(
       url: "https://drafts.csswg.org/css-fonts-4/#propdef-font-feature-settings",
-      values: newTable({"normal": Implemented}))
+      values: toCritBitTree({"normal": Implemented}))
   ## 
   ## Property `font-variation-settings`
   ## 
   result["font-variation-settings"] = Property(
       url: "https://drafts.csswg.org/css-fonts-4/#font-variation-settings-def",
-      values: newTable({"normal": Implemented}))
+      values: toCritBitTree({"normal": Implemented}))
   ## 
   ## Property `font-kerning`
   ## 
-  result["font-kerning"] = Property(url: "https://drafts.csswg.org/css-fonts-4/#font-kerning-prop", values: newTable(
+  result["font-kerning"] = Property(url: "https://drafts.csswg.org/css-fonts-4/#font-kerning-prop", values: toCritBitTree(
       {"auto": Implemented, "normal": Implemented, "none": Implemented}))
   ## 
   ## Property `font-palette`
@@ -166,14 +165,14 @@ proc initPropsTable*(): PropertiesTable =
   ## 
   ## Property `-webkit-font-smoothing`
   ## 
-  result["-webkit-font-smoothing"] = Property(values: newTable({
+  result["-webkit-font-smoothing"] = Property(values: toCritBitTree({
       "auto": Implemented, "none": Implemented, "antialiased": Implemented,
       "subpixel-antialiased": Implemented}))
   ## 
   ## Property `font-variant-ligatures`
   ## 
   result["font-variant-ligatures"] = Property(
-      url: "https://drafts.csswg.org/css-fonts-4/#font-variant-ligatures-prop", values: newTable({
+      url: "https://drafts.csswg.org/css-fonts-4/#font-variant-ligatures-prop", values: toCritBitTree({
       "normal": Implemented, "none": Implemented, "common-ligatures": Implemented,
       "no-common-ligatures": Implemented, "discretionary-ligatures": Implemented,
       "no-discretionary-ligatures": Implemented,
@@ -183,13 +182,13 @@ proc initPropsTable*(): PropertiesTable =
   ## Property `font-variant-position`
   ## 
   result["font-variant-position"] = Property(
-      url: "https://drafts.csswg.org/css-fonts-3/#propdef-font-variant-position", values: newTable(
+      url: "https://drafts.csswg.org/css-fonts-3/#propdef-font-variant-position", values: toCritBitTree(
       {"normal": Implemented, "sub": Implemented, "super": Implemented}))
   ## 
   ## Property `font-variant-caps`
   ## 
   result["font-variant-caps"] = Property(
-      url: "https://drafts.csswg.org/css-fonts-3/#font-variant-caps-prop", values: newTable({
+      url: "https://drafts.csswg.org/css-fonts-3/#font-variant-caps-prop", values: toCritBitTree({
       "normal": Implemented, "small-caps": Implemented,
       "all-small-caps": Implemented, "petite-caps": Implemented,
       "all-petite-caps": Implemented, "unicase": Implemented,
@@ -198,7 +197,7 @@ proc initPropsTable*(): PropertiesTable =
   ## Property `font-variant-numeric`
   ## 
   result["font-variant-numeric"] = Property(
-      url: "https://drafts.csswg.org/css-fonts-3/#font-variant-numeric-prop", values: newTable({
+      url: "https://drafts.csswg.org/css-fonts-3/#font-variant-numeric-prop", values: toCritBitTree({
       "normal": Implemented, "lining-nums": Implemented,
       "oldstyle-nums": Implemented, "proportional-nums": Implemented,
       "tabular-nums": Implemented, "diagonal-fractions": Implemented,
@@ -213,7 +212,7 @@ proc initPropsTable*(): PropertiesTable =
   ## Property `font-variant-east-asian`
   ## 
   result["font-variant-east-asian"] = Property(
-      url: "https://drafts.csswg.org/css-fonts-4/#font-variant-east-asian-prop", values: newTable({
+      url: "https://drafts.csswg.org/css-fonts-4/#font-variant-east-asian-prop", values: toCritBitTree({
       "normal": Implemented, "jis78": Implemented, "jis83": Implemented,
       "jis90": Implemented, "jis04": Implemented, "simplified": Implemented,
       "traditional": Implemented, "diagonal-fractions": Implemented,
@@ -228,25 +227,25 @@ proc initPropsTable*(): PropertiesTable =
   ## 
   result["font-synthesis-weight"] = Property(
       url: "https://drafts.csswg.org/css-fonts-4/#font-synthesis-weight",
-      values: newTable({"auto": Implemented, "none": Implemented}))
+      values: toCritBitTree({"auto": Implemented, "none": Implemented}))
   ## 
   ## Property `font-synthesis-style`
   ## 
   result["font-synthesis-style"] = Property(
       url: "https://drafts.csswg.org/css-fonts-4/#font-synthesis-style",
-      values: newTable({"auto": Implemented, "none": Implemented}))
+      values: toCritBitTree({"auto": Implemented, "none": Implemented}))
   ## 
   ## Property `font-synthesis-small-caps`
   ## 
   result["font-synthesis-small-caps"] = Property(
       url: "https://drafts.csswg.org/css-fonts-4/#font-synthesis-small-caps",
-      values: newTable({"auto": Implemented, "none": Implemented}))
+      values: toCritBitTree({"auto": Implemented, "none": Implemented}))
   ## 
   ## Property `font-optical-sizing`
   ## 
   result["font-optical-sizing"] = Property(
       url: "https://drafts.csswg.org/css-fonts-4/#font-optical-sizing-def",
-      values: newTable({"auto": Implemented, "none": Implemented}))
+      values: toCritBitTree({"auto": Implemented, "none": Implemented}))
   ## 
   ## Property `font`
   ## 
@@ -265,7 +264,7 @@ proc initPropsTable*(): PropertiesTable =
   ## 
   ## Property `justify-tracks`
   ## 
-  result["justify-tracks"] = Property(url: "https://drafts.csswg.org/css-grid-3/#tracks-alignment", values: newTable({
+  result["justify-tracks"] = Property(url: "https://drafts.csswg.org/css-grid-3/#tracks-alignment", values: toCritBitTree({
       "normal": Implemented, "space-between": Implemented,
       "space-around": Implemented, "space-evenly": Implemented,
       "stretch": Implemented, "unsafe": Implemented, "safe": Implemented,
@@ -280,14 +279,14 @@ proc initPropsTable*(): PropertiesTable =
   ## Property `text-orientation`
   ## 
   result["text-orientation"] = Property(
-      url: "https://www.w3.org/TR/css-writing-modes-3/#text-orientation", values: newTable(
+      url: "https://www.w3.org/TR/css-writing-modes-3/#text-orientation", values: toCritBitTree(
       {"sideways": Implemented, "mixed": Implemented, "upright": Implemented}))
   ## 
   ## Property `-webkit-text-orientation`
   ## 
   result["-webkit-text-orientation"] = Property(
       url: "https://www.w3.org/TR/css-writing-modes-3/#text-orientation",
-      longhands: @["text-orientation"], values: newTable({"sideways": Implemented,
+      longhands: @["text-orientation"], values: toCritBitTree({"sideways": Implemented,
       "sideways-right": Deprecated, "mixed": Implemented, "upright": Implemented}))
   ## 
   ## Property `-webkit-text-size-adjust`
@@ -297,16 +296,16 @@ proc initPropsTable*(): PropertiesTable =
   ## Property `text-spacing-trim`
   ## 
   result["text-spacing-trim"] = Property(
-      values: newTable({"auto": Implemented, "space-all": Implemented}))
+      values: toCritBitTree({"auto": Implemented, "space-all": Implemented}))
   ## 
   ## Property `text-autospace`
   ## 
-  result["text-autospace"] = Property(values: newTable(
+  result["text-autospace"] = Property(values: toCritBitTree(
       {"auto": Implemented, "no-autospace": Implemented}))
   ## 
   ## Property `writing-mode`
   ## 
-  result["writing-mode"] = Property(values: newTable({
+  result["writing-mode"] = Property(values: toCritBitTree({
       "horizontal-tb": Implemented, "vertical-lr": Implemented,
       "vertical-rl": Implemented, "sideways-lr": Unimplemented,
       "sideways-rl": Unimplemented, "lr-tb": Deprecated, "rl-tb": Deprecated,
@@ -316,24 +315,24 @@ proc initPropsTable*(): PropertiesTable =
   ## Property `-webkit-text-zoom`
   ## 
   result["-webkit-text-zoom"] = Property(
-      values: newTable({"normal": Implemented, "reset": Implemented}))
+      values: toCritBitTree({"normal": Implemented, "reset": Implemented}))
   ## 
   ## Property `zoom`
   ## 
-  result["zoom"] = Property(url: "https://msdn.microsoft.com/en-us/library/ms531189(v=vs.85).aspx", values: newTable(
+  result["zoom"] = Property(url: "https://msdn.microsoft.com/en-us/library/ms531189(v=vs.85).aspx", values: toCritBitTree(
       {"normal": Implemented, "reset": Implemented, "document": Implemented}))
   ## 
   ## Property `-webkit-ruby-position`
   ## 
   result["-webkit-ruby-position"] = Property(
-      url: "https://www.w3.org/TR/css-ruby-1/#rubypos", values: newTable({
+      url: "https://www.w3.org/TR/css-ruby-1/#rubypos", values: toCritBitTree({
       "before": Deprecated, "after": Deprecated, "inter-character": Implemented,
       "over": Unimplemented, "under": Unimplemented}))
   ## 
   ## Property `alignment-baseline`
   ## 
   result["alignment-baseline"] = Property(
-      url: "https://www.w3.org/TR/SVG11/text.html#AlignmentBaselineProperty", values: newTable({
+      url: "https://www.w3.org/TR/SVG11/text.html#AlignmentBaselineProperty", values: toCritBitTree({
       "auto": Implemented, "baseline": Implemented, "before-edge": Implemented,
       "text-before-edge": Implemented, "middle": Implemented,
       "central": Implemented, "after-edge": Implemented,
@@ -356,7 +355,7 @@ proc initPropsTable*(): PropertiesTable =
   ## Property `animation-composition`
   ## 
   result["animation-composition"] = Property(
-      url: "https://drafts.csswg.org/css-animations-2/#animation-composition", values: newTable(
+      url: "https://drafts.csswg.org/css-animations-2/#animation-composition", values: toCritBitTree(
       {"add": Implemented, "accumulate": Implemented, "replace": Implemented}))
   ## 
   ## Property `animation-delay`
@@ -367,7 +366,7 @@ proc initPropsTable*(): PropertiesTable =
   ## Property `animation-direction`
   ## 
   result["animation-direction"] = Property(
-      url: "https://www.w3.org/TR/css3-animations/#animation-direction-property", values: newTable({
+      url: "https://www.w3.org/TR/css3-animations/#animation-direction-property", values: toCritBitTree({
       "normal": Implemented, "reverse": Implemented, "alternate": Implemented,
       "alternate-reverse": Implemented}))
   ## 
@@ -379,7 +378,7 @@ proc initPropsTable*(): PropertiesTable =
   ## Property `animation-fill-mode`
   ## 
   result["animation-fill-mode"] = Property(
-      url: "https://www.w3.org/TR/css3-animations/#animation-fill-mode-property", values: newTable({
+      url: "https://www.w3.org/TR/css3-animations/#animation-fill-mode-property", values: toCritBitTree({
       "none": Implemented, "forwards": Implemented, "backwards": Implemented,
       "both": Implemented}))
   ## 
@@ -394,7 +393,7 @@ proc initPropsTable*(): PropertiesTable =
   ## Property `animation-play-state`
   ## 
   result["animation-play-state"] = Property(url: "https://www.w3.org/TR/css3-animations/#animation-play-state-property",
-      values: newTable({"running": Implemented, "paused": Implemented}))
+      values: toCritBitTree({"running": Implemented, "paused": Implemented}))
   ## 
   ## Property `animation-timing-function`
   ## 
@@ -410,13 +409,13 @@ proc initPropsTable*(): PropertiesTable =
   ## Property `background-attachment`
   ## 
   result["background-attachment"] = Property(
-      url: "https://www.w3.org/TR/css3-background/#the-background-attachment", values: newTable(
+      url: "https://www.w3.org/TR/css3-background/#the-background-attachment", values: toCritBitTree(
       {"scroll": Implemented, "fixed": Implemented, "local": Implemented}))
   ## 
   ## Property `background-blend-mode`
   ## 
   result["background-blend-mode"] = Property(
-      url: "https://www.w3.org/TR/compositing-1/#background-blend-mode", values: newTable({
+      url: "https://www.w3.org/TR/compositing-1/#background-blend-mode", values: toCritBitTree({
       "normal": Implemented, "multiply": Implemented, "screen": Implemented,
       "overlay": Implemented, "darken": Implemented, "lighten": Implemented,
       "color-dodge": Implemented, "color-burn": Implemented,
@@ -428,7 +427,7 @@ proc initPropsTable*(): PropertiesTable =
   ## Property `background-clip`
   ## 
   result["background-clip"] = Property(
-      url: "https://www.w3.org/TR/css3-background/#the-background-clip", values: newTable({
+      url: "https://www.w3.org/TR/css3-background/#the-background-clip", values: toCritBitTree({
       "border-box": Implemented, "padding-box": Implemented,
       "content-box": Implemented, "border": Unimplemented, "text": Implemented,
       "-webkit-text": NonStandard}))
@@ -474,7 +473,7 @@ proc initPropsTable*(): PropertiesTable =
   ## 
   ## Property `baseline-shift`
   ## 
-  result["baseline-shift"] = Property(url: "https://www.w3.org/TR/SVG11/text.html#BaselineShiftProperty", values: newTable(
+  result["baseline-shift"] = Property(url: "https://www.w3.org/TR/SVG11/text.html#BaselineShiftProperty", values: toCritBitTree(
       {"baseline": Implemented, "sub": Implemented, "super": Implemented}))
   ## 
   ## Property `block-size`
@@ -518,7 +517,7 @@ proc initPropsTable*(): PropertiesTable =
   ## Property `border-block-end-style`
   ## 
   result["border-block-end-style"] = Property(
-      url: "https://www.w3.org/TR/css-logical/#border-style", values: newTable({
+      url: "https://www.w3.org/TR/css-logical/#border-style", values: toCritBitTree({
       "none": Implemented, "hidden": Implemented, "inset": Implemented,
       "groove": Implemented, "outset": Implemented, "ridge": Implemented,
       "dotted": Implemented, "dashed": Implemented, "solid": Implemented,
@@ -527,7 +526,7 @@ proc initPropsTable*(): PropertiesTable =
   ## Property `border-block-end-width`
   ## 
   result["border-block-end-width"] = Property(
-      url: "https://www.w3.org/TR/css-logical/#border-width", values: newTable(
+      url: "https://www.w3.org/TR/css-logical/#border-width", values: toCritBitTree(
       {"thin": Implemented, "medium": Implemented, "thick": Implemented}))
   ## 
   ## Property `border-block-start`
@@ -545,7 +544,7 @@ proc initPropsTable*(): PropertiesTable =
   ## Property `border-block-start-style`
   ## 
   result["border-block-start-style"] = Property(
-      url: "https://www.w3.org/TR/css-logical/#border-style", values: newTable({
+      url: "https://www.w3.org/TR/css-logical/#border-style", values: toCritBitTree({
       "none": Implemented, "hidden": Implemented, "inset": Implemented,
       "groove": Implemented, "outset": Implemented, "ridge": Implemented,
       "dotted": Implemented, "dashed": Implemented, "solid": Implemented,
@@ -554,7 +553,7 @@ proc initPropsTable*(): PropertiesTable =
   ## Property `border-block-start-width`
   ## 
   result["border-block-start-width"] = Property(
-      url: "https://www.w3.org/TR/css-logical/#border-width", values: newTable(
+      url: "https://www.w3.org/TR/css-logical/#border-width", values: toCritBitTree(
       {"thin": Implemented, "medium": Implemented, "thick": Implemented}))
   ## 
   ## Property `border-block-style`
@@ -592,7 +591,7 @@ proc initPropsTable*(): PropertiesTable =
   ## Property `border-bottom-style`
   ## 
   result["border-bottom-style"] = Property(
-      url: "https://www.w3.org/TR/css3-background/#the-border-style", values: newTable({
+      url: "https://www.w3.org/TR/css3-background/#the-border-style", values: toCritBitTree({
       "none": Implemented, "hidden": Implemented, "inset": Implemented,
       "groove": Implemented, "outset": Implemented, "ridge": Implemented,
       "dotted": Implemented, "dashed": Implemented, "solid": Implemented,
@@ -601,14 +600,14 @@ proc initPropsTable*(): PropertiesTable =
   ## Property `border-bottom-width`
   ## 
   result["border-bottom-width"] = Property(
-      url: "https://www.w3.org/TR/css3-background/#the-border-width", values: newTable(
+      url: "https://www.w3.org/TR/css3-background/#the-border-width", values: toCritBitTree(
       {"thin": Implemented, "medium": Implemented, "thick": Implemented}))
   ## 
   ## Property `border-collapse`
   ## 
   result["border-collapse"] = Property(
       url: "https://www.w3.org/TR/CSS22/tables.html#borders",
-      values: newTable({"collapse": Implemented, "separate": Implemented}))
+      values: toCritBitTree({"collapse": Implemented, "separate": Implemented}))
   ## 
   ## Property `border-color`
   ## 
@@ -640,7 +639,7 @@ proc initPropsTable*(): PropertiesTable =
   ## Property `border-image-repeat`
   ## 
   result["border-image-repeat"] = Property(
-      url: "https://www.w3.org/TR/css3-background/#the-border-image-repeat", values: newTable({
+      url: "https://www.w3.org/TR/css3-background/#the-border-image-repeat", values: toCritBitTree({
       "stretch": Implemented, "repeat": Implemented, "round": Implemented,
       "space": Implemented}))
   ## 
@@ -648,19 +647,19 @@ proc initPropsTable*(): PropertiesTable =
   ## 
   result["border-image-slice"] = Property(
       url: "https://www.w3.org/TR/css3-background/#the-border-image-slice",
-      values: newTable({"fill": Implemented}))
+      values: toCritBitTree({"fill": Implemented}))
   ## 
   ## Property `border-image-source`
   ## 
   result["border-image-source"] = Property(
       url: "https://www.w3.org/TR/css3-background/#the-border-image-source",
-      values: newTable({"none": Implemented}))
+      values: toCritBitTree({"none": Implemented}))
   ## 
   ## Property `border-image-width`
   ## 
   result["border-image-width"] = Property(
       url: "https://www.w3.org/TR/css3-background/#the-border-image-width",
-      values: newTable({"auto": Implemented}))
+      values: toCritBitTree({"auto": Implemented}))
   ## 
   ## Property `border-inline`
   ## 
@@ -690,7 +689,7 @@ proc initPropsTable*(): PropertiesTable =
   ## Property `border-inline-end-style`
   ## 
   result["border-inline-end-style"] = Property(
-      url: "https://www.w3.org/TR/css-logical/#border-style", values: newTable({
+      url: "https://www.w3.org/TR/css-logical/#border-style", values: toCritBitTree({
       "none": Implemented, "hidden": Implemented, "inset": Implemented,
       "groove": Implemented, "outset": Implemented, "ridge": Implemented,
       "dotted": Implemented, "dashed": Implemented, "solid": Implemented,
@@ -699,7 +698,7 @@ proc initPropsTable*(): PropertiesTable =
   ## Property `border-inline-end-width`
   ## 
   result["border-inline-end-width"] = Property(
-      url: "https://www.w3.org/TR/css-logical/#border-width", values: newTable(
+      url: "https://www.w3.org/TR/css-logical/#border-width", values: toCritBitTree(
       {"thin": Implemented, "medium": Implemented, "thick": Implemented}))
   ## 
   ## Property `border-inline-start`
@@ -717,7 +716,7 @@ proc initPropsTable*(): PropertiesTable =
   ## Property `border-inline-start-style`
   ## 
   result["border-inline-start-style"] = Property(
-      url: "https://www.w3.org/TR/css-logical/#border-style", values: newTable({
+      url: "https://www.w3.org/TR/css-logical/#border-style", values: toCritBitTree({
       "none": Implemented, "hidden": Implemented, "inset": Implemented,
       "groove": Implemented, "outset": Implemented, "ridge": Implemented,
       "dotted": Implemented, "dashed": Implemented, "solid": Implemented,
@@ -726,7 +725,7 @@ proc initPropsTable*(): PropertiesTable =
   ## Property `border-inline-start-width`
   ## 
   result["border-inline-start-width"] = Property(
-      url: "https://www.w3.org/TR/css-logical/#border-width", values: newTable(
+      url: "https://www.w3.org/TR/css-logical/#border-width", values: toCritBitTree(
       {"thin": Implemented, "medium": Implemented, "thick": Implemented}))
   ## 
   ## Property `border-inline-style`
@@ -754,7 +753,7 @@ proc initPropsTable*(): PropertiesTable =
   ## Property `border-left-style`
   ## 
   result["border-left-style"] = Property(
-      url: "https://www.w3.org/TR/css3-background/#the-border-style", values: newTable({
+      url: "https://www.w3.org/TR/css3-background/#the-border-style", values: toCritBitTree({
       "none": Implemented, "hidden": Implemented, "inset": Implemented,
       "groove": Implemented, "outset": Implemented, "ridge": Implemented,
       "dotted": Implemented, "dashed": Implemented, "solid": Implemented,
@@ -763,7 +762,7 @@ proc initPropsTable*(): PropertiesTable =
   ## Property `border-left-width`
   ## 
   result["border-left-width"] = Property(
-      url: "https://www.w3.org/TR/css3-background/#the-border-width", values: newTable(
+      url: "https://www.w3.org/TR/css3-background/#the-border-width", values: toCritBitTree(
       {"thin": Implemented, "medium": Implemented, "thick": Implemented}))
   ## 
   ## Property `border-radius`
@@ -785,7 +784,7 @@ proc initPropsTable*(): PropertiesTable =
   ## Property `border-right-style`
   ## 
   result["border-right-style"] = Property(
-      url: "https://www.w3.org/TR/css3-background/#the-border-style", values: newTable({
+      url: "https://www.w3.org/TR/css3-background/#the-border-style", values: toCritBitTree({
       "none": Implemented, "hidden": Implemented, "inset": Implemented,
       "groove": Implemented, "outset": Implemented, "ridge": Implemented,
       "dotted": Implemented, "dashed": Implemented, "solid": Implemented,
@@ -794,7 +793,7 @@ proc initPropsTable*(): PropertiesTable =
   ## Property `border-right-width`
   ## 
   result["border-right-width"] = Property(
-      url: "https://www.w3.org/TR/css3-background/#the-border-width", values: newTable(
+      url: "https://www.w3.org/TR/css3-background/#the-border-width", values: toCritBitTree(
       {"thin": Implemented, "medium": Implemented, "thick": Implemented}))
   ## 
   ## Property `border-spacing`
@@ -841,7 +840,7 @@ proc initPropsTable*(): PropertiesTable =
   ## Property `border-top-style`
   ## 
   result["border-top-style"] = Property(
-      url: "https://www.w3.org/TR/css3-background/#the-border-style", values: newTable({
+      url: "https://www.w3.org/TR/css3-background/#the-border-style", values: toCritBitTree({
       "none": Implemented, "hidden": Implemented, "inset": Implemented,
       "groove": Implemented, "outset": Implemented, "ridge": Implemented,
       "dotted": Implemented, "dashed": Implemented, "solid": Implemented,
@@ -850,7 +849,7 @@ proc initPropsTable*(): PropertiesTable =
   ## Property `border-top-width`
   ## 
   result["border-top-width"] = Property(
-      url: "https://www.w3.org/TR/css3-background/#the-border-width", values: newTable(
+      url: "https://www.w3.org/TR/css3-background/#the-border-width", values: toCritBitTree(
       {"thin": Implemented, "medium": Implemented, "thick": Implemented}))
   ## 
   ## Property `border-width`
@@ -862,21 +861,21 @@ proc initPropsTable*(): PropertiesTable =
   ## Property `bottom`
   ## 
   result["bottom"] = Property(url: "https://www.w3.org/TR/CSS22/visuren.html#propdef-bottom",
-                                  values: newTable({"auto": Implemented}))
+                                  values: toCritBitTree({"auto": Implemented}))
   ## 
   ## Property `box-shadow`
   ## 
-  result["box-shadow"] = Property(url: "https://www.w3.org/TR/css3-background/#the-box-shadow", values: newTable(
+  result["box-shadow"] = Property(url: "https://www.w3.org/TR/css3-background/#the-box-shadow", values: toCritBitTree(
       {"none": Implemented, "inset": Implemented}))
   ## 
   ## Property `box-sizing`
   ## 
-  result["box-sizing"] = Property(url: "https://www.w3.org/TR/css-ui-3/#box-sizing", values: newTable(
+  result["box-sizing"] = Property(url: "https://www.w3.org/TR/css-ui-3/#box-sizing", values: toCritBitTree(
       {"border-box": Implemented, "content-box": Implemented}))
   ## 
   ## Property `break-after`
   ## 
-  result["break-after"] = Property(url: "https://www.w3.org/TR/css-break-3/#break-between", values: newTable({
+  result["break-after"] = Property(url: "https://www.w3.org/TR/css-break-3/#break-between", values: toCritBitTree({
       "auto": Implemented, "avoid": Implemented, "avoid-page": Implemented,
       "page": Implemented, "left": Implemented, "right": Implemented,
       "recto": Implemented, "verso": Implemented, "avoid-column": Implemented,
@@ -885,7 +884,7 @@ proc initPropsTable*(): PropertiesTable =
   ## 
   ## Property `break-before`
   ## 
-  result["break-before"] = Property(url: "https://www.w3.org/TR/css-break-3/#break-between", values: newTable({
+  result["break-before"] = Property(url: "https://www.w3.org/TR/css-break-3/#break-between", values: toCritBitTree({
       "auto": Implemented, "avoid": Implemented, "avoid-page": Implemented,
       "page": Implemented, "left": Implemented, "right": Implemented,
       "recto": Implemented, "verso": Implemented, "avoid-column": Implemented,
@@ -894,53 +893,53 @@ proc initPropsTable*(): PropertiesTable =
   ## 
   ## Property `break-inside`
   ## 
-  result["break-inside"] = Property(url: "https://www.w3.org/TR/css-break-3/#break-within", values: newTable({
+  result["break-inside"] = Property(url: "https://www.w3.org/TR/css-break-3/#break-within", values: toCritBitTree({
       "auto": Implemented, "avoid": Implemented, "avoid-page": Implemented,
       "avoid-column": Implemented, "avoid-region": Unimplemented}))
   ## 
   ## Property `buffered-rendering`
   ## 
-  result["buffered-rendering"] = Property(url: "https://www.w3.org/TR/SVGTiny12/painting.html#BufferedRenderingProperty", values: newTable(
+  result["buffered-rendering"] = Property(url: "https://www.w3.org/TR/SVGTiny12/painting.html#BufferedRenderingProperty", values: toCritBitTree(
       {"auto": Implemented, "dynamic": Implemented, "static": Implemented}))
   ## 
   ## Property `caption-side`
   ## 
-  result["caption-side"] = Property(url: "https://www.w3.org/TR/CSS22/tables.html#propdef-caption-side", values: newTable({
+  result["caption-side"] = Property(url: "https://www.w3.org/TR/CSS22/tables.html#propdef-caption-side", values: toCritBitTree({
       "left": Implemented, "right": Implemented, "top": Implemented,
       "bottom": Implemented, "inline-start": Unimplemented,
       "inline-end": Unimplemented}))
   ## 
   ## Property `clear`
   ## 
-  result["clear"] = Property(url: "https://www.w3.org/TR/CSS22/visuren.html#propdef-clear", values: newTable({
+  result["clear"] = Property(url: "https://www.w3.org/TR/CSS22/visuren.html#propdef-clear", values: toCritBitTree({
       "none": Implemented, "left": Implemented, "right": Implemented,
       "both": Implemented, "inline-start": Implemented, "inline-end": Implemented}))
   ## 
   ## Property `clip`
   ## 
   result["clip"] = Property(url: "https://drafts.fxtf.org/css-masking/#clip-property",
-                                values: newTable({"auto": Implemented}))
+                                values: toCritBitTree({"auto": Implemented}))
   ## 
   ## Property `clip-path`
   ## 
-  result["clip-path"] = Property(url: "https://drafts.fxtf.org/css-masking/#propdef-clip-path", values: newTable({
+  result["clip-path"] = Property(url: "https://drafts.fxtf.org/css-masking/#propdef-clip-path", values: toCritBitTree({
       "none": Implemented, "content-box": Implemented, "margin-box": Implemented,
       "stroke-box": Implemented, "border-box": Implemented,
       "fill-box": Implemented, "view-box": Implemented, "padding-box": Implemented}))
   ## 
   ## Property `clip-rule`
   ## 
-  result["clip-rule"] = Property(url: "https://drafts.fxtf.org/css-masking/#propdef-clip-rule", values: newTable(
+  result["clip-rule"] = Property(url: "https://drafts.fxtf.org/css-masking/#propdef-clip-rule", values: toCritBitTree(
       {"nonzero": Implemented, "evenodd": Implemented}))
   ## 
   ## Property `color-interpolation`
   ## 
-  result["color-interpolation"] = Property(url: "https://www.w3.org/TR/SVG11/painting.html#ColorInterpolationProperty", values: newTable(
+  result["color-interpolation"] = Property(url: "https://www.w3.org/TR/SVG11/painting.html#ColorInterpolationProperty", values: toCritBitTree(
       {"auto": Implemented, "sRGB": Implemented, "linearRGB": Implemented}))
   ## 
   ## Property `color-interpolation-filters`
   ## 
-  result["color-interpolation-filters"] = Property(url: "https://www.w3.org/TR/SVG11/painting.html#ColorInterpolationFiltersProperty", values: newTable(
+  result["color-interpolation-filters"] = Property(url: "https://www.w3.org/TR/SVG11/painting.html#ColorInterpolationFiltersProperty", values: toCritBitTree(
       {"auto": Implemented, "sRGB": Implemented, "linearRGB": Implemented}))
   ## 
   ## Property `content`
@@ -951,12 +950,12 @@ proc initPropsTable*(): PropertiesTable =
   ## 
   result["counter-increment"] = Property(
       url: "https://www.w3.org/TR/css-lists-3/#propdef-counter-increment",
-      values: newTable({"none": Implemented}))
+      values: toCritBitTree({"none": Implemented}))
   ## 
   ## Property `counter-reset`
   ## 
   result["counter-reset"] = Property(url: "https://www.w3.org/TR/css-lists-3/#counter-properties",
-                                         values: newTable({"none": Implemented}))
+                                         values: toCritBitTree({"none": Implemented}))
   ## 
   ## Property `counter-set`
   ## 
@@ -964,7 +963,7 @@ proc initPropsTable*(): PropertiesTable =
   ## 
   ## Property `cursor`
   ## 
-  result["cursor"] = Property(url: "https://www.w3.org/TR/css-ui-3/#cursor", values: newTable({
+  result["cursor"] = Property(url: "https://www.w3.org/TR/css-ui-3/#cursor", values: toCritBitTree({
       "auto": Implemented, "default": Implemented, "none": Implemented,
       "context-menu": Implemented, "help": Implemented, "pointer": Implemented,
       "progress": Implemented, "wait": Implemented, "cell": Implemented,
@@ -984,7 +983,7 @@ proc initPropsTable*(): PropertiesTable =
   ## Property `-webkit-cursor-visibility`
   ## 
   result["-webkit-cursor-visibility"] = Property(
-      values: newTable({"auto": Implemented, "auto-hide": Implemented}))
+      values: toCritBitTree({"auto": Implemented, "auto-hide": Implemented}))
   ## 
   ## Property `cx`
   ## 
@@ -997,7 +996,7 @@ proc initPropsTable*(): PropertiesTable =
   ## Property `dominant-baseline`
   ## 
   result["dominant-baseline"] = Property(
-      url: "https://www.w3.org/TR/SVG11/text.html#DominantBaselineProperty", values: newTable({
+      url: "https://www.w3.org/TR/SVG11/text.html#DominantBaselineProperty", values: toCritBitTree({
       "auto": Implemented, "use-script": Implemented, "no-change": Implemented,
       "reset-size": Implemented, "ideographic": Implemented,
       "alphabetic": Implemented, "hanging": Implemented,
@@ -1006,12 +1005,12 @@ proc initPropsTable*(): PropertiesTable =
   ## 
   ## Property `empty-cells`
   ## 
-  result["empty-cells"] = Property(url: "https://www.w3.org/TR/CSS2/tables.html#empty-cells", values: newTable(
+  result["empty-cells"] = Property(url: "https://www.w3.org/TR/CSS2/tables.html#empty-cells", values: toCritBitTree(
       {"show": Implemented, "hide": Implemented}))
   ## 
   ## Property `fill`
   ## 
-  result["fill"] = Property(url: "https://svgwg.org/svg2-draft/painting.html#SpecifyingFillPaint", values: newTable({
+  result["fill"] = Property(url: "https://svgwg.org/svg2-draft/painting.html#SpecifyingFillPaint", values: toCritBitTree({
       "none": Implemented, "context-fill": Unimplemented,
       "context-stroke": Unimplemented}))
   ## 
@@ -1021,12 +1020,12 @@ proc initPropsTable*(): PropertiesTable =
   ## 
   ## Property `fill-rule`
   ## 
-  result["fill-rule"] = Property(url: "https://www.w3.org/TR/SVG/painting.html#FillRuleProperty", values: newTable(
+  result["fill-rule"] = Property(url: "https://www.w3.org/TR/SVG/painting.html#FillRuleProperty", values: toCritBitTree(
       {"nonzero": Implemented, "evenodd": Implemented}))
   ## 
   ## Property `float`
   ## 
-  result["float"] = Property(url: "https://www.w3.org/TR/CSS22/visuren.html#float-position", values: newTable({
+  result["float"] = Property(url: "https://www.w3.org/TR/CSS22/visuren.html#float-position", values: toCritBitTree({
       "left": Implemented, "right": Implemented, "none": Implemented,
       "inline-start": Implemented, "inline-end": Implemented}))
   ## 
@@ -1045,12 +1044,12 @@ proc initPropsTable*(): PropertiesTable =
   ## Property `glyph-orientation-vertical`
   ## 
   result["glyph-orientation-vertical"] = Property(url: "https://www.w3.org/TR/SVG11/text.html#GlyphOrientationVerticalProperty",
-      values: newTable({"auto": Implemented}))
+      values: toCritBitTree({"auto": Implemented}))
   ## 
   ## Property `hanging-punctuation`
   ## 
   result["hanging-punctuation"] = Property(
-      url: "https://www.w3.org/TR/css-text-3/#hanging-punctuation", values: newTable({
+      url: "https://www.w3.org/TR/css-text-3/#hanging-punctuation", values: toCritBitTree({
       "none": Implemented, "first": Implemented, "force-end": Implemented,
       "allow-end": Implemented, "last": Implemented}))
   ## 
@@ -1062,12 +1061,12 @@ proc initPropsTable*(): PropertiesTable =
   ## 
   result["image-orientation"] = Property(
       url: "https://www.w3.org/TR/css3-images/#the-image-orientation",
-      values: newTable({"from-image": Implemented, "none": Implemented}))
+      values: toCritBitTree({"from-image": Implemented, "none": Implemented}))
   ## 
   ## Property `image-rendering`
   ## 
   result["image-rendering"] = Property(
-      url: "https://drafts.csswg.org/css-images-3/#propdef-image-rendering", values: newTable({
+      url: "https://drafts.csswg.org/css-images-3/#propdef-image-rendering", values: toCritBitTree({
       "auto": Implemented, "smooth": Unimplemented, "high-quality": Unimplemented,
       "pixelated": Implemented, "crisp-edges": Implemented,
       "optimizeSpeed": Implemented, "optimizeQuality": Implemented,
@@ -1077,7 +1076,7 @@ proc initPropsTable*(): PropertiesTable =
   ## 
   result["image-resolution"] = Property(
       url: "https://www.w3.org/TR/css-images-4/#image-resolution",
-      values: newTable({"from-image": Implemented, "snap": Implemented}))
+      values: toCritBitTree({"from-image": Implemented, "snap": Implemented}))
   ## 
   ## Property `inline-size`
   ## 
@@ -1085,7 +1084,7 @@ proc initPropsTable*(): PropertiesTable =
   ## 
   ## Property `input-security`
   ## 
-  result["input-security"] = Property(url: "https://drafts.csswg.org/css-ui-4/#input-security", values: newTable(
+  result["input-security"] = Property(url: "https://drafts.csswg.org/css-ui-4/#input-security", values: toCritBitTree(
       {"auto": Implemented, "none": Implemented}))
   ## 
   ## Property `inset`
@@ -1129,14 +1128,14 @@ proc initPropsTable*(): PropertiesTable =
   ## 
   ## Property `leading-trim`
   ## 
-  result["leading-trim"] = Property(url: "https://www.w3.org/TR/css-inline-3/#leading-trim", values: newTable({
+  result["leading-trim"] = Property(url: "https://www.w3.org/TR/css-inline-3/#leading-trim", values: toCritBitTree({
       "normal": Implemented, "start": Implemented, "end": Implemented,
       "both": Implemented}))
   ## 
   ## Property `left`
   ## 
   result["left"] = Property(url: "https://www.w3.org/TR/CSS22/visuren.html#propdef-left",
-                                values: newTable({"auto": Implemented}))
+                                values: toCritBitTree({"auto": Implemented}))
   ## 
   ## Property `letter-spacing`
   ## 
@@ -1164,12 +1163,12 @@ proc initPropsTable*(): PropertiesTable =
   ## 
   result["list-style-position"] = Property(
       url: "https://www.w3.org/TR/css-lists-3/#propdef-list-style-position",
-      values: newTable({"inside": Implemented, "outside": Implemented}))
+      values: toCritBitTree({"inside": Implemented, "outside": Implemented}))
   ## 
   ## Property `list-style-type`
   ## 
   result["list-style-type"] = Property(
-      url: "https://www.w3.org/TR/css-lists-3/#propdef-list-style-type", values: newTable({
+      url: "https://www.w3.org/TR/css-lists-3/#propdef-list-style-type", values: toCritBitTree({
       "disc": Implemented, "circle": Implemented, "square": Implemented,
       "decimal": Implemented, "decimal-leading-zero": Implemented,
       "arabic-indic": Implemented, "binary": Implemented, "bengali": Implemented,
@@ -1238,7 +1237,7 @@ proc initPropsTable*(): PropertiesTable =
   ## Property `margin-bottom`
   ## 
   result["margin-bottom"] = Property(url: "https://www.w3.org/TR/CSS22/box.html#propdef-margin-bottom",
-                                         values: newTable({"auto": Implemented}))
+                                         values: toCritBitTree({"auto": Implemented}))
   ## 
   ## Property `margin-inline`
   ## 
@@ -1258,21 +1257,21 @@ proc initPropsTable*(): PropertiesTable =
   ## Property `margin-left`
   ## 
   result["margin-left"] = Property(url: "https://www.w3.org/TR/CSS22/box.html#propdef-margin-left",
-                                       values: newTable({"auto": Implemented}))
+                                       values: toCritBitTree({"auto": Implemented}))
   ## 
   ## Property `margin-right`
   ## 
   result["margin-right"] = Property(url: "https://www.w3.org/TR/CSS22/box.html#propdef-margin-right",
-                                        values: newTable({"auto": Implemented}))
+                                        values: toCritBitTree({"auto": Implemented}))
   ## 
   ## Property `margin-top`
   ## 
   result["margin-top"] = Property(url: "https://www.w3.org/TR/CSS22/box.html#propdef-margin-top",
-                                      values: newTable({"auto": Implemented}))
+                                      values: toCritBitTree({"auto": Implemented}))
   ## 
   ## Property `margin-trim`
   ## 
-  result["margin-trim"] = Property(url: "https://www.w3.org/TR/css-box-4/#margin-trim", values: newTable({
+  result["margin-trim"] = Property(url: "https://www.w3.org/TR/css-box-4/#margin-trim", values: toCritBitTree({
       "none": Implemented, "block": Implemented, "inline": Implemented,
       "block-start": Implemented, "inline-start": Implemented,
       "block-end": Implemented, "inline-end": Implemented}))
@@ -1285,17 +1284,17 @@ proc initPropsTable*(): PropertiesTable =
   ## Property `marker-end`
   ## 
   result["marker-end"] = Property(url: "https://www.w3.org/TR/SVG/painting.html#MarkerEndProperty",
-                                      values: newTable({"none": Implemented}))
+                                      values: toCritBitTree({"none": Implemented}))
   ## 
   ## Property `marker-mid`
   ## 
   result["marker-mid"] = Property(url: "https://www.w3.org/TR/SVG/painting.html#MarkerMidProperty",
-                                      values: newTable({"none": Implemented}))
+                                      values: toCritBitTree({"none": Implemented}))
   ## 
   ## Property `marker-start`
   ## 
   result["marker-start"] = Property(url: "https://www.w3.org/TR/SVG/painting.html#MarkerStartProperty",
-                                        values: newTable({"none": Implemented}))
+                                        values: toCritBitTree({"none": Implemented}))
   ## 
   ## Property `mask`
   ## 
@@ -1355,19 +1354,19 @@ proc initPropsTable*(): PropertiesTable =
   ## 
   ## Property `mask-type`
   ## 
-  result["mask-type"] = Property(url: "https://drafts.fxtf.org/css-masking-1/#propdef-mask-type", values: newTable(
+  result["mask-type"] = Property(url: "https://drafts.fxtf.org/css-masking-1/#propdef-mask-type", values: toCritBitTree(
       {"luminance": Implemented, "alpha": Implemented}))
   ## 
   ## Property `masonry-auto-flow`
   ## 
   result["masonry-auto-flow"] = Property(
-      url: "https://drafts.csswg.org/css-grid-3/#masonry-auto-flow", values: newTable({
+      url: "https://drafts.csswg.org/css-grid-3/#masonry-auto-flow", values: toCritBitTree({
       "pack": Implemented, "next": Implemented, "definite-first": Implemented,
       "ordered": Implemented}))
   ## 
   ## Property `math-style`
   ## 
-  result["math-style"] = Property(url: "https://mathml-refresh.github.io/mathml-core/#dfn-math-style", values: newTable(
+  result["math-style"] = Property(url: "https://mathml-refresh.github.io/mathml-core/#dfn-math-style", values: toCritBitTree(
       {"normal": Implemented, "compact": Implemented}))
   ## 
   ## Property `max-block-size`
@@ -1406,7 +1405,7 @@ proc initPropsTable*(): PropertiesTable =
   ## 
   ## Property `object-fit`
   ## 
-  result["object-fit"] = Property(url: "https://www.w3.org/TR/css-images-3/#the-object-fit", values: newTable({
+  result["object-fit"] = Property(url: "https://www.w3.org/TR/css-images-3/#the-object-fit", values: toCritBitTree({
       "fill": Implemented, "contain": Implemented, "cover": Implemented,
       "none": Implemented, "scale-down": Implemented}))
   ## 
@@ -1418,7 +1417,7 @@ proc initPropsTable*(): PropertiesTable =
   ## Property `offset-path`
   ## 
   result["offset-path"] = Property(url: "https://drafts.fxtf.org/motion-1/#offset-path-property",
-                                       values: newTable({"none": Implemented}))
+                                       values: toCritBitTree({"none": Implemented}))
   ## 
   ## Property `offset-distance`
   ## 
@@ -1429,16 +1428,16 @@ proc initPropsTable*(): PropertiesTable =
   ## 
   result["offset-position"] = Property(
       url: "https://drafts.fxtf.org/motion-1/#offset-position-property",
-      values: newTable({"auto": Implemented}))
+      values: toCritBitTree({"auto": Implemented}))
   ## 
   ## Property `offset-anchor`
   ## 
   result["offset-anchor"] = Property(url: "https://drafts.fxtf.org/motion-1/#offset-anchor-property",
-                                         values: newTable({"auto": Implemented}))
+                                         values: toCritBitTree({"auto": Implemented}))
   ## 
   ## Property `offset-rotate`
   ## 
-  result["offset-rotate"] = Property(url: "https://drafts.fxtf.org/motion-1/#offset-rotate-property", values: newTable(
+  result["offset-rotate"] = Property(url: "https://drafts.fxtf.org/motion-1/#offset-rotate-property", values: toCritBitTree(
       {"auto": Implemented, "reverse": Implemented}))
   ## 
   ## Property `offset`
@@ -1470,7 +1469,7 @@ proc initPropsTable*(): PropertiesTable =
   ## 
   ## Property `outline-style`
   ## 
-  result["outline-style"] = Property(url: "https://drafts.csswg.org/css-ui/#typedef-outline-line-style", values: newTable({
+  result["outline-style"] = Property(url: "https://drafts.csswg.org/css-ui/#typedef-outline-line-style", values: toCritBitTree({
       "auto": Implemented, "none": Implemented, "inset": Implemented,
       "groove": Implemented, "outset": Implemented, "ridge": Implemented,
       "dotted": Implemented, "dashed": Implemented, "solid": Implemented,
@@ -1478,7 +1477,7 @@ proc initPropsTable*(): PropertiesTable =
   ## 
   ## Property `outline-width`
   ## 
-  result["outline-width"] = Property(url: "https://www.w3.org/TR/css-ui-3/#propdef-outline-width", values: newTable(
+  result["outline-width"] = Property(url: "https://www.w3.org/TR/css-ui-3/#propdef-outline-width", values: toCritBitTree(
       {"thin": Implemented, "medium": Implemented, "thick": Implemented}))
   ## 
   ## Property `overflow`
@@ -1489,22 +1488,22 @@ proc initPropsTable*(): PropertiesTable =
   ## Property `overflow-anchor`
   ## 
   result["overflow-anchor"] = Property(url: "https://www.w3.org/TR/css-scroll-anchoring-1/#propdef-overflow-anchor",
-      values: newTable({"none": Implemented, "auto": Implemented}))
+      values: toCritBitTree({"none": Implemented, "auto": Implemented}))
   ## 
   ## Property `overflow-wrap`
   ## 
-  result["overflow-wrap"] = Property(url: "https://www.w3.org/TR/css-text-3/#overflow-wrap", values: newTable(
+  result["overflow-wrap"] = Property(url: "https://www.w3.org/TR/css-text-3/#overflow-wrap", values: toCritBitTree(
       {"normal": Implemented, "break-word": Implemented, "anywhere": Implemented}))
   ## 
   ## Property `overflow-x`
   ## 
-  result["overflow-x"] = Property(url: "https://www.w3.org/TR/css-overflow-3/#propdef-overflow-x", values: newTable({
+  result["overflow-x"] = Property(url: "https://www.w3.org/TR/css-overflow-3/#propdef-overflow-x", values: toCritBitTree({
       "visible": Implemented, "hidden": Implemented, "clip": Implemented,
       "scroll": Implemented, "auto": Implemented, "overlay": NonStandard}))
   ## 
   ## Property `overflow-y`
   ## 
-  result["overflow-y"] = Property(url: "https://www.w3.org/TR/css-overflow-3/#propdef-overflow-y", values: newTable({
+  result["overflow-y"] = Property(url: "https://www.w3.org/TR/css-overflow-3/#propdef-overflow-y", values: toCritBitTree({
       "visible": Implemented, "hidden": Implemented, "clip": Implemented,
       "scroll": Implemented, "auto": Implemented, "overlay": NonStandard,
       "-webkit-paged-x": NonStandard, "-webkit-paged-y": NonStandard}))
@@ -1516,22 +1515,22 @@ proc initPropsTable*(): PropertiesTable =
   ## 
   ## Property `overscroll-behavior-x`
   ## 
-  result["overscroll-behavior-x"] = Property(url: "https://drafts.csswg.org/css-overscroll-1/#propdef-overscroll-behavior-x", values: newTable(
+  result["overscroll-behavior-x"] = Property(url: "https://drafts.csswg.org/css-overscroll-1/#propdef-overscroll-behavior-x", values: toCritBitTree(
       {"contain": Implemented, "none": Implemented, "auto": Implemented}))
   ## 
   ## Property `overscroll-behavior-y`
   ## 
-  result["overscroll-behavior-y"] = Property(url: "https://drafts.csswg.org/css-overscroll-1/#propdef-overscroll-behavior-y", values: newTable(
+  result["overscroll-behavior-y"] = Property(url: "https://drafts.csswg.org/css-overscroll-1/#propdef-overscroll-behavior-y", values: toCritBitTree(
       {"contain": Implemented, "none": Implemented, "auto": Implemented}))
   ## 
   ## Property `overscroll-behavior-inline`
   ## 
-  result["overscroll-behavior-inline"] = Property(url: "https://drafts.csswg.org/css-overscroll-1/#propdef-overscroll-behavior-x", values: newTable(
+  result["overscroll-behavior-inline"] = Property(url: "https://drafts.csswg.org/css-overscroll-1/#propdef-overscroll-behavior-x", values: toCritBitTree(
       {"contain": Implemented, "none": Implemented, "auto": Implemented}))
   ## 
   ## Property `overscroll-behavior-block`
   ## 
-  result["overscroll-behavior-block"] = Property(url: "https://drafts.csswg.org/css-overscroll-1/#propdef-overscroll-behavior-x", values: newTable(
+  result["overscroll-behavior-block"] = Property(url: "https://drafts.csswg.org/css-overscroll-1/#propdef-overscroll-behavior-x", values: toCritBitTree(
       {"contain": Implemented, "none": Implemented, "auto": Implemented}))
   ## 
   ## Property `padding`
@@ -1588,7 +1587,7 @@ proc initPropsTable*(): PropertiesTable =
   ## Property `page`
   ## 
   result["page"] = Property(url: "https://www.w3.org/TR/css3-page/#page",
-                                values: newTable({"auto": Implemented}))
+                                values: toCritBitTree({"auto": Implemented}))
   ## 
   ## Property `page-break-after`
   ## 
@@ -1614,7 +1613,7 @@ proc initPropsTable*(): PropertiesTable =
   ## 
   ## Property `pointer-events`
   ## 
-  result["pointer-events"] = Property(url: "https://www.w3.org/TR/SVG11/interact.html#PointerEventsProperty", values: newTable({
+  result["pointer-events"] = Property(url: "https://www.w3.org/TR/SVG11/interact.html#PointerEventsProperty", values: toCritBitTree({
       "visiblePainted": Implemented, "visibleFill": Implemented,
       "visibleStroke": Implemented, "visible": Implemented,
       "painted": Implemented, "fill": Implemented, "stroke": Implemented,
@@ -1623,13 +1622,13 @@ proc initPropsTable*(): PropertiesTable =
   ## 
   ## Property `position`
   ## 
-  result["position"] = Property(url: "https://www.w3.org/TR/CSS2/visuren.html#propdef-position", values: newTable({
+  result["position"] = Property(url: "https://www.w3.org/TR/CSS2/visuren.html#propdef-position", values: toCritBitTree({
       "static": Implemented, "relative": Implemented, "absolute": Implemented,
       "fixed": Implemented, "sticky": Implemented, "-webkit-sticky": Deprecated}))
   ## 
   ## Property `quotes`
   ## 
-  result["quotes"] = Property(url: "https://www.w3.org/TR/css-content-3/#quotes-property", values: newTable(
+  result["quotes"] = Property(url: "https://www.w3.org/TR/css-content-3/#quotes-property", values: toCritBitTree(
       {"auto": Implemented, "none": Implemented}))
   ## 
   ## Property `r`
@@ -1638,7 +1637,7 @@ proc initPropsTable*(): PropertiesTable =
   ## 
   ## Property `resize`
   ## 
-  result["resize"] = Property(url: "https://www.w3.org/TR/css-ui-3/#propdef-resize", values: newTable({
+  result["resize"] = Property(url: "https://www.w3.org/TR/css-ui-3/#propdef-resize", values: toCritBitTree({
       "none": Implemented, "both": Implemented, "horizontal": Implemented,
       "vertical": Implemented, "block": Implemented, "inline": Implemented,
       "auto": NonStandard}))
@@ -1646,22 +1645,22 @@ proc initPropsTable*(): PropertiesTable =
   ## Property `right`
   ## 
   result["right"] = Property(url: "https://www.w3.org/TR/CSS22/visuren.html#propdef-right",
-                                 values: newTable({"auto": Implemented}))
+                                 values: toCritBitTree({"auto": Implemented}))
   ## 
   ## Property `rx`
   ## 
   result["rx"] = Property(url: "https://www.w3.org/TR/SVG/shapes.html",
-                              values: newTable({"auto": Implemented}))
+                              values: toCritBitTree({"auto": Implemented}))
   ## 
   ## Property `ry`
   ## 
   result["ry"] = Property(url: "https://www.w3.org/TR/SVG/shapes.html",
-                              values: newTable({"auto": Implemented}))
+                              values: toCritBitTree({"auto": Implemented}))
   ## 
   ## Property `shape-rendering`
   ## 
   result["shape-rendering"] = Property(
-      url: "https://www.w3.org/TR/SVG11/painting.html#ShapeRenderingProperty", values: newTable({
+      url: "https://www.w3.org/TR/SVG11/painting.html#ShapeRenderingProperty", values: toCritBitTree({
       "auto": Implemented, "optimizeSpeed": Implemented,
       "crispedges": Implemented, "geometricPrecision": Implemented}))
   ## 
@@ -1693,13 +1692,13 @@ proc initPropsTable*(): PropertiesTable =
   ## 
   ## Property `stroke-linecap`
   ## 
-  result["stroke-linecap"] = Property(url: "https://drafts.fxtf.org/fill-stroke-3/#propdef-stroke-linecap", values: newTable(
+  result["stroke-linecap"] = Property(url: "https://drafts.fxtf.org/fill-stroke-3/#propdef-stroke-linecap", values: toCritBitTree(
       {"butt": Implemented, "round": Implemented, "square": Implemented}))
   ## 
   ## Property `stroke-linejoin`
   ## 
   result["stroke-linejoin"] = Property(
-      url: "https://drafts.fxtf.org/fill-stroke-3/#propdef-stroke-linejoin", values: newTable(
+      url: "https://drafts.fxtf.org/fill-stroke-3/#propdef-stroke-linejoin", values: toCritBitTree(
       {"miter": Implemented, "round": Implemented, "bevel": Implemented}))
   ## 
   ## Property `stroke-miterlimit`
@@ -1721,13 +1720,13 @@ proc initPropsTable*(): PropertiesTable =
   ## 
   ## Property `speak-as`
   ## 
-  result["speak-as"] = Property(url: "https://www.w3.org/TR/css3-speech/#speak-as", values: newTable({
+  result["speak-as"] = Property(url: "https://www.w3.org/TR/css3-speech/#speak-as", values: toCritBitTree({
       "normal": Implemented, "spell-out": Implemented, "digits": Implemented,
       "literal-punctuation": Implemented, "no-punctuation": Implemented}))
   ## 
   ## Property `table-layout`
   ## 
-  result["table-layout"] = Property(url: "https://www.w3.org/TR/CSS22/tables.html#propdef-table-layout", values: newTable(
+  result["table-layout"] = Property(url: "https://www.w3.org/TR/CSS22/tables.html#propdef-table-layout", values: toCritBitTree(
       {"auto": Implemented, "fixed": Implemented}))
   ## 
   ## Property `tab-size`
@@ -1736,7 +1735,7 @@ proc initPropsTable*(): PropertiesTable =
   ## 
   ## Property `text-align`
   ## 
-  result["text-align"] = Property(url: "https://www.w3.org/TR/CSS22/text.html#propdef-text-align", values: newTable({
+  result["text-align"] = Property(url: "https://www.w3.org/TR/CSS22/text.html#propdef-text-align", values: toCritBitTree({
       "-webkit-auto": NonStandard, "left": Implemented, "right": Implemented,
       "center": Implemented, "justify": Implemented, "match-parent": Implemented,
       "justify-all": Unimplemented, "-webkit-left": NonStandard,
@@ -1747,14 +1746,14 @@ proc initPropsTable*(): PropertiesTable =
   ## Property `text-align-last`
   ## 
   result["text-align-last"] = Property(
-      url: "https://www.w3.org/TR/css-text-3/#text-align-last-property", values: newTable({
+      url: "https://www.w3.org/TR/css-text-3/#text-align-last-property", values: toCritBitTree({
       "auto": Implemented, "start": Implemented, "end": Implemented,
       "left": Implemented, "right": Implemented, "center": Implemented,
       "justify": Implemented, "match-parent": Implemented}))
   ## 
   ## Property `text-anchor`
   ## 
-  result["text-anchor"] = Property(url: "https://www.w3.org/TR/SVG/text.html#TextAnchorProperty", values: newTable(
+  result["text-anchor"] = Property(url: "https://www.w3.org/TR/SVG/text.html#TextAnchorProperty", values: toCritBitTree(
       {"start": Implemented, "middle": Implemented, "end": Implemented}))
   ## 
   ## Property `text-decoration`
@@ -1766,7 +1765,7 @@ proc initPropsTable*(): PropertiesTable =
   ## Property `text-group-align`
   ## 
   result["text-group-align"] = Property(
-      url: "https://drafts.csswg.org/css-text-4/#text-group-align-property", values: newTable({
+      url: "https://drafts.csswg.org/css-text-4/#text-group-align-property", values: toCritBitTree({
       "none": Implemented, "start": Implemented, "end": Implemented,
       "left": Implemented, "right": Implemented, "center": Implemented}))
   ## 
@@ -1776,7 +1775,7 @@ proc initPropsTable*(): PropertiesTable =
   ## 
   ## Property `text-justify`
   ## 
-  result["text-justify"] = Property(url: "https://www.w3.org/TR/css-text-3/#text-justify", values: newTable({
+  result["text-justify"] = Property(url: "https://www.w3.org/TR/css-text-3/#text-justify", values: toCritBitTree({
       "auto": Implemented, "none": Implemented, "inter-word": Implemented,
       "inter-character": Implemented, "distribute": Deprecated}))
   ## 
@@ -1791,12 +1790,12 @@ proc initPropsTable*(): PropertiesTable =
   ## 
   ## Property `text-line-through-mode`
   ## 
-  result["text-line-through-mode"] = Property(url: "https://www.w3.org/TR/2003/CR-css3-text-20030514/#text-line-through-mode", values: newTable(
+  result["text-line-through-mode"] = Property(url: "https://www.w3.org/TR/2003/CR-css3-text-20030514/#text-line-through-mode", values: toCritBitTree(
       {"continuous": Implemented, "skip-white-space": Implemented}))
   ## 
   ## Property `text-line-through-style`
   ## 
-  result["text-line-through-style"] = Property(url: "https://www.w3.org/TR/2003/CR-css3-text-20030514/#text-line-through-style", values: newTable({
+  result["text-line-through-style"] = Property(url: "https://www.w3.org/TR/2003/CR-css3-text-20030514/#text-line-through-style", values: toCritBitTree({
       "none": Implemented, "solid": Implemented, "double": Implemented,
       "dashed": Implemented, "dot-dash": Implemented, "dot-dot-dash": Implemented,
       "wave": Implemented}))
@@ -1807,7 +1806,7 @@ proc initPropsTable*(): PropertiesTable =
   ## 
   ## Property `text-overflow`
   ## 
-  result["text-overflow"] = Property(url: "https://www.w3.org/TR/css-ui-3/#propdef-text-overflow", values: newTable(
+  result["text-overflow"] = Property(url: "https://www.w3.org/TR/css-ui-3/#propdef-text-overflow", values: toCritBitTree(
       {"clip": Implemented, "ellipsis": Implemented}))
   ## 
   ## Property `text-overline`
@@ -1820,12 +1819,12 @@ proc initPropsTable*(): PropertiesTable =
   ## 
   ## Property `text-overline-mode`
   ## 
-  result["text-overline-mode"] = Property(url: "https://www.w3.org/TR/2003/CR-css3-text-20030514/#text-overline-mode", values: newTable(
+  result["text-overline-mode"] = Property(url: "https://www.w3.org/TR/2003/CR-css3-text-20030514/#text-overline-mode", values: toCritBitTree(
       {"continuous": Implemented, "skip-white-space": Implemented}))
   ## 
   ## Property `text-overline-style`
   ## 
-  result["text-overline-style"] = Property(url: "https://www.w3.org/TR/2003/CR-css3-text-20030514/#text-overline-style", values: newTable({
+  result["text-overline-style"] = Property(url: "https://www.w3.org/TR/2003/CR-css3-text-20030514/#text-overline-style", values: toCritBitTree({
       "none": Implemented, "solid": Implemented, "double": Implemented,
       "dashed": Implemented, "dot-dash": Implemented, "dot-dot-dash": Implemented,
       "wave": Implemented}))
@@ -1840,7 +1839,7 @@ proc initPropsTable*(): PropertiesTable =
   ## 
   ## Property `text-transform`
   ## 
-  result["text-transform"] = Property(url: "https://www.w3.org/TR/CSS22/text.html#propdef-text-transform", values: newTable({
+  result["text-transform"] = Property(url: "https://www.w3.org/TR/CSS22/text.html#propdef-text-transform", values: toCritBitTree({
       "capitalize": Implemented, "uppercase": Implemented,
       "lowercase": Implemented, "full-size-kana": Implemented, "none": Implemented}))
   ## 
@@ -1854,12 +1853,12 @@ proc initPropsTable*(): PropertiesTable =
   ## 
   ## Property `text-underline-mode`
   ## 
-  result["text-underline-mode"] = Property(url: "https://www.w3.org/TR/2003/CR-css3-text-20030514/#text-underline-mode", values: newTable(
+  result["text-underline-mode"] = Property(url: "https://www.w3.org/TR/2003/CR-css3-text-20030514/#text-underline-mode", values: toCritBitTree(
       {"continuous": Implemented, "skip-white-space": Implemented}))
   ## 
   ## Property `text-underline-style`
   ## 
-  result["text-underline-style"] = Property(url: "https://www.w3.org/TR/2003/CR-css3-text-20030514/#text-underline-style", values: newTable({
+  result["text-underline-style"] = Property(url: "https://www.w3.org/TR/2003/CR-css3-text-20030514/#text-underline-style", values: toCritBitTree({
       "none": Implemented, "solid": Implemented, "double": Implemented,
       "dashed": Implemented, "dot-dash": Implemented, "dot-dot-dash": Implemented,
       "wave": Implemented}))
@@ -1870,14 +1869,14 @@ proc initPropsTable*(): PropertiesTable =
   ## 
   ## Property `text-wrap`
   ## 
-  result["text-wrap"] = Property(url: "https://www.w3.org/TR/css-text-4/#text-wrap", values: newTable({
+  result["text-wrap"] = Property(url: "https://www.w3.org/TR/css-text-4/#text-wrap", values: toCritBitTree({
       "wrap": Implemented, "nowrap": Implemented, "balance": Implemented,
       "stable": Implemented, "pretty": Implemented}))
   ## 
   ## Property `top`
   ## 
   result["top"] = Property(url: "https://www.w3.org/TR/CSS22/visuren.html#propdef-top",
-                               values: newTable({"auto": Implemented}))
+                               values: toCritBitTree({"auto": Implemented}))
   ## 
   ## Property `transition`
   ## 
@@ -1899,7 +1898,7 @@ proc initPropsTable*(): PropertiesTable =
   ## 
   result["transition-property"] = Property(
       url: "https://www.w3.org/TR/css3-transitions/#transition-property",
-      values: newTable({"none": Implemented}))
+      values: toCritBitTree({"none": Implemented}))
   ## 
   ## Property `transition-timing-function`
   ## 
@@ -1908,7 +1907,7 @@ proc initPropsTable*(): PropertiesTable =
   ## 
   ## Property `unicode-bidi`
   ## 
-  result["unicode-bidi"] = Property(url: "https://www.w3.org/TR/CSS22/visuren.html#propdef-unicode-bidi", values: newTable({
+  result["unicode-bidi"] = Property(url: "https://www.w3.org/TR/CSS22/visuren.html#propdef-unicode-bidi", values: toCritBitTree({
       "normal": Implemented, "embed": Implemented, "bidi-override": Implemented,
       "isolate": Implemented, "isolate-override": Implemented,
       "plaintext": Implemented, "-webkit-isolate": Deprecated,
@@ -1916,7 +1915,7 @@ proc initPropsTable*(): PropertiesTable =
   ## 
   ## Property `vector-effect`
   ## 
-  result["vector-effect"] = Property(url: "https://www.w3.org/TR/SVGTiny12/painting.html#VectorEffectProperty", values: newTable(
+  result["vector-effect"] = Property(url: "https://www.w3.org/TR/SVGTiny12/painting.html#VectorEffectProperty", values: toCritBitTree(
       {"none": Implemented, "non-scaling-stroke": Implemented}))
   ## 
   ## Property `vertical-align`
@@ -1925,12 +1924,12 @@ proc initPropsTable*(): PropertiesTable =
   ## 
   ## Property `visibility`
   ## 
-  result["visibility"] = Property(url: "https://www.w3.org/TR/CSS22/visufx.html#propdef-visibility", values: newTable(
+  result["visibility"] = Property(url: "https://www.w3.org/TR/CSS22/visufx.html#propdef-visibility", values: toCritBitTree(
       {"visible": Implemented, "hidden": Implemented, "collapse": Implemented}))
   ## 
   ## Property `white-space`
   ## 
-  result["white-space"] = Property(url: "https://www.w3.org/TR/CSS22/text.html#propdef-white-space", values: newTable({
+  result["white-space"] = Property(url: "https://www.w3.org/TR/CSS22/text.html#propdef-white-space", values: toCritBitTree({
       "normal": Implemented, "pre": Implemented, "pre-wrap": Implemented,
       "pre-line": Implemented, "nowrap": Implemented, "break-spaces": Implemented}))
   ## 
@@ -1948,14 +1947,14 @@ proc initPropsTable*(): PropertiesTable =
   ## 
   ## Property `word-break`
   ## 
-  result["word-break"] = Property(url: "https://www.w3.org/TR/css-text-3/#word-break", values: newTable({
+  result["word-break"] = Property(url: "https://www.w3.org/TR/css-text-3/#word-break", values: toCritBitTree({
       "normal": Implemented, "break-all": Implemented, "keep-all": Implemented,
       "break-word": Implemented}))
   ## 
   ## Property `word-spacing`
   ## 
   result["word-spacing"] = Property(url: "https://www.w3.org/TR/CSS22/text.html#propdef-word-spacing",
-                                        values: newTable({"normal": Implemented}))
+                                        values: toCritBitTree({"normal": Implemented}))
   ## 
   ## Property `x`
   ## 
@@ -1968,7 +1967,7 @@ proc initPropsTable*(): PropertiesTable =
   ## Property `z-index`
   ## 
   result["z-index"] = Property(url: "https://www.w3.org/TR/CSS22/visuren.html#propdef-z-index",
-                                   values: newTable({"auto": Implemented}))
+                                   values: toCritBitTree({"auto": Implemented}))
   ## 
   ## Property `alt`
   ## 
@@ -1976,7 +1975,7 @@ proc initPropsTable*(): PropertiesTable =
   ## 
   ## Property `appearance`
   ## 
-  result["appearance"] = Property(url: "https://www.w3.org/TR/css-ui-4/#propdef-appearance", values: newTable({
+  result["appearance"] = Property(url: "https://www.w3.org/TR/css-ui-4/#propdef-appearance", values: toCritBitTree({
       "checkbox": Implemented, "radio": Implemented, "push-button": Implemented,
       "square-button": Implemented, "button": Implemented, "listbox": Implemented,
       "menulist": Implemented, "menulist-button": Implemented,
@@ -1990,7 +1989,7 @@ proc initPropsTable*(): PropertiesTable =
   ## Property `aspect-ratio`
   ## 
   result["aspect-ratio"] = Property(url: "https://drafts.csswg.org/css-sizing-4/#aspect-ratio",
-                                        values: newTable({"auto": Implemented}))
+                                        values: toCritBitTree({"auto": Implemented}))
   ## 
   ## Property `contain-intrinsic-size`
   ## 
@@ -2033,20 +2032,20 @@ proc initPropsTable*(): PropertiesTable =
   ## 
   ## Property `container-type`
   ## 
-  result["container-type"] = Property(url: "https://drafts.csswg.org/css-contain-3/#container-queries", values: newTable(
+  result["container-type"] = Property(url: "https://drafts.csswg.org/css-contain-3/#container-queries", values: toCritBitTree(
       {"normal": Implemented, "size": Implemented, "inline-size": Implemented}))
   ## 
   ## Property `content-visibility`
   ## 
   result["content-visibility"] = Property(
-      url: "https://www.w3.org/TR/css-contain-2/#content-visibility", values: newTable(
+      url: "https://www.w3.org/TR/css-contain-2/#content-visibility", values: toCritBitTree(
       {"visible": Implemented, "hidden": Implemented, "auto": Implemented}))
   ## 
   ## Property `backface-visibility`
   ## 
   result["backface-visibility"] = Property(
       url: "https://www.w3.org/TR/css-transforms-1/#propdef-backface-visibility",
-      values: newTable({"visible": Implemented, "hidden": Implemented}))
+      values: toCritBitTree({"visible": Implemented, "hidden": Implemented}))
   ## 
   ## Property `-webkit-background-clip`
   ## 
@@ -2083,14 +2082,14 @@ proc initPropsTable*(): PropertiesTable =
   ## 
   ## Property `-webkit-box-align`
   ## 
-  result["-webkit-box-align"] = Property(url: "https://www.w3.org/TR/2009/WD-css3-flexbox-20090723/#propdef-box-align", values: newTable({
+  result["-webkit-box-align"] = Property(url: "https://www.w3.org/TR/2009/WD-css3-flexbox-20090723/#propdef-box-align", values: toCritBitTree({
       "stretch": Implemented, "start": Implemented, "end": Implemented,
       "center": Implemented, "baseline": Implemented}))
   ## 
   ## Property `-webkit-box-direction`
   ## 
   result["-webkit-box-direction"] = Property(url: "https://www.w3.org/TR/2009/WD-css3-flexbox-20090723/#propdef-box-direction",
-      values: newTable({"normal": Implemented, "reverse": Implemented}))
+      values: toCritBitTree({"normal": Implemented, "reverse": Implemented}))
   ## 
   ## Property `-webkit-box-flex`
   ## 
@@ -2103,7 +2102,7 @@ proc initPropsTable*(): PropertiesTable =
   ## Property `-webkit-box-lines`
   ## 
   result["-webkit-box-lines"] = Property(url: "https://www.w3.org/TR/2009/WD-css3-flexbox-20090723/#propdef-box-lines",
-      values: newTable({"single": Implemented, "multiple": Implemented}))
+      values: toCritBitTree({"single": Implemented, "multiple": Implemented}))
   ## 
   ## Property `-webkit-box-ordinal-group`
   ## 
@@ -2111,13 +2110,13 @@ proc initPropsTable*(): PropertiesTable =
   ## 
   ## Property `-webkit-box-orient`
   ## 
-  result["-webkit-box-orient"] = Property(url: "https://www.w3.org/TR/2009/WD-css3-flexbox-20090723/#propdef-box-orient", values: newTable({
+  result["-webkit-box-orient"] = Property(url: "https://www.w3.org/TR/2009/WD-css3-flexbox-20090723/#propdef-box-orient", values: toCritBitTree({
       "horizontal": Implemented, "vertical": Implemented,
       "inline-axis": Implemented, "block-axis": Implemented}))
   ## 
   ## Property `-webkit-box-pack`
   ## 
-  result["-webkit-box-pack"] = Property(url: "https://www.w3.org/TR/2009/WD-css3-flexbox-20090723/#propdef-box-pack", values: newTable({
+  result["-webkit-box-pack"] = Property(url: "https://www.w3.org/TR/2009/WD-css3-flexbox-20090723/#propdef-box-pack", values: toCritBitTree({
       "start": Implemented, "end": Implemented, "center": Implemented,
       "justify": Implemented}))
   ## 
@@ -2131,7 +2130,7 @@ proc initPropsTable*(): PropertiesTable =
   ## 
   ## Property `-webkit-column-axis`
   ## 
-  result["-webkit-column-axis"] = Property(values: newTable(
+  result["-webkit-column-axis"] = Property(values: toCritBitTree(
       {"horizontal": Implemented, "vertical": Implemented, "auto": Implemented}))
   ## 
   ## Property `-webkit-column-break-after`
@@ -2158,7 +2157,7 @@ proc initPropsTable*(): PropertiesTable =
   ## 
   ## Property `column-fill`
   ## 
-  result["column-fill"] = Property(url: "https://www.w3.org/TR/css3-multicol/#column-fill", values: newTable(
+  result["column-fill"] = Property(url: "https://www.w3.org/TR/css3-multicol/#column-fill", values: toCritBitTree(
       {"auto": Implemented, "balance": Implemented}))
   ## 
   ## Property `column-gap`
@@ -2177,7 +2176,7 @@ proc initPropsTable*(): PropertiesTable =
   ## Property `-webkit-column-progression`
   ## 
   result["-webkit-column-progression"] = Property(
-      values: newTable({"normal": Implemented, "reverse": Implemented}))
+      values: toCritBitTree({"normal": Implemented, "reverse": Implemented}))
   ## 
   ## Property `column-rule`
   ## 
@@ -2192,7 +2191,7 @@ proc initPropsTable*(): PropertiesTable =
   ## Property `column-rule-style`
   ## 
   result["column-rule-style"] = Property(
-      url: "https://www.w3.org/TR/css3-multicol/#column-rule-style", values: newTable({
+      url: "https://www.w3.org/TR/css3-multicol/#column-rule-style", values: toCritBitTree({
       "none": Implemented, "hidden": Implemented, "inset": Implemented,
       "groove": Implemented, "outset": Implemented, "ridge": Implemented,
       "dotted": Implemented, "dashed": Implemented, "solid": Implemented,
@@ -2201,12 +2200,12 @@ proc initPropsTable*(): PropertiesTable =
   ## Property `column-rule-width`
   ## 
   result["column-rule-width"] = Property(
-      url: "https://www.w3.org/TR/css3-multicol/#column-rule-width", values: newTable(
+      url: "https://www.w3.org/TR/css3-multicol/#column-rule-width", values: toCritBitTree(
       {"thin": Implemented, "medium": Implemented, "thick": Implemented}))
   ## 
   ## Property `column-span`
   ## 
-  result["column-span"] = Property(url: "https://www.w3.org/TR/css3-multicol/#column-span0", values: newTable(
+  result["column-span"] = Property(url: "https://www.w3.org/TR/css3-multicol/#column-span0", values: toCritBitTree(
       {"none": Implemented, "all": Implemented}))
   ## 
   ## Property `column-width`
@@ -2222,11 +2221,11 @@ proc initPropsTable*(): PropertiesTable =
   ## 
   result["-webkit-box-decoration-break"] = Property(
       url: "https://www.w3.org/TR/css-break-3/#propdef-box-decoration-break",
-      values: newTable({"clone": Implemented, "slice": Implemented}))
+      values: toCritBitTree({"clone": Implemented, "slice": Implemented}))
   ## 
   ## Property `mix-blend-mode`
   ## 
-  result["mix-blend-mode"] = Property(url: "https://www.w3.org/TR/compositing-1/#propdef-mix-blend-mode", values: newTable({
+  result["mix-blend-mode"] = Property(url: "https://www.w3.org/TR/compositing-1/#propdef-mix-blend-mode", values: toCritBitTree({
       "normal": Implemented, "multiply": Implemented, "screen": Implemented,
       "overlay": Implemented, "darken": Implemented, "lighten": Implemented,
       "color-dodge": Implemented, "color-burn": Implemented,
@@ -2237,7 +2236,7 @@ proc initPropsTable*(): PropertiesTable =
   ## 
   ## Property `isolation`
   ## 
-  result["isolation"] = Property(url: "https://www.w3.org/TR/compositing-1/#isolation", values: newTable(
+  result["isolation"] = Property(url: "https://www.w3.org/TR/compositing-1/#isolation", values: toCritBitTree(
       {"auto": Implemented, "isolate": Implemented}))
   ## 
   ## Property `filter`
@@ -2250,7 +2249,7 @@ proc initPropsTable*(): PropertiesTable =
   ## 
   ## Property `align-content`
   ## 
-  result["align-content"] = Property(url: "https://www.w3.org/TR/css-align-3/#propdef-align-content", values: newTable({
+  result["align-content"] = Property(url: "https://www.w3.org/TR/css-align-3/#propdef-align-content", values: toCritBitTree({
       "normal": Implemented, "flex-start": Implemented, "flex-end": Implemented,
       "center": Implemented, "space-between": Implemented,
       "space-around": Implemented, "space-evenly": Implemented,
@@ -2260,7 +2259,7 @@ proc initPropsTable*(): PropertiesTable =
   ## 
   ## Property `align-items`
   ## 
-  result["align-items"] = Property(url: "https://www.w3.org/TR/css-align-3/#propdef-align-items", values: newTable({
+  result["align-items"] = Property(url: "https://www.w3.org/TR/css-align-3/#propdef-align-items", values: toCritBitTree({
       "flex-start": Implemented, "flex-end": Implemented, "center": Implemented,
       "baseline": Implemented, "stretch": Implemented, "normal": Implemented,
       "first": Implemented, "last": Implemented, "safe": Implemented,
@@ -2269,7 +2268,7 @@ proc initPropsTable*(): PropertiesTable =
   ## 
   ## Property `align-self`
   ## 
-  result["align-self"] = Property(url: "https://www.w3.org/TR/css-align-3/#propdef-align-self", values: newTable({
+  result["align-self"] = Property(url: "https://www.w3.org/TR/css-align-3/#propdef-align-self", values: toCritBitTree({
       "auto": Implemented, "flex-start": Implemented, "flex-end": Implemented,
       "center": Implemented, "baseline": Implemented, "stretch": Implemented,
       "normal": Implemented, "first": Implemented, "last": Implemented,
@@ -2287,7 +2286,7 @@ proc initPropsTable*(): PropertiesTable =
   ## 
   ## Property `flex-direction`
   ## 
-  result["flex-direction"] = Property(url: "https://www.w3.org/TR/css-flexbox-1/#propdef-flex-direction", values: newTable({
+  result["flex-direction"] = Property(url: "https://www.w3.org/TR/css-flexbox-1/#propdef-flex-direction", values: toCritBitTree({
       "row": Implemented, "row-reverse": Implemented, "column": Implemented,
       "column-reverse": Implemented}))
   ## 
@@ -2306,13 +2305,13 @@ proc initPropsTable*(): PropertiesTable =
   ## 
   ## Property `flex-wrap`
   ## 
-  result["flex-wrap"] = Property(url: "https://www.w3.org/TR/css-flexbox-1/#propdef-flex-wrap", values: newTable(
+  result["flex-wrap"] = Property(url: "https://www.w3.org/TR/css-flexbox-1/#propdef-flex-wrap", values: toCritBitTree(
       {"nowrap": Implemented, "wrap": Implemented, "wrap-reverse": Implemented}))
   ## 
   ## Property `justify-content`
   ## 
   result["justify-content"] = Property(
-      url: "https://www.w3.org/TR/css-align-3/#propdef-justify-content", values: newTable({
+      url: "https://www.w3.org/TR/css-align-3/#propdef-justify-content", values: toCritBitTree({
       "normal": Implemented, "flex-start": Implemented, "flex-end": Implemented,
       "center": Implemented, "space-between": Implemented,
       "space-around": Implemented, "space-evenly": Implemented,
@@ -2445,7 +2444,7 @@ proc initPropsTable*(): PropertiesTable =
   ## Property `-webkit-hyphens`
   ## 
   result["-webkit-hyphens"] = Property(
-      url: "https://www.w3.org/TR/css-text-3/#hyphens-property", values: newTable(
+      url: "https://www.w3.org/TR/css-text-3/#hyphens-property", values: toCritBitTree(
       {"none": Implemented, "manual": Implemented, "auto": Implemented}))
   ## 
   ## Property `-webkit-initial-letter`
@@ -2455,7 +2454,7 @@ proc initPropsTable*(): PropertiesTable =
   ## 
   ## Property `-webkit-line-box-contain`
   ## 
-  result["-webkit-line-box-contain"] = Property(values: newTable({
+  result["-webkit-line-box-contain"] = Property(values: toCritBitTree({
       "none": Implemented, "block": Implemented, "inline": Implemented,
       "font": Implemented, "glyphs": Implemented, "replaced": Implemented,
       "inline-box": Implemented, "initial-letter": Implemented}))
@@ -2464,11 +2463,11 @@ proc initPropsTable*(): PropertiesTable =
   ## 
   result["-webkit-line-align"] = Property(
       url: "https://www.w3.org/TR/css-line-grid-1/",
-      values: newTable({"none": Implemented, "edges": Implemented}))
+      values: toCritBitTree({"none": Implemented, "edges": Implemented}))
   ## 
   ## Property `line-break`
   ## 
-  result["line-break"] = Property(url: "https://www.w3.org/TR/css-text-3/#line-break", values: newTable({
+  result["line-break"] = Property(url: "https://www.w3.org/TR/css-text-3/#line-break", values: toCritBitTree({
       "auto": Implemented, "loose": Implemented, "normal": Implemented,
       "strict": Implemented, "after-white-space": NonStandard,
       "anywhere": Implemented}))
@@ -2485,19 +2484,19 @@ proc initPropsTable*(): PropertiesTable =
   ## Property `-webkit-line-snap`
   ## 
   result["-webkit-line-snap"] = Property(
-      url: "https://www.w3.org/TR/css-line-grid-1/#line-snap", values: newTable(
+      url: "https://www.w3.org/TR/css-line-grid-1/#line-snap", values: toCritBitTree(
       {"none": Implemented, "baseline": Implemented, "contain": Implemented}))
   ## 
   ## Property `-webkit-box-snap`
   ## 
   result["-webkit-box-snap"] = Property(
-      url: "https://www.w3.org/TR/css-line-grid-1/#box-snap", values: newTable({
+      url: "https://www.w3.org/TR/css-line-grid-1/#box-snap", values: toCritBitTree({
       "block-start": Implemented, "block-end": Implemented, "center": Implemented,
       "first-baseline": Implemented, "last-baseline": Implemented}))
   ## 
   ## Property `-webkit-marquee-direction`
   ## 
-  result["-webkit-marquee-direction"] = Property(values: newTable({
+  result["-webkit-marquee-direction"] = Property(values: toCritBitTree({
       "forwards": Implemented, "backwards": Implemented, "ahead": Implemented,
       "reverse": Implemented, "left": Implemented, "right": Implemented,
       "down": Implemented, "up": Implemented, "auto": Implemented}))
@@ -2516,7 +2515,7 @@ proc initPropsTable*(): PropertiesTable =
   ## 
   ## Property `-webkit-marquee-style`
   ## 
-  result["-webkit-marquee-style"] = Property(values: newTable({
+  result["-webkit-marquee-style"] = Property(values: toCritBitTree({
       "none": Implemented, "slide": Implemented, "scroll": Implemented,
       "alternate": Implemented}))
   ## 
@@ -2571,11 +2570,11 @@ proc initPropsTable*(): PropertiesTable =
   ## Property `-webkit-nbsp-mode`
   ## 
   result["-webkit-nbsp-mode"] = Property(
-      values: newTable({"normal": Implemented, "space": Implemented}))
+      values: toCritBitTree({"normal": Implemented, "space": Implemented}))
   ## 
   ## Property `color-scheme`
   ## 
-  result["color-scheme"] = Property(url: "https://www.w3.org/TR/css-color-adjust/#color-scheme-prop", values: newTable({
+  result["color-scheme"] = Property(url: "https://www.w3.org/TR/css-color-adjust/#color-scheme-prop", values: toCritBitTree({
       "normal": Implemented, "light": Implemented, "dark": Implemented,
       "only": Implemented}))
   ## 
@@ -2613,23 +2612,23 @@ proc initPropsTable*(): PropertiesTable =
   ## 
   result["print-color-adjust"] = Property(
       url: "https://www.w3.org/TR/css-color-adjust/#print-color-adjust",
-      values: newTable({"exact": Implemented, "economy": Implemented}))
+      values: toCritBitTree({"exact": Implemented, "economy": Implemented}))
   ## 
   ## Property `-webkit-rtl-ordering`
   ## 
   result["-webkit-rtl-ordering"] = Property(
-      values: newTable({"logical": Implemented, "visual": Implemented}))
+      values: toCritBitTree({"logical": Implemented, "visual": Implemented}))
   ## 
   ## Property `-webkit-text-combine`
   ## 
   result["-webkit-text-combine"] = Property(
-      values: newTable({"none": Implemented, "horizontal": Implemented}))
+      values: toCritBitTree({"none": Implemented, "horizontal": Implemented}))
   ## 
   ## Property `text-combine-upright`
   ## 
   result["text-combine-upright"] = Property(
       url: "https://www.w3.org/TR/css-writing-modes-3/#propdef-direction",
-      values: newTable({"none": Implemented, "all": Implemented}))
+      values: toCritBitTree({"none": Implemented, "all": Implemented}))
   ## 
   ## Property `-webkit-text-decoration`
   ## 
@@ -2640,14 +2639,14 @@ proc initPropsTable*(): PropertiesTable =
   ## Property `text-decoration-line`
   ## 
   result["text-decoration-line"] = Property(
-      url: "https://www.w3.org/TR/css-text-decor-3/#text-decoration-line", values: newTable({
+      url: "https://www.w3.org/TR/css-text-decor-3/#text-decoration-line", values: toCritBitTree({
       "none": Implemented, "underline": Implemented, "overline": Implemented,
       "line-through": Implemented, "blink": Implemented}))
   ## 
   ## Property `text-decoration-style`
   ## 
   result["text-decoration-style"] = Property(
-      url: "https://www.w3.org/TR/css-text-decor-3/#text-decoration-style", values: newTable({
+      url: "https://www.w3.org/TR/css-text-decor-3/#text-decoration-style", values: toCritBitTree({
       "solid": Implemented, "double": Implemented, "dotted": Implemented,
       "dashed": Implemented, "wavy": Implemented}))
   ## 
@@ -2664,12 +2663,12 @@ proc initPropsTable*(): PropertiesTable =
   ## 
   ## Property `text-decoration-skip-ink`
   ## 
-  result["text-decoration-skip-ink"] = Property(url: "https://drafts.csswg.org/css-text-decor-4/#text-decoration-skip-ink-property", values: newTable(
+  result["text-decoration-skip-ink"] = Property(url: "https://drafts.csswg.org/css-text-decor-4/#text-decoration-skip-ink-property", values: toCritBitTree(
       {"auto": Implemented, "none": Implemented, "all": Implemented}))
   ## 
   ## Property `text-underline-position`
   ## 
-  result["text-underline-position"] = Property(url: "https://www.w3.org/TR/css-text-decor-3/#text-underline-position-property", values: newTable(
+  result["text-underline-position"] = Property(url: "https://www.w3.org/TR/css-text-decor-3/#text-underline-position-property", values: toCritBitTree(
       {"auto": Implemented, "under": Implemented, "from-font": Implemented}))
   ## 
   ## Property `text-underline-offset`
@@ -2716,7 +2715,7 @@ proc initPropsTable*(): PropertiesTable =
   ## 
   ## Property `-webkit-text-security`
   ## 
-  result["-webkit-text-security"] = Property(values: newTable({
+  result["-webkit-text-security"] = Property(values: toCritBitTree({
       "disc": Implemented, "circle": Implemented, "square": Implemented,
       "none": Implemented}))
   ## 
@@ -2731,7 +2730,7 @@ proc initPropsTable*(): PropertiesTable =
   ## 
   ## Property `-webkit-text-stroke-width`
   ## 
-  result["-webkit-text-stroke-width"] = Property(values: newTable(
+  result["-webkit-text-stroke-width"] = Property(values: toCritBitTree(
       {"thin": Implemented, "medium": Implemented, "thick": Implemented}))
   ## 
   ## Property `transform`
@@ -2740,7 +2739,7 @@ proc initPropsTable*(): PropertiesTable =
   ## 
   ## Property `transform-box`
   ## 
-  result["transform-box"] = Property(url: "https://www.w3.org/TR/css-transforms/#propdef-transform-box", values: newTable({
+  result["transform-box"] = Property(url: "https://www.w3.org/TR/css-transforms/#propdef-transform-box", values: toCritBitTree({
       "content-box": Implemented, "border-box": Implemented,
       "fill-box": Implemented, "stroke-box": Implemented, "view-box": Implemented}))
   ## 
@@ -2768,7 +2767,7 @@ proc initPropsTable*(): PropertiesTable =
   ## Property `transform-style`
   ## 
   result["transform-style"] = Property(
-      url: "https://www.w3.org/TR/css-transforms-1/#transform-style-property", values: newTable({
+      url: "https://www.w3.org/TR/css-transforms-1/#transform-style-property", values: toCritBitTree({
       "flat": Implemented, "preserve-3d": Implemented, "optimized-3d": Implemented}))
   ## 
   ## Property `translate`
@@ -2785,19 +2784,19 @@ proc initPropsTable*(): PropertiesTable =
   ## 
   ## Property `-webkit-user-drag`
   ## 
-  result["-webkit-user-drag"] = Property(values: newTable(
+  result["-webkit-user-drag"] = Property(values: toCritBitTree(
       {"auto": Implemented, "none": Implemented, "element": Implemented}))
   ## 
   ## Property `-webkit-user-modify`
   ## 
-  result["-webkit-user-modify"] = Property(values: newTable({
+  result["-webkit-user-modify"] = Property(values: toCritBitTree({
       "read-only": Implemented, "read-write": Implemented,
       "read-write-plaintext-only": Implemented}))
   ## 
   ## Property `-webkit-user-select`
   ## 
   result["-webkit-user-select"] = Property(
-      url: "https://www.w3.org/TR/css-ui-4/#propdef-user-select", values: newTable({
+      url: "https://www.w3.org/TR/css-ui-4/#propdef-user-select", values: toCritBitTree({
       "auto": Implemented, "text": Implemented, "none": Implemented,
       "contain": Unimplemented, "all": Implemented}))
   ## 
@@ -2805,7 +2804,7 @@ proc initPropsTable*(): PropertiesTable =
   ## 
   result["scroll-behavior"] = Property(
       url: "https://drafts.csswg.org/cssom-view/#propdef-scroll-behavior",
-      values: newTable({"auto": Implemented, "smooth": Implemented}))
+      values: toCritBitTree({"auto": Implemented, "smooth": Implemented}))
   ## 
   ## Property `scroll-margin`
   ## 
@@ -2922,7 +2921,7 @@ proc initPropsTable*(): PropertiesTable =
   ## Property `scroll-snap-stop`
   ## 
   result["scroll-snap-stop"] = Property(url: "https://drafts.csswg.org/css-scroll-snap-1/#propdef-scroll-snap-stop",
-      values: newTable({"always": Implemented, "normal": Implemented}))
+      values: toCritBitTree({"always": Implemented, "normal": Implemented}))
   ## 
   ## Property `shape-outside`
   ## 
@@ -2944,11 +2943,11 @@ proc initPropsTable*(): PropertiesTable =
   ## Property `-webkit-overflow-scrolling`
   ## 
   result["-webkit-overflow-scrolling"] = Property(
-      values: newTable({"auto": Implemented, "touch": Implemented}))
+      values: toCritBitTree({"auto": Implemented, "touch": Implemented}))
   ## 
   ## Property `touch-action`
   ## 
-  result["touch-action"] = Property(url: "https://www.w3.org/TR/pointerevents/#the-touch-action-css-property", values: newTable({
+  result["touch-action"] = Property(url: "https://www.w3.org/TR/pointerevents/#the-touch-action-css-property", values: toCritBitTree({
       "auto": Implemented, "none": Implemented, "manipulation": Implemented,
       "pan-x": Implemented, "pan-left": Unimplemented, "pan-right": Unimplemented,
       "pan-y": Implemented, "pan-up": Unimplemented, "pan-down": Unimplemented,
@@ -2957,7 +2956,7 @@ proc initPropsTable*(): PropertiesTable =
   ## Property `-webkit-touch-callout`
   ## 
   result["-webkit-touch-callout"] = Property(
-      values: newTable({"default": Implemented, "none": Implemented}))
+      values: toCritBitTree({"default": Implemented, "none": Implemented}))
   ## 
   ## Property `-apple-trailing-word`
   ## 
@@ -2965,12 +2964,12 @@ proc initPropsTable*(): PropertiesTable =
   ## 
   ## Property `-apple-pay-button-style`
   ## 
-  result["-apple-pay-button-style"] = Property(values: newTable(
+  result["-apple-pay-button-style"] = Property(values: toCritBitTree(
       {"white": Implemented, "white-outline": Implemented, "black": Implemented}))
   ## 
   ## Property `-apple-pay-button-type`
   ## 
-  result["-apple-pay-button-type"] = Property(values: newTable({
+  result["-apple-pay-button-type"] = Property(values: toCritBitTree({
       "plain": Implemented, "buy": Implemented, "set-up": Implemented,
       "donate": Implemented, "check-out": Implemented, "book": Implemented,
       "subscribe": Implemented, "reload": Implemented, "add-money": Implemented,
