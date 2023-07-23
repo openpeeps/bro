@@ -59,5 +59,5 @@ proc runCommand*(v: Values) =
   else:
     display(c.getCSS)
   if hasOutput:
-    display("Done in " & $(getMonotime() - t).inMilliseconds & "ms")
+    display("Done in " & $(getMonotime() - t))
   QuitSuccess.quit

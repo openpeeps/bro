@@ -14,7 +14,7 @@ type
     css*, deferred, deferredProps: string
     program: Program
     sourceMap: SourceInfo
-    minify, sortPropsEnabled: bool
+    minify: bool
     stack: Table[int, Node]
     warnings*: seq[Warning]
 
@@ -242,7 +242,6 @@ proc getSelectorGroup(c: var Compiler, node: Node,
       else: discard
     add result, strCL # {
     i = 1
-    # if length != 1 and c.sortPropsEnabled: node.properties.sort(system.cmp) # todo make it optional
     for propName, propNode in node.properties:
       add result, c.getProperty(propNode, propName, i, length, scope)
     add result, strCR # }
@@ -359,8 +358,8 @@ proc write(c: var Compiler, node: Node, scope: ScopeTable = nil, data: Node = ni
 
 proc len*(c: var Compiler): int = c.program.nodes.len
 
-proc newCompiler*(p: Program, minify = false, enableSortingProps = true): Compiler =
-  var c = Compiler(program: p, minify: minify, sortPropsEnabled: enableSortingProps)
+proc newCompiler*(p: Program, minify = false): Compiler =
+  var c = Compiler(program: p, minify: minify)
   strCL = "{"
   strCR = "}"
   if minify == false:
@@ -383,5 +382,5 @@ proc newCompiler*(p: Program, minify = false, enableSortingProps = true): Compil
   setLen strCL, 0
   setLen strCR, 0
 
-proc toCSS*(p: Program, minify = false, enableSortingProps = true): string =
-  newCompiler(p, minify, enableSortingProps).getCSS
+proc toCSS*(p: Program, minify = false): string =
+  newCompiler(p, minify).getCSS
