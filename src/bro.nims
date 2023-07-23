@@ -4,11 +4,9 @@
 --deepcopy:on
 --define:msgpack_obj_to_map
 --define:httpxServerName:"BroStyleSync"
-# --define:nimPreviewHashRef
 
 when defined release:
   --opt:speed
-  --define:release
   --define:danger
   --checks:off
   --passC:"-flto"
