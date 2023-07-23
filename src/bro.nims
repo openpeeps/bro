@@ -48,6 +48,8 @@ when defined wasm:
 elif defined napibuild:
   --define:napiOrWasm
   --define:useMalloc
+  --define:danger
+  --define:release
   --passC:"-I/usr/include/node -I/usr/local/include/node"
 # elif compileOptions("app", "lib"):
   
