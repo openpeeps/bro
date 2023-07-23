@@ -102,40 +102,40 @@ DartSass, SassC, **Bro**, **BroJS (via NAPI w/ Node & Bun)**, Sass (JS w/ Node &
 
 1.572.876 lines of 
 ```sass
-button_0
+.btn
   background: yellow
 ```
 
 ```
-Benchmark 1: ./dart sass.snapshot big.sass:big.css --no-source-map --style=compressed
-  Time (abs ≡):         5.009 s               [User: 6.379 s, System: 0.278 s]
+Benchmark 1: ./dart sass.snapshot test.sass:test.css --no-source-map --style=compressed
+  Time (abs ≡):         4.846 s               [User: 6.077 s, System: 0.208 s]
  
-Benchmark 2: sassc big.sass big.css --style=compressed
-  Time (abs ≡):         6.448 s               [User: 5.881 s, System: 0.564 s]
+Benchmark 2: sassc test.sass test.css --style=compressed
+  Time (abs ≡):         5.982 s               [User: 5.531 s, System: 0.448 s]
  
-Benchmark 3: bro big.sass --minify
-  Time (abs ≡):         1.066 s               [User: 0.697 s, System: 0.367 s]
+Benchmark 3: bro test.sass test.css --min
+  Time (abs ≡):        658.9 ms               [User: 543.7 ms, System: 112.8 ms]
  
 Benchmark 4: node bro.js
-  Time (abs ≡):         1.598 s               [User: 1.226 s, System: 0.373 s]
+  Time (abs ≡):        942.3 ms               [User: 835.2 ms, System: 107.9 ms]
  
 Benchmark 5: bun bro.js
-  Time (abs ≡):         1.396 s               [User: 1.088 s, System: 0.308 s]
+  Time (abs ≡):        969.6 ms               [User: 775.7 ms, System: 153.5 ms]
  
 Benchmark 6: node sass.js
-  Time (abs ≡):        14.910 s               [User: 22.484 s, System: 1.483 s]
+  Time (abs ≡):        12.566 s               [User: 19.499 s, System: 1.212 s]
  
 Benchmark 7: bun sass.js
-  Time (abs ≡):        11.963 s               [User: 20.004 s, System: 1.236 s]
+  Time (abs ≡):         9.892 s               [User: 18.939 s, System: 0.938 s]
  
 Summary
-  'bro big.sass --minify' ran
-    1.31 times faster than 'bun bro.js'
-    1.50 times faster than 'node bro.js'
-    4.70 times faster than './dart sass.snapshot big.sass:big.css --no-source-map --style=compressed'
-    6.05 times faster than 'sassc big.sass big.css --style=compressed'
-   11.22 times faster than 'bun sass.js'
-   13.98 times faster than 'node sass.js'
+  'bro test.sass test.css --min' ran
+    1.43 times faster than 'node bro.js'
+    1.47 times faster than 'bun bro.js'
+    7.35 times faster than './dart sass.snapshot test.sass:test.css --no-source-map --style=compressed'
+    9.08 times faster than 'sassc test.sass test.css --style=compressed'
+   15.01 times faster than 'bun sass.js'
+   19.07 times faster than 'node sass.js'
 ```
 
 ### BRO vs BRO Binary AST
@@ -161,8 +161,8 @@ Benchmarks made with [hyperfine](https://github.com/sharkdp/hyperfine) on<br>
   - [ ] Type Selectors [ref](https://www.w3.org/TR/selectors-3/#type-selectors)
   - [ ] Universal Selectors [ref](https://www.w3.org/TR/selectors-3/#universal-selector)
   - [ ] Attribute Selectors [ref](https://www.w3.org/TR/selectors-3/#attribute-selectors)
-  - [ ] Class Selectors [ref](https://www.w3.org/TR/selectors-3/#class-html)
-  - [ ] ID Selectors [ref](https://www.w3.org/TR/selectors-3/#id-selectors)
+  - [x] Class Selectors [ref](https://www.w3.org/TR/selectors-3/#class-html)
+  - [x] ID Selectors [ref](https://www.w3.org/TR/selectors-3/#id-selectors)
   - [ ] Pseudo-classes [ref](https://www.w3.org/TR/selectors-3/#pseudo-classes)
   - [ ] Pseudo-elements [ref](https://www.w3.org/TR/selectors-3/#pseudo-elements)
   - [ ] Groups of Selectors [ref](https://www.w3.org/TR/selectors-3/#grouping)
