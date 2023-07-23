@@ -4,7 +4,7 @@
 #          Made by Humans from OpenPeeps
 #          https://github.com/openpeeps/bro
 
-import std/[times, os, strutils]
+import std/[times, os, strutils, monotimes]
 import pkg/kapsis/[runtime, cli]
 import pkg/zippy
 
@@ -36,7 +36,7 @@ proc runCommand*(v: Values) =
       cssPath = cssPath.absolutePath()
     display("✨ Building...", br="after")
   let
-    t = cpuTime()
+    t = getMonotime()
     p = parser.parseProgram(stylesheetPath)
   if p.logger.warnLogs.len != 0:
     for warning in p.logger.warnings:
@@ -59,5 +59,5 @@ proc runCommand*(v: Values) =
   else:
     display(c.getCSS)
   if hasOutput:
-    display "Done in " & $(cpuTime() - t)
+    display("Done in " & $(getMonotime() - t).inMilliseconds & "ms")
   QuitSuccess.quit
