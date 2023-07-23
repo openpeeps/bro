@@ -1,8 +1,14 @@
 newPrefixProc "parseFn":
+  # Parse function definition using `fn` identifier.
+  # Function definition is inspired from Nim language:
+  #```bass
+  # fn hello(name: string): string =
+  #   return $name
+  #```
   let
     fn = p.curr
     fnName = p.next
-    scope = if scope == nil: ScopeTable() else: scope
+    fnScope = ScopeTable()
   walk p # `fn`
   var fnNode = newFunction(fnName)
   walk p # function identifier
@@ -22,7 +28,8 @@ newPrefixProc "parseFn":
             # Set type for current argument
             let nTyped = p.getLiteralType()
             fnNode.fnParams["$" & pName.value] = ("$" & pName.value, nTyped, nil)
-            scope["$" & pName.value] = nil
+            fnScope["$" & pName.value] = newVariable("$" & pName.value, newValue(Node(nt: nTyped)), pName)
+            fnScope["$" & pName.value].varImmutable = true
             types.add(nTyped)
             walk p
             # todo support default assignments
@@ -47,45 +54,41 @@ newPrefixProc "parseFn":
       if fnNode.fnReturnType != ntVoid:
         walk p
       else: error(fnInvalidReturn, p.curr)
+    
+    # add pre initialized scope to scope var
+    scope.add(fnScope)
 
     # parse function body
     if p.curr.kind == tkAssign:
       if fn.line == p.curr.line:
         walk p
-        let stmtNode =
-          p.parseStatement((fn, fnNode), scope = scope,
-            excludeOnly = {tkImport, tkUse},
-            returnType = fnNode.fnReturnType, isFunctionWrap = true)
-        if stmtNode != nil:
+        let stmtNode = p.parseStatement((fn, fnNode), scope = scope,
+                              excludeOnly = {tkImport, tkUse, tkDotExpr},
+                              returnType = fnNode.fnReturnType, isFunctionWrap = true, skipInitScope = true)
+        if likely(stmtNode != nil):
           fnNode.fnBody = stmtNode
-          stmtNode.cleanup # out of scope
-          if p.lastParent != nil:
-            case p.lastParent.nt
-            of ntFunction:
-              # check for name collisions. main function <> closures
-              if p.lastParent.fnName != fnNode.fnName:
-                fnNode.fnClosure = true
-              scope.localScope(fnNode) # add closure to local scope
-            of ntCondStmt, ntCaseStmt, ntForStmt:
-              scope.localScope(fnNode) # add blocks to local scope
-            else: discard
+          if unlikely(isFunctionWrap):
+            fnNode.fnClosure = true
+            scope[^1].localScope(fnNode)
           else:
-            if isFunctionWrap:
-              scope.localScope(fnNode)
-            else:
-              p.globalScope(fnNode) # add in glboal scope
+            p.globalScope(fnNode)
+        else: return nil
       result = fnNode
+      scope.delete(scope.high)
 
 newPrefixProc "parseCallFnCommand":
   # Parse function calls with or without arguments,
-  # looking for the following pattern: `fn myfn($a: string, $b: Int = 0): string =`
+  # looking for the following pattern: 
+  # `fn myfn($a: string, $b: Int = 0): string =`
   let ident = p.curr
   walk p, 2 # (
   var
     args: seq[Node]
     types: seq[NodeType]
   while p.curr isnot tkRPAR:
-    let arg = p.getPrefixOrInfix(scope, excludeOnly = {tkEcho, tkReturn, tkVarDef, tkFnDef})
+    if unlikely(p.curr is tkEOF): return
+    let arg = p.getPrefixOrInfix(scope, excludeOnly = {
+                    tkEcho, tkReturn, tkVarDef, tkFnDef})
     if arg != nil:
       add args, arg
       add types, arg.nt
@@ -97,9 +100,9 @@ newPrefixProc "parseCallFnCommand":
   let fnIdentName = identify(ident.value, types)
   if p.program.stack.hasKey(fnIdentName):
     fn = p.program.stack[fnIdentName]
-  elif scope != nil:
-    if scope.hasKey(fnIdentName):
-      fn = scope[fnIdentName]
+  elif scope.len > 0:
+    if scope[^1].hasKey(fnIdentName):
+      fn = scope[^1][fnIdentName]
     else: errorWithArgs(fnUndeclared, ident, [ident.value])
   else: errorWithArgs(fnUndeclared, ident, [ident.value])
   if likely(args.len == fn.fnParams.len):
@@ -108,12 +111,17 @@ newPrefixProc "parseCallFnCommand":
       try:
         if likely(args[i].getNodeType == pDef[1]):
           use(args[i])
-        else:
-          errorWithArgs(fnMismatchParam, ident, [pDef[0], $(args[i].getNodeType), $(pDef[1])])
+        else: errorWithArgs(fnMismatchParam, ident,
+                              [pDef[0], $(args[i].getNodeType), $(pDef[1])])
       except IndexDefect:
         error(fnExtraArg, ident)
       inc i 
     use fn
-    result = newFnCall(fn, args, fnIdentName, ident.value)
+    let strargs = jsony.toJson(args)
+    result = getMemoized(p.mCall, strargs)
+    if result == nil:
+      result = newFnCall(fn, args, fnIdentName, ident.value)
+      p.mCall.memoize(strargs, result)
   else:
-    errorWithArgs(fnExtraArg, ident, [ident.value, $len(fn.fnParams), $len(args)])
+    errorWithArgs(fnExtraArg, ident,
+        [ident.value, $len(fn.fnParams), $len(args)])

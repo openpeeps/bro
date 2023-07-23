@@ -103,8 +103,8 @@ type
     PSIZE = "%"     # related to the parent size
 
   LengthType* = enum
-    Absolute
-    Relative
+    ltAbsolute
+    ltRelative
 
   ArithmeticOperators* {.pure.} = enum
     Invalid
@@ -128,7 +128,7 @@ type
     stmtScope*: ScopeTable
     stmtTraces*: seq[string]
 
-  Node* = ref object
+  Node* {.acyclic.} = ref object
     case nt*: NodeType
     of ntProperty:
       pName*: string
@@ -176,7 +176,7 @@ type
     of ntSize:
       sizeVal*: int
       sizeUnit*: Units
-      lenType*: LengthType
+      sizeType*: LengthType
     of ntStream:
       streamContent*: JsonNode
       usedStream*: bool
@@ -205,8 +205,7 @@ type
       caseCond*: seq[CaseCondTuple]
       caseElse*: Node # ntStmtList
     of ntImport:
-      importNodes*: seq[Node]
-      importPath*: string
+      modules*: seq[tuple[path: string, module: ptr Program]]
     of ntPreview:
       previewContent: string
     of ntExtend:
@@ -319,6 +318,11 @@ proc cleanup*(stmtNode: Node) =
     stmtNode.stmtScope.del(item)
   setLen(stmtNode.stmtTraces, 0)
 
+# proc cleanup*(stmtNode: Node, scope: ScopeTable) =
+#   for item in stmtNode.stmtTraces:
+#     stmtNode.stmtScope.del(item)
+#   setLen(stmtNode.stmtTraces, 0)
+
 proc cleanup*(stmtNode: Node, key: string) =
   stmtNode.cleanup()
   stmtNode.stmtScope.del(key)
@@ -386,9 +390,9 @@ proc newColor*(cVal: string): Node =
 
 proc newSize*(size: int, unit: Units): Node =
   let lt = case unit:
-            of EM, EX, CH, REM, VW, VH, VMIN, VMAX, PSIZE: Relative
-            else: Absolute
-  result = Node(nt: ntSize, sizeVal: size, lenType: lt)
+            of EM, EX, CH, REM, VW, VH, VMIN, VMAX, PSIZE: ltRelative
+            else: ltAbsolute
+  result = Node(nt: ntSize, sizeVal: size, sizeType: lt)
 
 proc newInfo*(node: Node): Node =
   result = Node(nt: ntInfo, nodeType: node.getNodeType)
@@ -440,24 +444,20 @@ proc newInfix*(infixLeft: Node): Node =
   result = Node(nt: ntInfix, infixLeft: infixLeft)
 
 proc newIf*(infix: Node): Node =
-  ## Create a new ntCondStmt
+  ## Create a new `ntCondStmt`
   assert infix.nt in {ntInfix}
   result = Node(nt: ntCondStmt, condOid: genOid(), ifInfix: infix)
 
-proc newImport*(nodes: seq[Node], importPath: string): Node =
-  ## Create a new ntImport node
-  result = Node(nt: ntImport, importNodes: nodes, importPath: importPath)
-
-proc newImport*(path: string): Node =
-  ## Create a new ntImport node
-  result = Node(nt: ntImport, importPath: path)
+proc newImport*: Node =
+  ## Create a new `ntImport` node
+  result = Node(nt: ntImport)
 
 proc newVariable*(varName: string, varValue: Node, tk: TokenTuple): Node =
-  ## Create a new ntVariable (declaration) node
+  ## Create a new `ntVariable` (declaration) node
   result = Node(nt: ntVariable, varName: varName, varValue: varValue, varMeta: (tk.line, tk.pos))
 
 proc newVariable*(tk: TokenTuple): Node =
-  ## Create a new ntVariable (declaration) node
+  ## Create a new `ntVariable` (declaration) node
   result = Node(nt: ntVariable, varName: tk.value, varMeta: (tk.line, tk.pos))
 
 proc newValue*(val: Node): Node =

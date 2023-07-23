@@ -258,8 +258,9 @@ proc getSelectorGroup(c: var Compiler, node: Node,
 #       c.getSelectorGroup(pseudoNode, scope)
 
 proc handleImportStmt(c: var Compiler, node: Node, scope: ScopeTable) =
-  for i in 0 .. node.importNodes.high:
-    c.write(node.importNodes[i], scope)
+  for imported in node.modules:
+    for node in imported.module[].nodes:
+      c.write(node, scope)
 
 proc handleCommand(c: var Compiler, node: Node, scope: ScopeTable = nil) =
   case node.cmdIdent
@@ -276,20 +277,30 @@ proc handleCommand(c: var Compiler, node: Node, scope: ScopeTable = nil) =
       stdout.styledWriteLine(fgGreen, "Debug", fgDefault, meta, fgMagenta, getTypeInfo(node.cmdValue) & "\n", fgDefault, output)
 
 proc handleCallStack(c: var Compiler, node: Node, scope: ScopeTable): string =
-  let callable = c.program.stack[node.stackIdent]
+  var callable: Node
+  var stmtScope: ScopeTable
+  if scope != nil:
+    if scope.hasKey(node.stackIdent):
+      callable = scope[node.stackIdent]
+  else:
+    callable = c.program.stack[node.stackIdent]
+    stmtScope = callable.fnBody.stmtScope
+  # if callable.fnMemoized != nil:
+    # return callable.fnMemoized.str
   case callable.nt
   of ntFunction:
     var i = 0
-    var scope = ScopeTable() 
     for pName in callable.fnParams.keys():
-      scope[pName] = node.stackArgs[i]
+      stmtScope[pName].varValue = node.stackArgs[i]
       inc i
     i = 0
     for n in callable.fnBody.stmtList:
       case n.nt
       of ntReturn:
-        return c.getValue(n.returnStmt, scope)
-      else: c.handleInnerNode(n, callable, scope, 0, i)
+        # callable.fnMemoized = Memo(str: c.getValue(n.returnStmt, stmtScope))
+        # return callable.fnMemoized.str
+        return c.getValue(n.returnStmt, stmtScope)
+      else: c.handleInnerNode(n, callable, stmtScope, 0, i)
   else: discard
 
 proc handleInnerNode(c: var Compiler, node, parent: Node,

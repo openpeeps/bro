@@ -29,7 +29,6 @@ type
     DuplicateExtendStatement = "Cannot be extended more than once"
     InvalidNestSelector = "Invalid nest for given selector"
     UnknownPseudoClass = "Unknown pseudo-class"
-    ImportErrorFileNotFound = "Import error file not found"
     VariableRedefinition = "Compile-time variables are immutable"
     UndefinedPropertyAccessor = "Undefined property accessor $ for object $"
     InvalidInfixMissingValue = "Invalid infix missing assignable token"
@@ -47,7 +46,8 @@ type
     invalidCallContext = "Invalid call in this context"
 
     # Use/Imports
-    useDuplicateModule = "Module $ already in use"
+    importDuplicateModule = "Module $ already in use"
+    importModuleNotFound = "Module $ not found"
 
     # Condition - Case statements
     caseInvalidValueType = "Invalid case statement. Got $, expected $"

@@ -24,7 +24,7 @@ proc parseMultiSelector(p: var Parser, node: Node) =
         add node.parents, p.lastParent.ident
       p.lastParent = nil
 
-proc parseSelector(p: var Parser, node: Node, tk: TokenTuple, scope: ScopeTable, eatIdent = false): Node =
+proc parseSelector(p: var Parser, node: Node, tk: TokenTuple, scope: var seq[ScopeTable], eatIdent = false): Node =
   if eatIdent: walk p # selector ident
   p.parseMultiSelector(node)
   p.parseSelectorStmt((tk, node), scope = scope, excludeOnly = {tkImport, tkFnDef})
@@ -68,6 +68,30 @@ newPrefixProc "parseClass":
     p.currentSelector = node
     result = p.parseSelector(node, tk, scope, eatIdent = true)
 
+newPrefixProc "parseSelectorTag":
+  let tk = p.curr
+  var concatNodes: seq[Node] # ntVariable
+  handleSelectorConcat:
+    let node = tk.newTag(concat = concatNodes)
+    p.currentSelector = node
+    result = p.parseSelector(node, tk, scope)
+  do:
+    let node = tk.newTag()
+    p.currentSelector = node
+    result = p.parseSelector(node, tk, scope, eatIdent = true)
+
+newPrefixProc "parseSelectorID":
+  let tk = p.curr
+  var concatNodes: seq[Node] # ntVariable
+  handleSelectorConcat:
+    let node = tk.newID(concat = concatNodes)
+    p.currentSelector = node
+    result = p.parseSelector(node, tk, scope)
+  do:
+    let node = tk.newID()
+    p.currentSelector = node
+    result = p.parseSelector(node, tk, scope, eatIdent = true)
+
 newPrefixProc "parseProperty":
   ## Parse `key: value` pair as CSS Property
   if likely(p.propsTable.hasKey(p.curr.value)):
@@ -87,7 +111,7 @@ newPrefixProc "parseProperty":
         of tkIdentifier:
           if p.next.kind == tkLPAR and p.next.line == p.curr.line:
             let identToken = p.curr
-            let callNode = p.parseCallFnCommand()
+            let callNode = p.parseCallFnCommand(scope)
             if likely(callNode != nil):
               if likely(callNode.stackReturnType != ntVoid):
                 result.pVal.add(callNode)

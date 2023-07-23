@@ -1,20 +1,28 @@
 newPrefixProc "parseString":
+  # parse strings
   result = newString(p.curr.value)
   walk p
 
 newPrefixProc "parseInt":
+  # parse integers
+  if p.next.kind in tkUnits:
+    walk p
+    return newSize(parseInt(p.prev.value), toUnits(p.curr.kind))
   result = newInt(p.curr.value)
   walk p
 
 newPrefixProc "parseBool":
+  # parse boolean values
   result = newBool(p.curr.value)
   walk p
 
 newPrefixProc "parseFloat":
+  # parse float numbers
   result = newFloat(p.curr.value)
   walk p
 
 newPrefixProc "parseColor":
+  # parse colors
   result = newColor(p.curr.value)
   walk p
 

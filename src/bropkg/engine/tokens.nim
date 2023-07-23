@@ -32,7 +32,7 @@ handlers:
       lex.token = "#" & lex.token
       lex.kind = tkColor
     else:
-      lex.kind = tkID 
+      lex.kind = tkID
 
   proc handleVariable(lex: var Lexer, kind: TokenKind) =
     lexReady lex
@@ -142,6 +142,39 @@ handlers:
       else:
         add lex
 
+  proc handleImport(lex: var Lexer, kind: TokenKind) =
+    lexReady lex
+    inc lex.bufpos, len("@import")
+    skip lex
+    reset(lex.wsno) # dont count left wsno
+    var fName: string
+    while true:
+      case lex.buf[lex.bufpos]:
+      of NewLines, EndOfFile:
+        if fName.len != 0:
+          lex.attr.add(fName)
+        break
+      of ',':
+        # imports separated by comma
+        lex.attr.add(fName)
+        setLen(fName, 0)
+        inc lex.bufpos
+      of ' ':
+        inc lex.bufpos
+      else:
+        add fName, lex.buf[lex.bufpos]
+        inc lex.bufpos
+    lex.kind = kind
+
+  proc handleColorLit(lex: var Lexer, kind: TokenKind) =
+    lexReady lex
+    add lex
+    skip lex
+    if lex.buf[lex.bufpos] == ':':
+      lex.kind = tkIdentifier
+    else:
+      lex.kind = kind
+
 registerTokens defaultSettings:
   `case` = "case"
   `of` = "of"
@@ -176,6 +209,23 @@ registerTokens defaultSettings:
   # lc = '{'
   lc
   rc = '}'
+  
+  mm = "mm"
+  cm = "cm"
+  `in` = "in"
+  px = "px"
+  pt = "pt"
+  pc = "pc"
+  
+  em = "em"
+  ex = "ex"
+  ch = "ch"
+  rem = "rem"
+  vw = "vw"
+  vh = "vh"
+  vmin = "vmin"
+  vmax = "vmax"
+
   # excRule = tokenize(handleExclamation, '!')
   hash = tokenize(handleHash, '#')
   varConcat = tokenize(handleCurlyVar, '{')
@@ -190,7 +240,7 @@ registerTokens defaultSettings:
   divide = '/':
     comment = '/' .. EOL
   at = '@':
-    `import` = "import"
+    `import` = tokenize(handleImport, "import")
     extend = "extend"
     use = "use"
     mix = "mixin"
@@ -198,14 +248,13 @@ registerTokens defaultSettings:
 
   arrayLit = "array"
   boolLit = "bool"
-  colorLit = "color"
+  colorLit = tokenize(handleColorLit, "color")
   floatLit = "float"
   functionLit = "function"
   intLit = "int"
   objectLit = "object"
   sizeLit = "size"
   stringLit = "string"
-
   id
   color
   fnDef = "fn"

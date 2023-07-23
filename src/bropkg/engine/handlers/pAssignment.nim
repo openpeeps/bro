@@ -1,7 +1,7 @@
-proc parseVarDef(p: var Parser, scope: ScopeTable): Node =
-  if scope != nil:
-    if unlikely(scope.hasKey(p.curr.value)):
-      let scopedVar = scope[p.curr.value]
+proc parseVarDef(p: var Parser, scope: seq[ScopeTable]): Node =
+  if scope.len > 0:
+    if unlikely(scope[^1].hasKey(p.curr.value)):
+      let scopedVar = scope[^1][p.curr.value]
       if scopedVar != nil:
         if scopedVar.varImmutable:
           error(reassignImmutableVar, p.curr)
@@ -13,7 +13,7 @@ proc parseVarDef(p: var Parser, scope: ScopeTable): Node =
 newPrefixProc "parseRegularAssignment":
   result = p.parseVarDef(scope)
   if unlikely(result == nil): return nil
-  result.varValue = p.getAssignableNode
+  result.varValue = p.getAssignableNode(scope)
 
 newPrefixProc "parseArrayAssignment":
   result = p.parseVarDef(scope)
@@ -21,7 +21,7 @@ newPrefixProc "parseArrayAssignment":
   result.varValue = newArray()
   walk p # [
   while p.curr.kind in tkAssignableValue:
-    add result.varValue.itemsVal, p.getAssignableNode
+    add result.varValue.itemsVal, p.getAssignableNode(scope)
     case p.curr.kind:
     of tkComma: walk p # parsing next item
     of tkRB:
@@ -56,7 +56,7 @@ newPrefixProc "parseObjectAssignment":
     case p.curr.kind:
     of tkAssignableValue:
       if likely(result.varValue.objectFields.hasKey(fName) == false):
-        result.varValue.objectFields[fName] = p.getAssignableNode
+        result.varValue.objectFields[fName] = p.getAssignableNode(scope)
       case p.curr.kind:
       of tkComma:
         walk p # next k/v pair
@@ -83,7 +83,7 @@ newPrefixProc "parseAnoArray":
   walk p # [
   let anno = newArray()
   while p.curr.kind != tkRB:
-    let arrItem = p.getAssignableNode()
+    let arrItem = p.getAssignableNode(scope)
     if arrItem != nil:
       add anno.itemsVal, arrItem
     else: return
@@ -99,7 +99,7 @@ newPrefixProc "parseAnoObject":
   walk p # [
   let anno = newArray()
   while p.curr.kind != tkRC:
-    let arrItem = p.getAssignableNode()
+    let arrItem = p.getAssignableNode(scope)
     if arrItem != nil:
       add anno.varValue.itemsVal, arrItem
     else: return 

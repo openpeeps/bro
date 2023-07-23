@@ -7,13 +7,14 @@ newPrefixProc "parseCond":
     if p.curr.kind == tkColon:
       walk p # tkColon
       ifNode = newIf(compNode)
+      
       # parse `if` branch
       let ifStmt = p.parseStatement((tk, ifNode), scope, excludeOnly,
                       includeOnly, returnType, isFunctionWrap)
       if likely(ifStmt != nil):
         ifNode.ifStmt = ifStmt
       else: error(BadIndentation, p.curr)
-      ifStmt.cleanup # out of scope
+      # ifStmt.cleanup # out of scope
 
       # parse `elif` branches
       while p.curr is tkElif:
@@ -43,6 +44,7 @@ newPrefixProc "parseCond":
           elseNode.cleanup # out of scope
         else:
           error(BadIndentation, p.curr)
+      scope.delete(scope.high)
       return ifNode
     error(BadIndentation, p.curr)
 
