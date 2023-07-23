@@ -109,7 +109,7 @@ newPrefixProc "parseProperty":
           result.pVal.add(newInt(p.curr.value))
           walk p
         of tkIdentifier:
-          if p.next.kind == tkLPAR and p.next.line == p.curr.line:
+          if unlikely(p.next.kind == tkLPAR and p.next.line == p.curr.line):
             let identToken = p.curr
             let callNode = p.parseCallFnCommand(scope)
             if likely(callNode != nil):
@@ -117,7 +117,9 @@ newPrefixProc "parseProperty":
                 result.pVal.add(callNode)
               else:
                 errorWithArgs(fnReturnVoid, identToken, [callNode.stackIdentName])
-          else: return
+          else:
+            result.pVal.add(newString(p.curr.value))
+            walk p
         of tkNamedColors, tkColor:
           result.pVal.add(newColor(p.curr.value))
           walk p
@@ -126,3 +128,9 @@ newPrefixProc "parseProperty":
           if varCallNode != nil:
             result.pVal.add(varCallNode)
         else: break
+    return result
+  let suggests = toSeq(p.propsTable.itemsWithPrefix(p.curr.value))
+  if suggests.len > 0:
+    error(invalidProperty, p.curr, true, suggests,
+          "Did you mean?", p.curr.value)
+  
