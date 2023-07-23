@@ -133,4 +133,5 @@ newPrefixProc "parseProperty":
   if suggests.len > 0:
     error(invalidProperty, p.curr, true, suggests,
           "Did you mean?", p.curr.value)
-  
+  else:
+    errorWithArgs(invalidProperty, p.curr, [p.curr.value])
