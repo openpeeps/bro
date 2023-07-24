@@ -539,7 +539,11 @@ proc parseSelectorStmt(p: var Parser, parent: (TokenTuple, Node),
           parent[1].innerNodes[$node.condOid] = node
         of ntCaseStmt:
           parent[1].innerNodes[$node.caseOid] = node
-        of ntExtend: discard
+        of ntExtend:
+          discard
+          # if parent[1].properties.len != 0:
+          #   error(extendMixedOrder, p.curr)
+          # else: discard
         of ntCall:
           parent[1].innerNodes[$node.callOid] = node
         of ntCallStack:
@@ -593,7 +597,11 @@ proc getPrefixFn(p: var Parser, excludeOnly, includeOnly: set[TokenKind] = {}): 
   of tkExtend:  parseExtend
   of tkThis:    parseThis
   of tkAccQuoted: parseAccQuoted
-  else: parseSelectorTag
+  else:
+    if p.next isnot tkColon:
+      parseSelectorTag
+    else:
+      nil
 
 proc parsePrefix(p: var Parser, excludeOnly, includeOnly: set[TokenKind] = {}, scope: var seq[ScopeTable],
             returnType = ntVoid, isFunctionWrap = false): Node =

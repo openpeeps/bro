@@ -36,7 +36,11 @@ handlers:
 
   proc handleVariable(lex: var Lexer, kind: TokenKind) =
     lexReady lex
-    add lex # $
+    add(lex) # $
+    var isCSSVar: bool
+    if lex.current == '$':
+      isCSSVar = true
+      add lex
     while true:
       if lex.hasLetters(lex.bufpos) or lex.hasNumbers(lex.bufpos) or current(lex) == '.':
         add lex
@@ -47,7 +51,9 @@ handlers:
     while lex.buf[lex.bufpos] == ' ':
       inc lex.bufpos
     if lex.buf[lex.bufpos] == '=':
-      lex.kind = tkVarDef
+      lex.kind =
+        if isCSSVar:  tkCssVarDef
+        else:         tkVarDef
       if lex.next("="):
         lex.kind = tkVarCall
       else: inc lex.bufpos
@@ -167,8 +173,6 @@ handlers:
     lex.kind = kind
 
   proc handleColorLit(lex: var Lexer, kind: TokenKind) =
-    lexReady lex
-    add lex
     skip lex
     if lex.buf[lex.bufpos] == ':':
       lex.kind = tkIdentifier
@@ -229,7 +233,8 @@ registerTokens defaultSettings:
   # excRule = tokenize(handleExclamation, '!')
   hash = tokenize(handleHash, '#')
   varConcat = tokenize(handleCurlyVar, '{')
-  vardef = tokenize(handleVariable, '$')
+  varDef = tokenize(handleVariable, '$')
+  cssVarDef # $$default-size 
   varTyped
   varCall
   varCallAccessor

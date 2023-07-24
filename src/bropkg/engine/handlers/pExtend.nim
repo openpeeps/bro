@@ -8,7 +8,7 @@ proc resolveExtended(p: var Parser, pNode: Node, stylesheet: Program) =
       if p.hasErrors: return
     p.currentSelector.extends = true
     return
-  errorWithArgs(ExtendRedundancyError, p.curr, [p.currentSelector.ident, pNode.ident])
+  errorWithArgs(extendRedundancyError, p.curr, [p.currentSelector.ident, pNode.ident])
 
 newPrefixProc "parseExtend":
   ## Parse a new `@extend` statement and return `Node` representation 
