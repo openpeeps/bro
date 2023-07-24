@@ -108,6 +108,9 @@ newPrefixProc "parseProperty":
         of tkInteger:
           result.pVal.add(newInt(p.curr.value))
           walk p
+        of tkFloat:
+          result.pVal.add(newFloat(p.curr.value))
+          walk p
         of tkIdentifier:
           if unlikely(p.next.kind == tkLPAR and p.next.line == p.curr.line):
             let identToken = p.curr
@@ -127,6 +130,7 @@ newPrefixProc "parseProperty":
           let varCallNode = p.parseCallCommand(scope)
           if varCallNode != nil:
             result.pVal.add(varCallNode)
+            use(varCallNode)
         else: break
     return result
   let suggests = toSeq(p.propsTable.itemsWithPrefix(p.curr.value))
