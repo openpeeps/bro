@@ -11,26 +11,13 @@ proc parseVarDef(p: var Parser, scope: seq[ScopeTable]): Node =
   walk p # $ident
 
 newPrefixProc "parseRegularAssignment":
+  ## parse a regular `string`, `int`, `float`, `bool` assignment
   result = p.parseVarDef(scope)
   if unlikely(result == nil): return nil
   result.varValue = p.getAssignableNode(scope)
 
-newPrefixProc "parseArrayAssignment":
-  result = p.parseVarDef(scope)
-  if unlikely(result == nil): return nil
-  result.varValue = newArray()
-  walk p # [
-  while p.curr.kind in tkAssignableValue:
-    add result.varValue.itemsVal, p.getAssignableNode(scope)
-    case p.curr.kind:
-    of tkComma: walk p # parsing next item
-    of tkRB:
-      walk p # ]
-      break
-    else: return
-
 newPrefixProc "parseStreamAssignment":
-  # Parse JSON/YAML from external sources
+  # parse JSON/YAML from external sources
   var fpath: string
   walk p
   case p.curr.kind
@@ -45,41 +32,8 @@ newPrefixProc "parseStreamAssignment":
   else: return
   result = newStream(normalizedPath(p.filePath.parentDir / fpath))
 
-newPrefixProc "parseObjectAssignment":
-  result = p.parseVarDef(scope)
-  if unlikely(result == nil): return nil
-  result.varValue = newObject()
-  walk p # {
-  while p.curr.kind == tkIdentifier and p.next.kind == tkColon:
-    let fName = p.curr.value
-    walk p, 2
-    case p.curr.kind:
-    of tkAssignableValue:
-      if likely(result.varValue.objectFields.hasKey(fName) == false):
-        result.varValue.objectFields[fName] = p.getAssignableNode(scope)
-      case p.curr.kind:
-      of tkComma:
-        walk p # next k/v pair
-      of tkRC:
-        walk p # } end of object
-        break
-      of tkIdentifier:
-        if p.curr.line == p.prev.line: return
-      else: return
-    else: return
-
-newPrefixProc "parseAssignment":
-  result =
-    case p.next.kind:
-    of tkLB:              p.parseArrayAssignment(scope)
-    of tkLC:              p.parseObjectAssignment(scope)
-    of tkJSON:            p.parseStreamAssignment(scope)
-    of tkAssignableValue: p.parseRegularAssignment(scope)
-    else: nil
-  if not p.hasErrors:
-    p.stack(result, scope) # add in scope
-
 newPrefixProc "parseAnoArray":
+  ## parse an anonymous array
   walk p # [
   let anno = newArray()
   while p.curr.kind != tkRB:
@@ -92,17 +46,52 @@ newPrefixProc "parseAnoArray":
     elif p.curr.kind != tkRB:
       return
   if p.curr.kind == tkRB:
-    walk p
+    walk p # ]
     return anno
+  # todo error
 
 newPrefixProc "parseAnoObject":
-  walk p # [
-  let anno = newArray()
-  while p.curr.kind != tkRC:
-    let arrItem = p.getAssignableNode(scope)
-    if arrItem != nil:
-      add anno.varValue.itemsVal, arrItem
-    else: return 
-  if p.curr.kind == tkRC:
-    walk p
-    return anno
+  ## parse an anonymous object
+  result = newObject()
+  walk p # {
+  while p.curr.kind == tkIdentifier and p.next.kind == tkColon:
+    let fName = p.curr.value
+    walk p, 2
+    case p.curr.kind:
+    of tkAssignableValue:
+      if likely(result.objectFields.hasKey(fName) == false):
+        result.objectFields[fName] = p.getAssignableNode(scope)
+      case p.curr.kind:
+      of tkComma:
+        walk p # next k/v pair
+      of tkRC:
+        walk p # } end of object
+        break
+      of tkIdentifier:
+        if p.curr.line == p.prev.line: return
+      else: return
+    else: return
+  if p.curr is tkRC: walk p
+
+newPrefixProc "parseArrayAssignment":
+  ## parse array construction using `[]` and assign to a variable  
+  result = p.parseVarDef(scope)
+  if unlikely(result == nil): return nil
+  result.varValue = p.parseAnoArray(scope)
+
+newPrefixProc "parseObjectAssignment":
+  ## parse object construction using `{}` and assign to a variable 
+  result = p.parseVarDef(scope)
+  if unlikely(result == nil): return nil
+  result.varValue = p.parseAnoObject(scope)
+
+newPrefixProc "parseAssignment":
+  result =
+    case p.next.kind:
+    of tkLB:              p.parseArrayAssignment(scope)
+    of tkLC:              p.parseObjectAssignment(scope)
+    of tkJSON:            p.parseStreamAssignment(scope)
+    of tkAssignableValue: p.parseRegularAssignment(scope)
+    else: nil
+  if not p.hasErrors:
+    p.stack(result, scope) # add in scope
