@@ -25,7 +25,7 @@ const cssLexerSettings* =
     tkModifier: defaultTokenModifier,      
     useDefaultIdent: true,
     keepUnknown: true,
-    keepChar: false,
+    keepChar: true,
   )
 
 handlers:
@@ -42,6 +42,60 @@ handlers:
       else:
         add lex
 
+  proc handleHyphen(lex: var CSSLexer, kind: CSSTokenKind) =
+    lexReady lex
+    add lex
+    if lex.current == '-':
+      while lex.buf[lex.bufpos] notin Whitespace + {':'}:
+        add lex
+      lex.kind = tkkVarDef
+    else:
+      while lex.buf[lex.bufpos] notin Whitespace + {':'}:
+        add lex
+      lex.kind = tkkIdentifier
+
+  proc handleCalcFn(lex: var CSSLexer, kind: CSSTokenKind) =
+    while true:
+      case lex.buf[lex.bufpos]:
+      of EndOfFile:
+        lex.setError("EOF Reached before closing function paranthesis")
+        return
+      of ')':
+        add lex
+        lex.kind = kind
+        break
+      else:
+        add lex
+
+  proc handleAttrFn(lex: var CSSLexer, kind: CSSTokenKind) =
+    while true:
+      case lex.buf[lex.bufpos]:
+      of EndOfFile:
+        lex.setError("EOF Reached before closing function paranthesis")
+        return
+      of ')':
+        add lex
+        lex.kind = kind
+        break
+      else:
+        add lex
+
+  proc handleDot(lex: var CSSLexer, kind: CSSTokenKind) =
+    lexReady lex
+    add lex
+    if lex.buf[lex.bufpos] in NewLines:
+      lex.kind = kind
+    else:
+      while true:
+        if lex.hasLetters(lex.bufpos):
+          add lex.token, lex.buf[lex.bufpos]
+          inc lex.bufpos
+        elif lex.hasNumbers(lex.bufpos):
+          add lex.token, lex.buf[lex.bufpos]
+          inc lex.bufpos
+        else: break
+      lex.kind = tkkClass
+
 registerTokens cssLexerSettings:
   lc = '{'
   rc = '}'
@@ -50,8 +104,9 @@ registerTokens cssLexerSettings:
   comma = ','
   colon = ':'
   semiColon = ';'
-  dotExpr = '.'
+  dotExpr = tokenize(handleDot, '.')
   hash = '#'
+  class
   circumflex = '^'
   amp = '&'
   percent = '%'
@@ -59,8 +114,11 @@ registerTokens cssLexerSettings:
   rule = '!':
     ruleImportant = "important"
     ruleDefault = "default"
-  minus = '-':
-    varDef = '-'
+  minus = tokenize(handleHyphen, '-')
+  calc = tokenize(handleCalcFn, "calc")
+  attr = tokenize(handleAttrFn, "attr")
+  # conicGradient = tokenize(handleConicGradientFn, "conic-gradient")
+  varDef
   plus = '+'
   gt = '>'
   multiply = '*'
@@ -115,10 +173,18 @@ proc parseProperties(p: var CSSParser, selector: Node) =
   else:
     err("Missing closing curly bracket")
 
+template parseMultipleSelectors(selector: Node) =
+  selector.multipleSelectors = @[]
+  while p.curr.kind == tkkComma:
+    walk p
+    selector.multipleSelectors.add(p.curr.value)
+    walk p
+
 proc parseClass(p: var CSSParser): Node =
   # parse class selectors (.btn)
-  result = newClass("." & p.next.value)
-  walk p, 2
+  result = newClass(p.curr.value)
+  walk p
+  parseMultipleSelectors(result)
   if p.curr.kind == tkkLC:
     walk p
     p.parseProperties(result)
@@ -136,10 +202,10 @@ proc parseTag(p: var CSSParser): Node =
 
 proc parse(p: var CSSParser): Node =
   case p.curr.kind
-  of tkkDotExpr:
+  of tkkClass:
     # parse float numbers or class selectors 
-    if p.curr.pos == 0:
-      result = p.parseClass()
+    # if p.curr.pos == 0:
+    result = p.parseClass()
   of tkkHash:
     # parse id selectors
     discard
@@ -168,6 +234,8 @@ proc parseCSS*(input: string): tuple[status: bool, msg: string, line, col: int, 
   result.stylesheet = style
 
 when isMainModule:
-  var style = newStylesheet()
-  style.newEcho(newString("Hello, World!"))
-  echo style.toCSS
+  # var style = newStylesheet()
+  # style.newEcho(newString("Hello, World!"))
+  # echo style.toCSS
+  let x = parseCSS(readFile("./parse.css"))
+  echo x.stylesheet.toCSS
