@@ -202,22 +202,24 @@ include ./handlers/[wCond, wFor]
 proc getSelectorGroup(c: var Compiler, node: Node,
                   scope: ScopeTable = nil, parent: Node = nil): string =
   # Write CSS selectors and properties
-  if node.extendFrom.len != 0:
+  if node.extendFrom.len > 0:
     # when selector extends from
     c.handleExtendAOT(node, scope)
   var i = 1
-  if likely(node.innerNodes.len != 0):
+  if likely(node.innerNodes.len > 0):
     for innerKey, innerNode in node.innerNodes:
       c.handleInnerNode(innerNode, node, scope, node.innerNodes.len, i)
   var
     skipped: bool
     length = node.properties.len
-  if length != 0:
-    if node.parents.len != 0:
+  if length > 0:
+    if node.parents.len > 0:
       add result, node.parents.join(" ") & spaces(1) & node.ident
     else:
       add result, node.ident
-    if node.extendBy.len != 0:
+    if node.multipleSelectors.len > 0:
+      add result, "," & node.multipleSelectors.join(",")
+    if node.extendBy.len > 0:
       # write other selectors that extends from current selector
       add result, "," & node.extendBy.join(", ")
     for idConcat in node.identConcat:
