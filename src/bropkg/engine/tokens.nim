@@ -59,9 +59,6 @@ handlers:
       else: inc lex.bufpos
     elif lex.buf[lex.bufpos] == ':':
       lex.kind = tkVarTyped
-      # inc lex.bufpos
-    # elif lex.token.contains("."):
-    #   lex.kind = tkVarCallAccessor
     else:
       lex.kind = tkVarCall
 
@@ -249,7 +246,6 @@ registerTokens lexerSettings:
   cssVarDef # $$default-size 
   varTyped
   varCall
-  varCallAccessor
   # class = tokenize(handleClassSelector, '.')
   class
   dotExpr = '.'

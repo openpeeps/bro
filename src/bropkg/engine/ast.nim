@@ -287,11 +287,37 @@ proc getInfixOp*(kind: TokenKind, isInfixInfix: bool): InfixOp =
         result = OR
       else: discard
 
+proc walkAccessorStorage*(node: Node, index: string, scope: ScopeTable): Node =
+  # todo catch IndexDefect
+  case node.nt:
+  of ntAccessor:
+    var x: Node
+    if node.accessorType == ntArray:
+      # handle an `ntArray` storage
+      x = walkAccessorStorage(node.accessorStorage, node.accessorKey, scope)
+      return walkAccessorStorage(x, index, scope)
+    # otherwise handle `ntObject` storage
+    x = walkAccessorStorage(node.accessorStorage, node.accessorKey, scope)
+    return walkAccessorStorage(x, index, scope)
+  of ntObject:
+    result = node.pairsVal[index]
+  of ntArray:
+    result = node.itemsVal[parseInt(index)]
+  of ntVariable:
+    result = node.varValue.itemsVal[parseInt(index)]
+  else: discard
+
 proc call*(node: Node, scope: ScopeTable): Node =
   if node.callNode != nil:
     # if unlikely(node.callNode.varArg):
       # return scope[node.callident].varValue
-    return node.callNode.varValue
+    return
+      case node.callNode.nt
+      of ntVariable:
+        node.callNode.varValue
+      of ntAccessor:
+        walkAccessorStorage(node.callNode.accessorStorage, node.callNode.accessorKey, scope)
+      else: nil
   assert scope != nil
   result = scope[node.callIdent]
 

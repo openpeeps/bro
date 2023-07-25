@@ -428,14 +428,14 @@ newPrefixProc "parseDotExpr":
 
 # Prefix or Infix
 proc getPrefixOrInfix(p: var Parser, scope: var seq[ScopeTable], includeOnly, excludeOnly: set[TokenKind] = {}): Node =
-  if p.next.isInfix:
-    let lht = p.parsePrefix(excludeOnly, includeOnly, scope)
+  let lht = p.parsePrefix(excludeOnly, includeOnly, scope)
+  if p.curr.isInfix:
     if lht != nil:
       let infix = p.parseInfix(lht, scope)
       if infix != nil:
         return infix
     else: return
-  return p.parsePrefix(excludeOnly, includeOnly, scope)
+  return lht
 
 #
 # Infix Comp

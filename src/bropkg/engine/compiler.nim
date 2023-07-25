@@ -63,9 +63,6 @@ proc getTypeInfo(node: Node): string =
     add result, getTypeInfo(node.varValue)
   else: discard
 
-# forward declaration
-proc walkAccessorStorage(c: var Compiler, node: Node, index: string, scope: ScopeTable): Node
-
 proc getCSS*(c: Compiler): string =
   result = c.css
 
@@ -171,11 +168,11 @@ proc getValue(c: var Compiler, val: Node, scope: ScopeTable): string =
           var x: Node
           if val.callNode.accessorType == ntArray:
             # handle `ntArray` storages
-            x = c.walkAccessorStorage(val.callNode.accessorStorage, val.callNode.accessorKey, scope)
+            x = walkAccessorStorage(val.callNode.accessorStorage, val.callNode.accessorKey, scope)
             add result, c.getValue(x, scope)
             return result
           # handle `ntObject` storages
-          x = c.walkAccessorStorage(val.callNode.accessorStorage, val.callNode.accessorKey, scope)
+          x = walkAccessorStorage(val.callNode.accessorStorage, val.callNode.accessorKey, scope)
           add result, c.getValue(x, scope)
         of ntVariable:
           handleVariableValue(val.callNode, scope)
@@ -186,26 +183,6 @@ proc getValue(c: var Compiler, val: Node, scope: ScopeTable): string =
     add result, c.handleCallStack(val, scope)
   of ntVariable:
     handleVariableValue(val, scope)
-  else: discard
-
-proc walkAccessorStorage(c: var Compiler, node: Node, index: string, scope: ScopeTable): Node =
-  # todo catch IndexDefect
-  case node.nt:
-  of ntAccessor:
-    var x: Node
-    if node.accessorType == ntArray:
-      # handle an `ntArray` storage
-      x = c.walkAccessorStorage(node.accessorStorage, node.accessorKey, scope)
-      return c.walkAccessorStorage(x, index, scope)
-    # otherwise handle `ntObject` storage
-    x = c.walkAccessorStorage(node.accessorStorage, node.accessorKey, scope)
-    return c.walkAccessorStorage(x, index, scope)
-  of ntObject:
-    result = node.pairsVal[index]
-  of ntArray:
-    result = node.itemsVal[parseInt(index)]
-  of ntVariable:
-    result = node.varValue.itemsVal[parseInt(index)]
   else: discard
 
 proc getValue(c: var Compiler, vals: seq[Node], scope: ScopeTable): string =

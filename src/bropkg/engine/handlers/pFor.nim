@@ -12,7 +12,7 @@ newPrefixProc "parseFor":
     let itemToken = p.curr
     let itemNode = p.parseVarDef(scope)
     itemNode.varImmutable = true
-    if p.curr is tkIn and p.next.kind in {tkVarCall, tkVarTyped, tkVarCallAccessor, tkLB, tkLC}:
+    if p.curr is tkIn and p.next.kind in {tkVarCall, tkVarTyped, tkLB, tkLC}:
       # todo when var, check if is iterable (array or object)
       walk p # tkIn
       if p.curr.kind notin {tkLB, tkLC}:

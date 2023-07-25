@@ -16,10 +16,10 @@ proc handleForStmt(c: var Compiler, node, parent: Node, scope: ScopeTable) =
       scope[node.inItems.callIdent]
   node.forStorage = ScopeTable()
   node.forStorage[node.forItem.varName] = node.forItem
+  var ix = 1
   case itemsNode.nt:
   of ntVariable:
-    var ix = 1
-    let items = node.inItems.callNode.varValue.itemsVal
+    let items = itemsNode.varValue.itemsVal
     for i in 0 .. items.high:
       node.forStorage[node.forItem.varName].varValue = items[i]
       for k, v in scope:
@@ -28,20 +28,26 @@ proc handleForStmt(c: var Compiler, node, parent: Node, scope: ScopeTable) =
         c.handleInnerNode(node.forBody.stmtList[ii], parent,
                   node.forStorage, node.forBody.stmtList.len, ix)
   of ntArray:
-    var ix = 1
-    let items = itemsNode.itemsVal
-    for i in 0 .. items.high:
-      node.forStorage[node.forItem.varName].varValue = items[i]
+    for i in 0 .. itemsNode.itemsVal.high:
+      node.forStorage[node.forItem.varName].varValue = itemsNode.itemsVal[i]
       for k, v in scope:
         node.forStorage[k] = v
       for ii in 0 .. node.forBody.stmtList.high:
         c.handleInnerNode(node.forBody.stmtList[ii], parent,
                   node.forStorage, node.forBody.stmtList.len, ix)
   of ntStream:
-    var ix = 1
-    for item in items(node.inItems.callNode.streamContent):
+    for item in items(itemsNode.streamContent):
       node.forStorage[node.forItem.varName].varValue = newStream item
       for i in 0 .. node.forBody.stmtList.high:
         c.handleInnerNode(node.forBody.stmtList[i], parent,
                     node.forStorage, node.forBody.stmtList.len, ix)
+  of ntAccessor:
+    var x: Node 
+    if itemsNode.accessorType == ntArray:
+      x = walkAccessorStorage(itemsNode.accessorStorage, itemsNode.accessorKey, scope)
+      for i in 0 .. x.itemsVal.high:
+        node.forStorage[node.forItem.varName].varValue = x.itemsVal[i]
+        let len = node.forBody.stmtList.len
+        for nodeBody in node.forBody.stmtList:
+          c.handleInnerNode(nodeBody, parent, node.forStorage, len, ix)
   else: discard
