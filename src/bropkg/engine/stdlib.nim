@@ -1,6 +1,12 @@
+# A super fast stylesheet language for cool kids
+#
+# (c) 2023 George Lemon | LGPL License
+#          Made by Humans from OpenPeeps
+#          https://github.com/openpeeps/bro
+
 import std/[tables, macrocache, options, strutils]
 
-{.pragma: nim, cdecl, noSideEffect, gcsafe, locks:0.}
+{.pragma: nim, cdecl, noSideEffect, gcsafe.}
 
 type
   Function* = object

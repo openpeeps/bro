@@ -7,7 +7,7 @@
 ## Auto-generated at Compile Time with Nim language from WebKit source:
 ## https://github.com/WebKit/WebKit/blob/main/Source/WebCore/css/CSSProperties.json
 ## 
-## (c) 2023 George Lemon | MIT License
+## (c) 2023 George Lemon | LGPL License
 ##          Made by Humans from OpenPeep
 ##          https://github.com/openpeep/bro
 import

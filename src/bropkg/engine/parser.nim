@@ -1,6 +1,6 @@
 # A super fast stylesheet language for cool kids
 #
-# (c) 2023 George Lemon | BSD-4 License
+# (c) 2023 George Lemon | LGPL License
 #          Made by Humans from OpenPeeps
 #          https://github.com/openpeeps/bro
 
@@ -17,6 +17,8 @@ when compileOption("app", "console"):
   # import std/[jsonutils] 
 
 export logging
+
+# {.warning[ImplicitDefaultValue]:off.}
 
 type
   ParserType = enum
@@ -197,7 +199,7 @@ proc parseCallFnCommand(p: var Parser, scope: var seq[ScopeTable],
 proc getPrefixOrInfix(p: var Parser, scope: var seq[ScopeTable], includeOnly, excludeOnly: set[TokenKind] = {}): Node
 proc importModule(th: (string, Stylesheets)) {.thread.}
 proc importModuleCSS(th: (string, Stylesheets)) {.thread.}
-proc parseVarCall(p: var Parser, tk: TokenTuple, varName: string, scope: var seq[ScopeTable], skipWalk = true): Node
+proc parseVarCall(p: var Parser, tk: TokenTuple, varName: string, scope: var seq[ScopeTable], skipWalk = false): Node
 
 #
 # Parse utils
@@ -353,6 +355,9 @@ proc `in`(tk: TokenTuple, kind: set[TokenKind]): bool {.inline.} =
 proc `notin`(tk: TokenTuple, kind: set[TokenKind]): bool {.inline.} =
   tk.kind notin kind
 
+proc isFnCall(p: var Parser): bool =
+  p.next.kind == tkLPAR and p.next.line == p.curr.line
+
 proc toUnits(kind: TokenKind): Units =
   case kind:
   of tkPX: PX
@@ -399,6 +404,10 @@ proc getAssignableNode(p: var Parser, scope: var seq[ScopeTable]): Node =
     walk p
   of tkVarCall:
     result = p.parseCallCommand(scope)
+  of tkIdentifier:
+    if p.isFnCall():
+      return p.parseCallFnCommand(scope)
+    result = nil
   else:
     if p.curr.isColor:
       result = newColor(p.curr.value)
@@ -443,12 +452,18 @@ proc parseCompOp(p: var Parser, left: Node, scope: var seq[ScopeTable]): Node =
       return p.parseString(scope)
     errorWithArgs(InvalidInfixOperator, p.curr, [p.prev.getOpStr, "String"])
   of tkVarCall:
-    echo "tkVarCall"
-    echo p.curr
+    result = p.parseCallCommand(scope)
+  of tkVarTyped:
+    p.curr.kind = tkVarCall
+    result = p.parseCallCommand(scope)
   of tkBool:
     if p.prev.kind in {tkEQ, tkNE}:
       return p.parseBool(scope)
     errorWithArgs(InvalidInfixOperator, p.curr, [p.prev.getOpStr, "Bool"])
+  of tkIdentifier:
+    if p.isFnCall():
+      return p.parseCallFnCommand(scope)
+    errorWithArgs(InvalidInfixOperator, p.curr, [p.prev.getOpStr])
   of tkColor, tkNamedColors:
     result = p.parseColor(scope)
   else: discard
@@ -574,7 +589,7 @@ proc getPrefixFn(p: var Parser, excludeOnly, includeOnly: set[TokenKind] = {}): 
       errorWithArgs(InvalidContext, p.curr, [p.curr.value])
   case p.curr.kind
   of tkIdentifier:
-    if p.next.kind == tkLPAR and p.next.line == p.curr.line:
+    if p.isFnCall():
       parseCallFnCommand
     elif tkIdentifier notin excludeOnly:
       parseProperty
@@ -632,7 +647,7 @@ proc parseRoot(p: var Parser, scope: var seq[ScopeTable], excludeOnly, includeOn
     else: nil
   if result == nil and not p.hasErrors:
     let tk = if p.curr isnot tkEOF: p.curr else: p.prev
-    errorWithArgs(UnexpectedToken, tk, [tk.value])
+    errorWithArgs(unexpectedToken, tk, [tk.value])
 
 
 template startParseProgram(src: string, scope: var seq[ScopeTable]) =

@@ -1,6 +1,6 @@
 # A super fast stylesheet language for cool kids
 #
-# (c) 2023 George Lemon | MIT License
+# (c) 2023 George Lemon | LGPL License
 #          Made by Humans from OpenPeeps
 #          https://github.com/openpeeps/bro
 
@@ -16,10 +16,10 @@ type
     ntVoid = "void"
     ntRoot
     ntProperty
-    ntVariable = "Variable"
+    ntVariable = "variable"
     ntUniversalSelector
     ntAttrSelector
-    ntClassSelector = "Class"
+    ntClassSelector = "class"
     ntPseudoClassSelector
     ntPseudoElements
     ntIDSelector
@@ -162,10 +162,12 @@ type
     of ntArray:
       itemsVal*: seq[Node]
     of ntObject:
-      objectFields*: OrderedTable[string, Node]
+      pairsVal*: CritBitTree[Node]
       usedObject*: bool
     of ntAccessor:
-      accessorType: NodeType # either ntArray or ntObject
+      accessorStorage*: Node # Node of `ntArray` or `ntObject`
+      accessorType*: NodeType # either `ntArray` or `ntObject`
+      accessorKey*: string # a parseable `int` or string
     of ntAccQuoted:
       accVal*: string
       accVars*: seq[Node] # seq[ntVariable]
@@ -407,10 +409,23 @@ proc newStream*(jsonNode: JsonNode): Node = Node(nt: ntStream, streamContent: js
 proc newObject*(): Node = Node(nt: ntObject) ## Create a new ntObject node
 proc newArray*(): Node = Node(nt: ntArray) ## Create a new ntArray node
 
-proc newCall*(ident: string, node: Node): Node =
+proc newAccessor*(accType: NodeType, accStorage: Node): Node =
+  ## Create a new `ntAccessor` Node
+  assert accType in {ntArray, ntObject}
+  assert accStorage.nt in {ntVariable, ntAccessor, ntArray, ntObject} # a var type of array or anonymous arrays/objects
+  if accStorage.nt == ntVariable:
+    assert accStorage.varValue.nt in {ntArray, ntObject}
+  case accType:
+  of ntArray:
+    result = Node(nt: ntAccessor, accessorType: ntArray, accessorStorage: accStorage)
+  of ntObject:
+    result = Node(nt: ntAccessor, accessorType: ntObject, accessorStorage: accStorage)
+  else: discard
+
+proc newCall*(id: string, node: Node): Node =
   ## Create a new ntCall node
   # assert node.nt in {ntVariable, ntJsonValue}
-  Node(nt: ntCall, callIdent: ident, callOid: genOid(), callNode: node)
+  Node(nt: ntCall, callIdent: id, callOid: genOid(), callNode: node)
 
 proc newFnCall*[N: Node](node: N, args: seq[N], ident, name: string): Node =
   Node(nt: ntCallStack, stackArgs: args, stackOid: genOid(),

@@ -1,3 +1,9 @@
+# A super fast stylesheet language for cool kids
+#
+# (c) 2023 George Lemon | LGPL License
+#          Made by Humans from OpenPeeps
+#          https://github.com/openpeeps/bro
+
 proc handleForStmt(c: var Compiler, node, parent: Node, scope: ScopeTable) =
   # Handle `for` statements
   var itemsNode = 

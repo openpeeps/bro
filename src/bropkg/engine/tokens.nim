@@ -1,6 +1,6 @@
-# A super fast statically typed stylesheet language for cool kids
+# A super fast stylesheet language for cool kids
 #
-# (c) 2023 George Lemon | MIT License
+# (c) 2023 George Lemon | LGPL License
 #          Made by Humans from OpenPeeps
 #          https://github.com/openpeeps/bro
 
@@ -42,7 +42,7 @@ handlers:
       isCSSVar = true
       add lex
     while true:
-      if lex.hasLetters(lex.bufpos) or lex.hasNumbers(lex.bufpos) or current(lex) == '.':
+      if lex.hasLetters(lex.bufpos) or lex.hasNumbers(lex.bufpos):
         add lex
       else: break
     if lex.token == "$":
@@ -60,8 +60,8 @@ handlers:
     elif lex.buf[lex.bufpos] == ':':
       lex.kind = tkVarTyped
       # inc lex.bufpos
-    elif lex.token.contains("."):
-      lex.kind = tkVarCallAccessor
+    # elif lex.token.contains("."):
+    #   lex.kind = tkVarCallAccessor
     else:
       lex.kind = tkVarCall
 
@@ -179,7 +179,19 @@ handlers:
     else:
       lex.kind = kind
 
-registerTokens defaultSettings:
+const lexerSettings* =
+  Settings(
+    tkPrefix: "tk",
+    lexerName: "Lexer",
+    lexerTuple: "TokenTuple",
+    lexerTokenKind: "TokenKind",
+    tkModifier: defaultTokenModifier,      
+    useDefaultIdent: true,
+    keepUnknown: true,
+    keepChar: true,
+  )
+
+registerTokens lexerSettings:
   `case` = "case"
   `of` = "of"
   andLit = "and"

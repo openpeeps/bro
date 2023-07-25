@@ -1,3 +1,9 @@
+# A super fast stylesheet language for cool kids
+#
+# (c) 2023 George Lemon | LGPL License
+#          Made by Humans from OpenPeeps
+#          https://github.com/openpeeps/bro
+
 proc handleCondStmt(c: var Compiler, node, parent: Node, scope: ScopeTable) =
   # Compiler handler to evaluate conditional statements `if`, `elif`, `else`
   var ix = 0

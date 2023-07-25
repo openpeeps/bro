@@ -1,6 +1,6 @@
 # A super fast stylesheet language for cool kids
 #
-# (c) 2023 George Lemon | MIT License
+# (c) 2023 George Lemon | LGPL License
 #          Made by Humans from OpenPeeps
 #          https://github.com/openpeeps/bro
 
@@ -21,7 +21,7 @@ type
     invalidProperty = "Invalid CSS property $"
     DuplicateVarDeclaration = "Duplicate variable declaration"
     DuplicateSelector = "Duplicated CSS declaration"
-    UnexpectedToken = "Unexpected token $"
+    unexpectedToken = "Unexpected token $"
     UndefinedValueVariable = "Undefined value for variable"
     DeclaredEmptySelector = "Declared CSS selector $ has no properties"
     BadIndentation = "Nestable statement requires indentation"

@@ -1,3 +1,9 @@
+# A super fast stylesheet language for cool kids
+#
+# (c) 2023 George Lemon | LGPL License
+#          Made by Humans from OpenPeeps
+#          https://github.com/openpeeps/bro
+
 proc parseMultiSelector(p: var Parser, node: Node) =
   var selectors: seq[string]
   while p.curr is tkComma:

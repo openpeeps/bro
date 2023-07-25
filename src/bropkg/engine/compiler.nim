@@ -1,6 +1,6 @@
 # A super fast stylesheet language for cool kids
 #
-# (c) 2023 George Lemon | MIT License
+# (c) 2023 George Lemon | LGPL License
 #          Made by Humans from OpenPeeps
 #          https://github.com/openpeeps/bro
 
@@ -31,17 +31,20 @@ proc getTypeInfo(node: Node): string =
   case node.nt
   of ntCall:
     if node.callNode != nil:
-      case node.callNode.varValue.nt:
-      of ntArray:
-        add result, "$1[$2]($3)" % [$(node.callNode.varValue.nt), "Mix", $(node.callNode.varValue.itemsVal.len)]
-      of ntObject:
-        add result, "$1($2)" % [$(node.callNode.varValue.nt), $(node.callNode.varValue.objectFields.len)]
-      else:
-        add result, "$1[$2]" % [$ntVariable, $(node.callNode.varValue.nt)]
-      # else:
-        # discard
-    else:
-      discard
+      case node.callNode.nt:
+      of ntAccessor:
+        add result, getTypeInfo(node.callNode.accessorStorage)
+      of ntVariable:
+        case node.callNode.varValue.nt:
+        of ntArray:
+          # todo handle types of array (string, int, or mix for mixed values)
+          add result, "$1[$2]($3)" % [$(node.callNode.varValue.nt), "mix", $(node.callNode.varValue.itemsVal.len)]
+        of ntObject:
+          add result, "$1($2)" % [$(node.callNode.varValue.nt), $(node.callNode.varValue.pairsVal.len)]
+        else:
+          add result, "$1[$2]" % [$ntVariable, $(node.callNode.varValue.nt)]
+      else: discard
+    else: discard
   of ntString:
     add result, "$1($2)" % [$ntString, $node.sVal.len]
   of ntInt:
@@ -50,8 +53,18 @@ proc getTypeInfo(node: Node): string =
     add result, "$1" % [$ntFloat]
   of ntCallStack:
     add result, "$1[$2]" % [$ntFunction, $node.stackReturnType]
-  else:
-    discard
+  of ntArray:
+    add result, "$1[$2]($3)" % [$(node.nt), "mix", $(node.itemsVal.len)] # todo handle types of array (string, int, or mix for mixed values)
+  of ntObject:
+    add result, "$1($3)" % [$(node.nt), $(node.pairsVal.len)]
+  of ntAccessor:
+    add result, getTypeInfo(node.accessorStorage)
+  of ntVariable:
+    add result, getTypeInfo(node.varValue)
+  else: discard
+
+# forward declaration
+proc walkAccessorStorage(c: var Compiler, node: Node, index: string, scope: ScopeTable): Node
 
 proc getCSS*(c: Compiler): string =
   result = c.css
@@ -97,6 +110,20 @@ proc dumpHook*(s: var string, v: Node) =
     s.dumpHook(v.varValue)
   else: discard
 
+template handleVariableValue(varNode: Node, scope: ScopeTable) {.dirty.} =
+  if varNode.varValue != nil:
+    case varNode.varValue.nt:
+    of ntStream:
+      add result, c.getValue(varNode.varValue, nil)
+    else:
+      add result, c.getValue(varNode.varValue, nil)
+  else:
+    case scope[varNode.varName].varValue.nt:
+    of ntStream:
+      add result, c.getValue(scope[varNode.varName].varValue, nil)
+    else:
+      add result, c.getValue(scope[varNode.varName].varValue, nil)
+
 proc getValue(c: var Compiler, val: Node, scope: ScopeTable): string =
   case val.nt
   of ntString:
@@ -109,12 +136,12 @@ proc getValue(c: var Compiler, val: Node, scope: ScopeTable): string =
     add result, $val.bVal
   of ntColor:
     add result, val.cVal
-  of ntVariable:
-    add result, c.getValue(val, scope)
+  # of ntVariable:
+  #   add result, c.getValue(val, scope)
   of ntArray:
     add result, jsony.toJson(val.itemsVal)
   of ntObject:
-    add result, jsony.toJson(val.objectFields)
+    add result, jsony.toJson(val.pairsVal)
   of ntAccQuoted:
     var accValues: seq[string]
     for accVar in val.accVars:
@@ -139,22 +166,46 @@ proc getValue(c: var Compiler, val: Node, scope: ScopeTable): string =
     add result, $(evalInfix(val.infixLeft, val.infixRight, val.infixOp, scope))
   of ntCall:
     if val.callNode != nil:
-      if val.callNode.varValue != nil:
-        case val.callNode.varValue.nt:
-        of ntStream:
-          add result, c.getValue(val.callNode.varValue, nil)
-        else:
-          add result, c.getValue(val.callNode.varValue, nil)
-      else:
-        case scope[val.callNode.varName].varValue.nt:
-        of ntStream:
-          add result, c.getValue(scope[val.callNode.varName].varValue, nil)
-        else:
-          add result, c.getValue(scope[val.callNode.varName].varValue, nil)
+      case val.callNode.nt
+        of ntAccessor:
+          var x: Node
+          if val.callNode.accessorType == ntArray:
+            # handle `ntArray` storages
+            x = c.walkAccessorStorage(val.callNode.accessorStorage, val.callNode.accessorKey, scope)
+            add result, c.getValue(x, scope)
+            return result
+          # handle `ntObject` storages
+          x = c.walkAccessorStorage(val.callNode.accessorStorage, val.callNode.accessorKey, scope)
+          add result, c.getValue(x, scope)
+        of ntVariable:
+          handleVariableValue(val.callNode, scope)
+        else: discard
     else:
       add result, c.getValue(scope[val.callIdent], nil)
   of ntCallStack:
     add result, c.handleCallStack(val, scope)
+  of ntVariable:
+    handleVariableValue(val, scope)
+  else: discard
+
+proc walkAccessorStorage(c: var Compiler, node: Node, index: string, scope: ScopeTable): Node =
+  # todo catch IndexDefect
+  case node.nt:
+  of ntAccessor:
+    var x: Node
+    if node.accessorType == ntArray:
+      # handle an `ntArray` storage
+      x = c.walkAccessorStorage(node.accessorStorage, node.accessorKey, scope)
+      return c.walkAccessorStorage(x, index, scope)
+    # otherwise handle `ntObject` storage
+    x = c.walkAccessorStorage(node.accessorStorage, node.accessorKey, scope)
+    return c.walkAccessorStorage(x, index, scope)
+  of ntObject:
+    result = node.pairsVal[index]
+  of ntArray:
+    result = node.itemsVal[parseInt(index)]
+  of ntVariable:
+    result = node.varValue.itemsVal[parseInt(index)]
   else: discard
 
 proc getValue(c: var Compiler, vals: seq[Node], scope: ScopeTable): string =

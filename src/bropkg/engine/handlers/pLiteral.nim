@@ -1,3 +1,9 @@
+# A super fast stylesheet language for cool kids
+#
+# (c) 2023 George Lemon | MIT License
+#          Made by Humans from OpenPeeps
+#          https://github.com/openpeeps/bro
+
 newPrefixProc "parseString":
   # parse strings
   result = newString(p.curr.value)

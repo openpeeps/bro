@@ -1,3 +1,9 @@
+# A super fast stylesheet language for cool kids
+#
+# (c) 2023 George Lemon | LGPL License
+#          Made by Humans from OpenPeeps
+#          https://github.com/openpeeps/bro
+
 newPrefixProc "parseFn":
   # Parse function definition using `fn` identifier.
   # Function definition is inspired from Nim language:
@@ -34,12 +40,12 @@ newPrefixProc "parseFn":
             types.add(nTyped)
             walk p
             # todo support default assignments
-          else: return # UnexpectedToken
+          else: return # unexpectedToken
         else: errorWithArgs(fnAttemptRedefineIdent, pName, [pName.value])
       of tkAssign:
         # Set type and value from given assignment 
         discard # todo
-      else: break # UnexpectedToken
+      else: break # unexpectedToken
       if p.curr.kind == tkComma:
         walk p
       else: break
