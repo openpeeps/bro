@@ -66,6 +66,13 @@ proc evalInfix*(lht, rht: Node, infixOp: InfixOp, scope: ScopeTable): bool =
     case infixOp:
     of EQ:
       case lht.nt
+      of ntString:
+        case rht.nt:
+        of ntCall:
+          lht.sVal == call(rht, scope).sVal
+        of ntString:
+          lht.sVal == rht.sVal
+        else: false
       of ntCall:
         let l = call(lht, scope)
         case rht.nt
@@ -73,6 +80,8 @@ proc evalInfix*(lht, rht: Node, infixOp: InfixOp, scope: ScopeTable): bool =
           of ntString:  l.sVal == rht.sVal
           of ntInt:     l.iVal == rht.iVal
           of ntColor:   l.getColor == rht.getColor
+          of ntCall:
+            evalInfix(l, call(rht, scope), infixOp, scope)
           else: false
       of ntBool:
         case rht.nt:
@@ -94,13 +103,22 @@ proc evalInfix*(lht, rht: Node, infixOp: InfixOp, scope: ScopeTable): bool =
       else: false
     of NE:
       case lht.nt
+      of ntString:
+        case rht.nt:
+        of ntCall:
+          lht.sVal != call(rht, scope).sVal
+        of ntString:
+          lht.sVal != rht.sVal
+        else: false
       of ntCall:
-        let left = call(lht, scope)
+        let l = call(lht, scope)
         case rht.nt
-          of ntBool:    left.bVal != rht.bVal
-          of ntString:  left.sVal != rht.sVal
-          of ntInt:     left.iVal != rht.iVal
-          of ntColor:   left.getColor != rht.getColor
+          of ntBool:    l.bVal != rht.bVal
+          of ntString:  l.sVal != rht.sVal
+          of ntInt:     l.iVal != rht.iVal
+          of ntColor:   l.getColor != rht.getColor
+          of ntCall:
+            evalInfix(l, call(rht, scope), infixOp, scope)
           else: false
       of ntBool:
         case rht.nt:
