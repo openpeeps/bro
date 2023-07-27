@@ -6,7 +6,8 @@
 
 import pkg/[stashtable, jsony]
 import std/[os, strutils, sequtils, critbits, sequtils,
-          tables, json, memfiles, times, oids, macros, jsonutils]
+            tables, json, memfiles, times, oids, md5,
+            macros, jsonutils]
 
 import ./tokens, ./ast, ./css, ./memoization, ./logging, ./stdlib, ./properties
 
@@ -61,6 +62,7 @@ type
                         excludeOnly, includeOnly: set[TokenKind] = {},
                         returnType = ntVoid, isFunctionWrap = false): Node
   InfixFunction = proc(p: var Parser, left: Node, scope: var seq[ScopeTable]): Node
+  ImportHandler = proc(th: (string, Stylesheets)) {.thread, nimcall, gcsafe.}
 
 const
   tkVars = {tkVarCall, tkVarDef}
@@ -469,9 +471,12 @@ proc parseCompOp(p: var Parser, left: Node, scope: var seq[ScopeTable]): Node =
   else: discard
 
 proc parseMathOp(p: var Parser, left: Node, scope: var seq[ScopeTable]): Node =
-  case p.next.kind
-  of tkInteger, tkFloat:
-    walk p
+  walk p
+  case p.curr.kind
+  of tkInteger:
+    result = p.parseInt(scope)
+  of tkFloat:
+    result = p.parseFloat(scope)
   of tkVarCall:
     discard
   else: discard

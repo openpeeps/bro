@@ -82,6 +82,11 @@ type
     OR          = "or"
     AMP         = "&"   # string concatenation
 
+    Plus        = "+"
+    Minus       = "-"
+    Multi       = "*"
+    Div         = "/"
+
   Units* = enum
     # absolute lengths
     MM = "mm"
@@ -203,7 +208,7 @@ type
       caseCond*: seq[CaseCondTuple]
       caseElse*: Node # ntStmtList
     of ntImport:
-      modules*: seq[tuple[path: string, module: ptr Program]]
+      modules*: seq[tuple[path: string, module: Program]]
     of ntPreview:
       previewContent: string
     of ntExtend:
@@ -245,7 +250,7 @@ type
   Program* = ref object
     # info*: tuple[version: string, createdAt: DateTime]
     nodes*: seq[Node]
-    selectors*: Table[string, Node]
+    selectors*: CritBitTree[Node]
     stack*: ScopeTable
     meta: Meta
       ## Count lines and columns when using Macros
@@ -271,21 +276,25 @@ proc prefixSelector(node: Node): string =
     else: node.ident
 
 proc getInfixOp*(kind: TokenKind, isInfixInfix: bool): InfixOp =
-  case kind:
-  of tkEQ: result = EQ
-  of tkNE: result = NE
-  of tkLT: result = LT
-  of tkLTE: result = LTE
-  of tkGT: result = GT
-  of tkGTE: result = GTE
-  else:
-    if isInfixInfix:
-      case kind
-      of tkANDAND, tkAndLit:
-        result = AND
-      of tkOR, tkOrLit:
-        result = OR
-      else: discard
+  result =
+    case kind:
+    of tkEQ: EQ
+    of tkNE: NE
+    of tkLT: LT
+    of tkLTE: LTE
+    of tkGT: GT
+    of tkGTE: GTE
+    of tkPlus: Plus
+    of tkMinus: Minus
+    of tkMultiply: Multi
+    of tkDivide: Div
+    else:
+      if isInfixInfix:
+        case kind
+        of tkANDAND, tkAndLit: AND
+        of tkOR, tkOrLit: OR
+        else: None
+      else: None
 
 proc walkAccessorStorage*(node: Node, index: string, scope: ScopeTable): Node =
   # todo catch IndexDefect
@@ -460,13 +469,13 @@ proc newFnCall*[N: Node](node: N, args: seq[N], ident, name: string): Node =
 
 proc newInfix*(infixLeft, infixRight: Node, infixOp: InfixOp): Node =
   ## Create a new ntInfix node
-  assert infixLeft.nt in {ntColor, ntString, ntInt, ntBool, ntFloat, ntCall}
-  assert infixRight.nt in {ntColor, ntString, ntInt, ntBool, ntFloat, ntCall}
+  assert infixLeft.nt in {ntColor, ntString, ntInt, ntBool, ntFloat, ntCall, ntCallStack}
+  assert infixRight.nt in {ntColor, ntString, ntInt, ntBool, ntFloat, ntCall, ntCallStack}
   result = Node(nt: ntInfix, infixLeft: infixLeft, infixRight: infixRight, infixOp: infixOp)
 
 proc newInfix*(infixLeft: Node): Node =
   ## Create a new ntInfix node
-  assert infixLeft.nt in {ntColor, ntString, ntInt, ntBool, ntFloat, ntCall}
+  assert infixLeft.nt in {ntColor, ntString, ntInt, ntBool, ntFloat, ntCall, ntCallStack}
   result = Node(nt: ntInfix, infixLeft: infixLeft)
 
 proc newIf*(infix: Node): Node =

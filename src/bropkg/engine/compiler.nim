@@ -24,7 +24,7 @@ var strNL, strCL, strCR: string
 proc write(c: var Compiler, node: Node, scope: ScopeTable = nil, data: Node = nil)
 proc getSelectorGroup(c: var Compiler, node: Node, scope: ScopeTable = nil, parent: Node = nil): string
 proc handleInnerNode(c: var Compiler, node, parent: Node, scope: ScopeTable = nil, length: int, ix: var int)
-proc handleCallStack(c: var Compiler, node: Node, scope: ScopeTable): string
+proc handleCallStack(c: var Compiler, node: Node, scope: ScopeTable): Node
 
 proc getTypeInfo(node: Node): string =
   # Return type info for given Node
@@ -111,56 +111,50 @@ template handleVariableValue(varNode: Node, scope: ScopeTable) {.dirty.} =
   if varNode.varValue != nil:
     case varNode.varValue.nt:
     of ntStream:
-      add result, c.getValue(varNode.varValue, nil)
+      result = c.getValue(varNode.varValue, nil)
     else:
-      add result, c.getValue(varNode.varValue, nil)
+      result = c.getValue(varNode.varValue, nil)
   else:
     case scope[varNode.varName].varValue.nt:
     of ntStream:
-      add result, c.getValue(scope[varNode.varName].varValue, nil)
+      result = c.getValue(scope[varNode.varName].varValue, nil)
     else:
-      add result, c.getValue(scope[varNode.varName].varValue, nil)
+      result = c.getValue(scope[varNode.varName].varValue, nil)
 
-proc getValue(c: var Compiler, val: Node, scope: ScopeTable): string =
+proc getValue(c: var Compiler, val: Node, scope: ScopeTable): Node # fwd declaration
+
+proc toString(c: var Compiler, val: Node, scope: ScopeTable = nil): string =
+  # Return stringified version of `val`
+  result =
+    case val.nt
+    of ntString: val.sVal
+    of ntFloat:  $(val.fVal)
+    of ntInt:    $(val.iVal)
+    of ntBool:   $(val.bVal)
+    of ntColor:  $(val.cVal)
+    of ntArray:     jsony.toJson(val.itemsVal)
+    of ntObject:    jsony.toJson(val.pairsVal)
+    of ntAccQuoted:
+      var accValues: string
+      for accVar in val.accVars:
+        add accValues, accVar.callIdent[1..^1] # variable name without `$`
+        add accValues, c.toString(c.getValue(accVar, scope))
+      val.accVal.format(accValues)
+    of ntStream:
+      case val.streamContent.kind:
+      of JString: val.streamContent.str
+      of JInt:    $(val.streamContent.num)
+      of JFloat:  $(val.streamContent.fnum)
+      of JObject,
+          JArray: $(val.streamContent)
+      of JNull: "null"
+      of JBool: $(val.streamContent.bval)
+    else: ""
+
+proc getValue(c: var Compiler, val: Node, scope: ScopeTable): Node =
   case val.nt
-  of ntString:
-    add result, val.sVal
-  of ntFloat:
-    add result, $val.fVal
-  of ntInt:
-    add result, $val.iVal
-  of ntBool:
-    add result, $val.bVal
-  of ntColor:
-    add result, val.cVal
-  # of ntVariable:
-  #   add result, c.getValue(val, scope)
-  of ntArray:
-    add result, jsony.toJson(val.itemsVal)
-  of ntObject:
-    add result, jsony.toJson(val.pairsVal)
-  of ntAccQuoted:
-    var accValues: seq[string]
-    for accVar in val.accVars:
-      add accValues, accVar.callIdent[1..^1] # variable name without `$`
-      add accValues, c.getValue(accVar, scope)
-    add result, val.accVal.format(accValues)
-  of ntStream:
-    case val.streamContent.kind:
-    of JString:
-      add result, val.streamContent.str
-    of JInt:
-      add result, $(val.streamContent.num)
-    of JFloat:
-      add result, $(val.streamContent.fnum)
-    of JObject, JArray:
-      add result, $(val.streamContent)
-    of JNull:
-      add result, "null"
-    of JBool:
-      add result, $(val.streamContent.bval)
-  of ntInfix:
-    add result, $(evalInfix(val.infixLeft, val.infixRight, val.infixOp, scope))
+  # of ntInfix:
+    # $(evalInfix(val.infixLeft, val.infixRight, val.infixOp, scope))
   of ntCall:
     if val.callNode != nil:
       case val.callNode.nt
@@ -169,26 +163,28 @@ proc getValue(c: var Compiler, val: Node, scope: ScopeTable): string =
           if val.callNode.accessorType == ntArray:
             # handle `ntArray` storages
             x = walkAccessorStorage(val.callNode.accessorStorage, val.callNode.accessorKey, scope)
-            add result, c.getValue(x, scope)
-            return result
+            return c.getValue(x, scope)  
           # handle `ntObject` storages
           x = walkAccessorStorage(val.callNode.accessorStorage, val.callNode.accessorKey, scope)
-          add result, c.getValue(x, scope)
+          return c.getValue(x, scope)
         of ntVariable:
           handleVariableValue(val.callNode, scope)
+        of ntReturn:
+          result = c.handleCallStack(val.callNode, scope)
         else: discard
     else:
-      add result, c.getValue(scope[val.callIdent], nil)
+      return c.getValue(scope[val.callIdent], nil)
   of ntCallStack:
-    add result, c.handleCallStack(val, scope)
+    result = c.handleCallStack(val, scope)
   of ntVariable:
     handleVariableValue(val, scope)
-  else: discard
+  else:
+    result = val
 
 proc getValue(c: var Compiler, vals: seq[Node], scope: ScopeTable): string =
   var strVal: seq[string]
   for val in vals:
-    add strVal, c.getValue(val, scope)
+    add strVal, c.toString(c.getValue(val, scope))
   result = strVal.join(" ") # todo make it work with a valid separator (space, colon) 
 
 proc getProperty(c: var Compiler, n: Node, k: string, i: var int,
@@ -230,9 +226,9 @@ include ./handlers/[wCond, wFor]
 proc getSelectorGroup(c: var Compiler, node: Node,
                   scope: ScopeTable = nil, parent: Node = nil): string =
   # Write CSS selectors and properties
-  if node.extendFrom.len > 0:
+  # if node.extendFrom.len > 0:
     # when selector extends from
-    c.handleExtendAOT(node, scope)
+    # c.handleExtendAOT(node, scope)
   var i = 1
   if likely(node.innerNodes.len > 0):
     for innerKey, innerNode in node.innerNodes:
@@ -255,7 +251,7 @@ proc getSelectorGroup(c: var Compiler, node: Node,
       of ntCall:
         var scopeVar: Node
         if idConcat.callNode.varValue != nil:
-          add result, c.getValue(idConcat, nil)
+          add result, c.toString(c.getValue(idConcat, nil))
         else:
           scopeVar = scope[idConcat.callNode.varName]
           var varValue = scopeVar.varValue
@@ -263,12 +259,12 @@ proc getSelectorGroup(c: var Compiler, node: Node,
           of ntColor:
             # todo handle colors at parser level
             idConcat.callNode.varValue = varValue
-            add result, c.getValue(idConcat, nil)
+            add result, c.toString(c.getValue(idConcat, nil))
           else:
             idConcat.callNode.varValue = varValue
-            add result, c.getValue(idConcat, nil)
+            add result, c.toString(c.getValue(idConcat, nil))
       of ntString, ntInt, ntFloat, ntBool:
-        add result, c.getValue(idConcat, nil)
+        add result, c.toString(c.getValue(idConcat, nil))
       else: discard
     add result, strCL # {
     i = 1
@@ -297,22 +293,27 @@ proc handleCommand(c: var Compiler, node: Node, scope: ScopeTable = nil) =
     let meta = " (" & $(node.cmdMeta.line) & ":" & $(node.cmdMeta.pos) & ") "
     case node.cmdValue.nt:
     of ntInfix:
-      let output = evalInfix(node.cmdValue.infixLeft, node.cmdValue.infixRight, node.cmdValue.infixOp, scope)
-      stdout.styledWriteLine(fgGreen, "Debug", fgDefault, meta, fgDefault, getTypeInfo(node.cmdValue) & "\n" & $(output))
+      case node.cmdValue.infixOp:
+      of EQ, NE, LT, LTE, GT, GTE, AND, OR:
+        let output = evalInfix(node.cmdValue.infixLeft, node.cmdValue.infixRight, node.cmdValue.infixOp, scope)
+        stdout.styledWriteLine(fgGreen, "Debug", fgDefault, meta, fgDefault, getTypeInfo(node.cmdValue) & "\n" & $(output))
+      else:
+        let output = evalInfixCalc(node.cmdValue.infixLeft, node.cmdValue.infixRight, node.cmdValue.infixOp, scope)
+        stdout.styledWriteLine(fgGreen, "Debug", fgDefault, meta, fgDefault, getTypeInfo(node.cmdValue) & "\n" & $(output))        
     of ntInfo:
       stdout.styledWriteLine(fgGreen, "Debug", fgDefault, meta, fgMagenta, "[[" & $(node.cmdValue.nodeType) & "]]")
     else:
-      let output = c.getValue(node.cmdValue, scope)
+      let output = c.toString(c.getValue(node.cmdValue, scope))
       stdout.styledWriteLine(fgGreen, "Debug", fgDefault, meta, fgMagenta, getTypeInfo(node.cmdValue) & "\n", fgDefault, output)
 
-proc handleCallStack(c: var Compiler, node: Node, scope: ScopeTable): string =
+proc handleCallStack(c: var Compiler, node: Node, scope: ScopeTable): Node =
   var
     callable: Node
     stmtScope: ScopeTable
   if scope != nil:
     if scope.hasKey(node.stackIdent):
       callable = scope[node.stackIdent]
-  else:
+  if callable == nil:
     callable = c.program.stack[node.stackIdent]
   stmtScope = callable.fnBody.stmtScope
   case callable.nt
@@ -325,8 +326,6 @@ proc handleCallStack(c: var Compiler, node: Node, scope: ScopeTable): string =
     for n in callable.fnBody.stmtList:
       case n.nt
       of ntReturn:
-        # callable.fnMemoized = Memo(str: c.getValue(n.returnStmt, stmtScope))
-        # return callable.fnMemoized.str
         return c.getValue(n.returnStmt, stmtScope)
       else: c.handleInnerNode(n, callable, stmtScope, 0, i)
   else: discard
