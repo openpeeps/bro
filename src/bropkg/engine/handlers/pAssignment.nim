@@ -25,7 +25,9 @@ newPrefixProc "parseRegularAssignment":
   ## parse a regular `string`, `int`, `float`, `bool` assignment
   result = p.parseVarDef(scope)
   if unlikely(result == nil): return nil
-  result.varValue = p.getAssignableNode(scope)
+  let varValue = p.getPrefixOrInfix(includeOnly = {tkInteger, tkFloat, tkString, tkBool, tkVarCall, tkIdentifier}, scope = scope)
+  if likely(varValue != nil):
+    result.varValue = varValue  
 
 newPrefixProc "parseStreamAssignment":
   # parse JSON/YAML from external sources

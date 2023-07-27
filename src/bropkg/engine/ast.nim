@@ -113,17 +113,6 @@ type
     mDiv = "/"
     mMod = "%"
 
-  MathResultType* = enum
-    mInt
-    mFloat
-
-  MathResult* = object
-    case mType*: MathResultType
-      of mInt:
-        iTotal*: int
-      of mFloat:
-        fTotal*: float
-
   CommandType* = enum
     cmdEcho
 

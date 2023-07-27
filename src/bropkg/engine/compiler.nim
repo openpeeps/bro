@@ -298,15 +298,26 @@ proc handleCommand(c: var Compiler, node: Node, scope: ScopeTable = nil) =
     of ntMathStmt:
       let total = evalMathInfix(node.cmdValue.mathLeft, node.cmdValue.mathRight, node.cmdValue.mathInfixOp, scope)
       let output =
-        if total.mType == mInt:
-          $(total.iTotal)
+        if total.nt == ntInt:
+          $(total.iVal)
         else:
-          $(total.fTotal)
+          $(total.fVal)
       stdout.styledWriteLine(fgGreen, "Debug", fgDefault, meta, fgDefault, getTypeInfo(node.cmdValue) & "\n" & $(output))
     of ntInfo:
       stdout.styledWriteLine(fgGreen, "Debug", fgDefault, meta, fgMagenta, "[[" & $(node.cmdValue.nodeType) & "]]")
     else:
-      let output = c.toString(c.getValue(node.cmdValue, scope))
+      let varValue = c.getValue(node.cmdValue, scope)
+      var output: string
+      case varValue.nt:
+      of ntMathStmt:
+        let total = evalMathInfix(varValue.mathLeft, varValue.mathRight, varValue.mathInfixOp, scope)
+        output =
+          if total.nt == ntInt:
+            $(total.iVal)
+          else:
+            $(total.fVal)
+      else:
+        output = c.toString(varValue)
       stdout.styledWriteLine(fgGreen, "Debug", fgDefault, meta, fgMagenta, getTypeInfo(node.cmdValue) & "\n", fgDefault, output)
 
 proc handleCallStack(c: var Compiler, node: Node, scope: ScopeTable): Node =

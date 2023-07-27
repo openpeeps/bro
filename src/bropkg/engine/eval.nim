@@ -5,6 +5,7 @@
 #          https://github.com/openpeeps/bro
 
 # import std/[macros, math, parseutils, fenv]
+import std/macros
 import ./ast
 
 # Math
@@ -61,100 +62,77 @@ import ./ast
 #     math.log(x, base)
 
 # fwd declaration
-proc evalMathInfix*(lht, rht: Node, infixOp: MathOp, scope: ScopeTable): MathResult
+proc evalMathInfix*(lht, rht: Node, infixOp: MathOp, scope: ScopeTable): Node
 proc evalInfix*(lht, rht: Node, infixOp: InfixOp, scope: ScopeTable): bool
 
-proc evalMathInfix*(lht, rht: Node, infixOp: MathOp, scope: ScopeTable): MathResult =
+proc plus(lht, rht: int): int = lht + rht
+proc plus(lht, rht: float): float = lht + rht
+
+proc minus(lht, rht: int): int = lht - rht
+proc minus(lht, rht: float): float = lht - rht
+
+proc multi(lht, rht: int): int = lht * rht
+proc multi(lht, rht: float): float = lht * rht
+
+proc divide(lht, rht: int): int = lht div rht
+proc modulo(lht, rht: int): int = lht mod rht
+
+template calc(calcHandle): untyped {.dirty.} =
+  case lht.nt
+  of ntInt:
+    case rht.nt:
+    of ntInt:
+      Node(nt: ntInt, iVal: calcHandle(lht.iVal, rht.iVal))
+    of ntFloat:
+      Node(nt: ntFloat, fVal: calcHandle(toFloat(lht.iVal), rht.fVal))
+    of ntCall:
+      var rht = call(rht, scope)
+      evalMathInfix(lht, rht, infixOp, scope)
+    else: nil
+  of ntCall:
+    var lht = call(lht, scope)
+    if lht.nt == ntMathStmt:
+      lht = evalMathInfix(lht.mathLeft, lht.mathRight, lht.mathInfixOp, scope)
+    case rht.nt:
+      of ntInt, ntFloat:
+        evalMathInfix(lht, rht, infixOp, scope)
+      of ntCall:
+        let rht = call(rht, scope)
+        evalMathInfix(lht, rht, infixOp, scope)
+      else: nil
+  else: nil
+
+template calcInt(calcHandle): untyped {.dirty.} =
+  case lht.nt
+  of ntInt:
+    case rht.nt:
+    of ntInt:
+      Node(nt: ntInt, iVal: calcHandle(lht.iVal, rht.iVal))
+    of ntCall:
+      var rht = call(rht, scope)
+      evalMathInfix(lht, rht, infixOp, scope)
+    else: nil
+  of ntCall:
+    var lht = call(lht, scope)
+    if lht.nt == ntMathStmt:
+      lht = evalMathInfix(lht.mathLeft, lht.mathRight, lht.mathInfixOp, scope)
+    case rht.nt:
+      of ntInt:
+        evalMathInfix(lht, rht, infixOp, scope)
+      of ntCall:
+        let rht = call(rht, scope)
+        evalMathInfix(lht, rht, infixOp, scope)
+      else: nil
+  else: nil
+
+proc evalMathInfix*(lht, rht: Node, infixOp: MathOp, scope: ScopeTable): Node =
   case infixOp
-  of mPlus:
-    case lht.nt
-    of ntInt:
-      case rht.nt:
-      of ntInt:
-        result = MathResult(mType: mInt, iTotal: lht.iVal + rht.iVal)
-      of ntFloat:
-        result = MathResult(mType: mFloat, fTotal: toFloat(lht.iVal) + rht.fVal)
-      of ntCall:
-        var rht = call(rht, scope)
-        result = evalMathInfix(lht, rht, infixOp, scope)
-      else: discard
-    of ntCall:
-      var lht = call(lht, scope)
-      case rht.nt:
-        of ntInt, ntFloat:
-          result = evalMathInfix(lht, rht, infixOp, scope)
-        of ntCall:
-          let rht = call(rht, scope)
-          result = evalMathInfix(lht, rht, infixOp, scope)
-        else: discard
-    else: discard
-  of mMinus:
-    case lht.nt
-    of ntInt:
-      case rht.nt:
-      of ntInt:
-        result = MathResult(mType: mInt, iTotal: lht.iVal - rht.iVal)
-      of ntFloat:
-        result = MathResult(mType: mFloat, fTotal: toFloat(lht.iVal) - rht.fVal)
-      of ntCall:
-        var rht = call(rht, scope)
-        result = evalMathInfix(lht, rht, infixOp, scope)
-      else: discard
-    of ntCall:
-      var lht = call(lht, scope)
-      case rht.nt:
-        of ntInt, ntFloat:
-          result = evalMathInfix(lht, rht, infixOp, scope)
-        of ntCall:
-          let rht = call(rht, scope)
-          result = evalMathInfix(lht, rht, infixOp, scope)
-        else: discard
-    else: discard
-  of mMulti:
-    case lht.nt
-    of ntInt:
-      case rht.nt:
-      of ntInt:
-        result = MathResult(mType: mInt, iTotal: lht.iVal * rht.iVal)
-      of ntFloat:
-        result = MathResult(mType: mFloat, fTotal: toFloat(lht.iVal) * rht.fVal)
-      of ntCall:
-        var rht = call(rht, scope)
-        result = evalMathInfix(lht, rht, infixOp, scope)
-      else: discard
-    of ntCall:
-      var lht = call(lht, scope)
-      case rht.nt:
-        of ntInt, ntFloat:
-          result = evalMathInfix(lht, rht, infixOp, scope)
-        of ntCall:
-          let rht = call(rht, scope)
-          result = evalMathInfix(lht, rht, infixOp, scope)
-        else: discard
-    else: discard
-  of mDiv:
-    case lht.nt
-    of ntInt:
-      case rht.nt:
-      of ntInt:
-        result = MathResult(mType: mFloat, fTotal: lht.iVal / rht.iVal)
-      of ntFloat:
-        result = MathResult(mType: mFloat, fTotal: toFloat(lht.iVal) / rht.fVal)
-      of ntCall:
-        var rht = call(rht, scope)
-        result = evalMathInfix(lht, rht, infixOp, scope)
-      else: discard
-    of ntCall:
-      var lht = call(lht, scope)
-      case rht.nt:
-        of ntInt, ntFloat:
-          result = evalMathInfix(lht, rht, infixOp, scope)
-        of ntCall:
-          let rht = call(rht, scope)
-          result = evalMathInfix(lht, rht, infixOp, scope)
-        else: discard
-    else: discard
-  else: discard
+  of mPlus:   calc(plus)
+  of mMinus:  calc(minus)
+  of mMulti:  calcInt(multi)
+  of mDiv:    calcInt(divide)
+  of mMod:    calcInt(modulo)
+  else: nil
 
 proc evalInfix*(lht, rht: Node, infixOp: InfixOp, scope: ScopeTable): bool =
   # todo a macro to generate this ugly statement

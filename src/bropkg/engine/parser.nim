@@ -437,7 +437,7 @@ proc getPrefixOrInfix(p: var Parser, scope: var seq[ScopeTable], includeOnly, ex
       if likely(infix != nil):
         return infix
     else: return
-  return lht
+  result = lht
 
 #
 # Infix Comp
