@@ -10,11 +10,15 @@
 # Magic!
 
 import toktok
-import std/[tables]
+import std/[critbits]
 import ./ast, ./compiler
 
 when not defined release:
   import std/[json, jsonutils]
+
+#
+# Lexer
+#
 
 const cssLexerSettings* =
   Settings(
@@ -96,6 +100,7 @@ handlers:
         else: break
       lex.kind = tkkClass
 
+# Tokens
 registerTokens cssLexerSettings:
   lc = '{'
   rc = '}'
@@ -125,13 +130,16 @@ registerTokens cssLexerSettings:
   divide = '/':
     comment = tokenize(handleComment, '*')
 
+#
+# Parser
+#
 type
   CSSParser = object
     lex: CSSLexer
     prev, curr, next: CSSTokenTuple
     errorStack*: tuple[msg: string, line, col: int]
     hasErrors*: bool
-    # stylesheet: Stylesheet
+    stylesheet: Program # todo rename Program to Stylesheet
 
 when not defined release:
   proc `$`(node: Node): string = pretty(node.toJson(), 2)
@@ -206,32 +214,33 @@ proc parse(p: var CSSParser): Node =
     # parse float numbers or class selectors 
     # if p.curr.pos == 0:
     result = p.parseClass()
+    p.stylesheet.selectors[result.ident] = result
   of tkkHash:
     # parse id selectors
     discard
   of tkkIdentifier:
     # parse named selectors
     result = p.parseTag()
+    p.stylesheet.selectors[result.ident] = result
   of tkkComment: walk p # ignore
   else:
     result = nil
 
 proc parseCSS*(input: string): tuple[status: bool, msg: string, line, col: int, stylesheet: Program] =
   var
-    p = CSSParser(lex: newLexer(input))
-    style = newStylesheet()
+    p = CSSParser(lex: newLexer(input), stylesheet: newStylesheet())
   p.curr = p.lex.getToken()
   p.next = p.lex.getToken()
   while p.curr.kind != tkkEOF:
     let node = p.parse()
     if node != nil:
-      style.add(node)
+      p.stylesheet.add(node)
     else: break
   p.lex.close()
   if p.lex.hasError or p.hasErrors:
     return (false, p.errorStack[0], p.errorStack[1], p.errorStack[2], nil)
   result.status = true
-  result.stylesheet = style
+  result.stylesheet = p.stylesheet
 
 when isMainModule:
   # var style = newStylesheet()
