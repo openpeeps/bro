@@ -16,7 +16,7 @@ type
     UnrecognizedToken = "Unrecognized token"
     UndeclaredVariable = "Undeclared variable $"
     AssignUndeclaredVar = "Assigning an undeclared variable"
-    UndeclaredCSSSelector = "Undeclared CSS selector"
+    undeclaredCSSSelector = "Undeclared CSS selector"
     extendRedundancyError = "Selector $ extends $ multiple times"
     invalidProperty = "Invalid CSS property $"
     DuplicateVarDeclaration = "Duplicate variable declaration"
