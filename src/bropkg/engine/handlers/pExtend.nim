@@ -30,11 +30,12 @@ newPrefixProc "parseExtend":
     discard # todo
   
   let ident = p.curr
-  if p.program.selectors.hasKey(ident.value):
+  if likely(p.program.selectors.hasKey(ident.value)):
     # look into the current stylesheet
     let pNode = p.program.selectors[ident.value]
     p.resolveExtended(pNode, p.program)
-    if not p.hasErrors: walk p
+    if not p.hasErrors:
+      walk p
     else: return
     return Node(nt: ntExtend)
 
@@ -46,5 +47,6 @@ newPrefixProc "parseExtend":
         p.resolveExtended(pNode, value[])
         if not p.hasErrors:
           walk p
+        else: return # error
         return Node(nt: ntExtend)
-  errorWithArgs(UndeclaredCSSSelector, p.curr, [ident.value])
+  errorWithArgs(undeclaredCSSSelector, p.curr, [ident.value])

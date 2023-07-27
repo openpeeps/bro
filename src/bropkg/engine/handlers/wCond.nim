@@ -6,9 +6,20 @@
 
 proc handleCondStmt(c: var Compiler, node, parent: Node, scope: ScopeTable) =
   # Compiler handler to evaluate conditional statements `if`, `elif`, `else`
-  var ix = 0
-  var tryElse: bool
-  if evalInfix(node.ifInfix.infixLeft, node.ifInfix.infixRight,
+  var
+    ix = 0
+    tryElse: bool
+    lht: Node = node.ifInfix.infixleft
+    rht: Node = node.ifInfix.infixRight
+  case lht.nt
+  of ntCallStack:
+    lht = c.handleCallStack(lht, scope)
+  else: discard
+  case rht.nt
+  of ntCallStack:
+    rht = c.handleCallStack(rht, scope)
+  else: discard
+  if evalInfix(lht, node.ifInfix.infixRight,
             node.ifInfix.infixOp, scope):
     for ifNode in node.ifStmt.stmtList:
       c.handleInnerNode(ifNode, parent, scope, node.ifStmt.stmtList.len, ix)
