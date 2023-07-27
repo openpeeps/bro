@@ -60,26 +60,101 @@ import ./ast
 #   result = quote:
 #     math.log(x, base)
 
-proc evalInfixCalc*(lht, rht: Node, infixOp: InfixOp, scope: ScopeTable): int =
-  result =
-    case infixOp
-    of InfixOp.Plus:
-      case lht.nt
+# fwd declaration
+proc evalMathInfix*(lht, rht: Node, infixOp: MathOp, scope: ScopeTable): MathResult
+proc evalInfix*(lht, rht: Node, infixOp: InfixOp, scope: ScopeTable): bool
+
+proc evalMathInfix*(lht, rht: Node, infixOp: MathOp, scope: ScopeTable): MathResult =
+  case infixOp
+  of mPlus:
+    case lht.nt
+    of ntInt:
+      case rht.nt:
       of ntInt:
-        case rht.nt:
-        of ntInt:
-          lht.iVal + rht.iVal
-        else: 0
-      else: 0
-    of InfixOp.Multi:
-      case lht.nt
+        result = MathResult(mType: mInt, iTotal: lht.iVal + rht.iVal)
+      of ntFloat:
+        result = MathResult(mType: mFloat, fTotal: toFloat(lht.iVal) + rht.fVal)
+      of ntCall:
+        var rht = call(rht, scope)
+        result = evalMathInfix(lht, rht, infixOp, scope)
+      else: discard
+    of ntCall:
+      var lht = call(lht, scope)
+      case rht.nt:
+        of ntInt, ntFloat:
+          result = evalMathInfix(lht, rht, infixOp, scope)
+        of ntCall:
+          let rht = call(rht, scope)
+          result = evalMathInfix(lht, rht, infixOp, scope)
+        else: discard
+    else: discard
+  of mMinus:
+    case lht.nt
+    of ntInt:
+      case rht.nt:
       of ntInt:
-        case rht.nt:
-        of ntInt:
-          lht.iVal * rht.iVal
-        else: 0
-      else: 0
-    else: 0
+        result = MathResult(mType: mInt, iTotal: lht.iVal - rht.iVal)
+      of ntFloat:
+        result = MathResult(mType: mFloat, fTotal: toFloat(lht.iVal) - rht.fVal)
+      of ntCall:
+        var rht = call(rht, scope)
+        result = evalMathInfix(lht, rht, infixOp, scope)
+      else: discard
+    of ntCall:
+      var lht = call(lht, scope)
+      case rht.nt:
+        of ntInt, ntFloat:
+          result = evalMathInfix(lht, rht, infixOp, scope)
+        of ntCall:
+          let rht = call(rht, scope)
+          result = evalMathInfix(lht, rht, infixOp, scope)
+        else: discard
+    else: discard
+  of mMulti:
+    case lht.nt
+    of ntInt:
+      case rht.nt:
+      of ntInt:
+        result = MathResult(mType: mInt, iTotal: lht.iVal * rht.iVal)
+      of ntFloat:
+        result = MathResult(mType: mFloat, fTotal: toFloat(lht.iVal) * rht.fVal)
+      of ntCall:
+        var rht = call(rht, scope)
+        result = evalMathInfix(lht, rht, infixOp, scope)
+      else: discard
+    of ntCall:
+      var lht = call(lht, scope)
+      case rht.nt:
+        of ntInt, ntFloat:
+          result = evalMathInfix(lht, rht, infixOp, scope)
+        of ntCall:
+          let rht = call(rht, scope)
+          result = evalMathInfix(lht, rht, infixOp, scope)
+        else: discard
+    else: discard
+  of mDiv:
+    case lht.nt
+    of ntInt:
+      case rht.nt:
+      of ntInt:
+        result = MathResult(mType: mFloat, fTotal: lht.iVal / rht.iVal)
+      of ntFloat:
+        result = MathResult(mType: mFloat, fTotal: toFloat(lht.iVal) / rht.fVal)
+      of ntCall:
+        var rht = call(rht, scope)
+        result = evalMathInfix(lht, rht, infixOp, scope)
+      else: discard
+    of ntCall:
+      var lht = call(lht, scope)
+      case rht.nt:
+        of ntInt, ntFloat:
+          result = evalMathInfix(lht, rht, infixOp, scope)
+        of ntCall:
+          let rht = call(rht, scope)
+          result = evalMathInfix(lht, rht, infixOp, scope)
+        else: discard
+    else: discard
+  else: discard
 
 proc evalInfix*(lht, rht: Node, infixOp: InfixOp, scope: ScopeTable): bool =
   # todo a macro to generate this ugly statement

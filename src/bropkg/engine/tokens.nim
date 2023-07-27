@@ -202,6 +202,7 @@ registerTokens lexerSettings:
   pipe = '|':
     `or` = '|'
   multiply = '*'
+  `mod` = '%'
   minus = '-'
   plus = '+'
   assign = '=':

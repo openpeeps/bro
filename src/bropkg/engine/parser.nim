@@ -478,7 +478,7 @@ proc parseMathOp(p: var Parser, left: Node, scope: var seq[ScopeTable]): Node =
   of tkFloat:
     result = p.parseFloat(scope)
   of tkVarCall:
-    discard
+    result = p.parseCallCommand(scope)
   else: discard
 
 proc getInfixFn(p: var Parser): InfixFunction =
@@ -490,11 +490,21 @@ proc getInfixFn(p: var Parser): InfixFunction =
 proc parseInfix(p: var Parser, left: Node, scope: var seq[ScopeTable]): Node =
   let infixFn = p.getInfixFn()
   if infixFn != nil:
-    result = newInfix(left)
-    result.infixOp = getInfixOp(p.curr.kind, false)
-    let node = p.infixFn(result.infixLeft, scope)
-    if node != nil:
-      result.infixRight = node
+    let op = getInfixOp(p.curr.kind, false)
+    if op != None:
+      var infixNode = newInfix(left)
+      infixNode.infixOp = op
+      let node = p.infixFn(infixNode.infixLeft, scope)
+      if node != nil:
+        infixNode.infixRight = node
+      return infixNode
+    var opMath = getInfixCalcOp(p.curr.kind, false)
+    if likely(opMath != invalidCalcOp):
+      result = newInfixCalc(left)
+      result.mathInfixOp = opMath
+      let node = p.infixFn(result.mathLeft, scope)
+      if node != nil:
+        result.mathRight = node
 
 #
 # Statement List

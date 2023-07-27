@@ -293,13 +293,16 @@ proc handleCommand(c: var Compiler, node: Node, scope: ScopeTable = nil) =
     let meta = " (" & $(node.cmdMeta.line) & ":" & $(node.cmdMeta.pos) & ") "
     case node.cmdValue.nt:
     of ntInfix:
-      case node.cmdValue.infixOp:
-      of EQ, NE, LT, LTE, GT, GTE, AND, OR:
-        let output = evalInfix(node.cmdValue.infixLeft, node.cmdValue.infixRight, node.cmdValue.infixOp, scope)
-        stdout.styledWriteLine(fgGreen, "Debug", fgDefault, meta, fgDefault, getTypeInfo(node.cmdValue) & "\n" & $(output))
-      else:
-        let output = evalInfixCalc(node.cmdValue.infixLeft, node.cmdValue.infixRight, node.cmdValue.infixOp, scope)
-        stdout.styledWriteLine(fgGreen, "Debug", fgDefault, meta, fgDefault, getTypeInfo(node.cmdValue) & "\n" & $(output))        
+      let output = evalInfix(node.cmdValue.infixLeft, node.cmdValue.infixRight, node.cmdValue.infixOp, scope)
+      stdout.styledWriteLine(fgGreen, "Debug", fgDefault, meta, fgDefault, getTypeInfo(node.cmdValue) & "\n" & $(output))
+    of ntMathStmt:
+      let total = evalMathInfix(node.cmdValue.mathLeft, node.cmdValue.mathRight, node.cmdValue.mathInfixOp, scope)
+      let output =
+        if total.mType == mInt:
+          $(total.iTotal)
+        else:
+          $(total.fTotal)
+      stdout.styledWriteLine(fgGreen, "Debug", fgDefault, meta, fgDefault, getTypeInfo(node.cmdValue) & "\n" & $(output))
     of ntInfo:
       stdout.styledWriteLine(fgGreen, "Debug", fgDefault, meta, fgMagenta, "[[" & $(node.cmdValue.nodeType) & "]]")
     else:

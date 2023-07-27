@@ -82,11 +82,6 @@ type
     OR          = "or"
     AMP         = "&"   # string concatenation
 
-    Plus        = "+"
-    Minus       = "-"
-    Multi       = "*"
-    Div         = "/"
-
   Units* = enum
     # absolute lengths
     MM = "mm"
@@ -110,13 +105,24 @@ type
     ltAbsolute
     ltRelative
 
-  ArithmeticOperators* {.pure.} = enum
-    Invalid
-    Plus = "+"
-    Minus = "-"
-    Multi = "*"
-    Div = "/"
-    Modulo = "%"
+  MathOp* {.pure.} = enum
+    invalidCalcOp
+    mPlus = "+"
+    mMinus = "-"
+    mMulti = "*"
+    mDiv = "/"
+    mMod = "%"
+
+  MathResultType* = enum
+    mInt
+    mFloat
+
+  MathResult* = object
+    case mType*: MathResultType
+      of mInt:
+        iTotal*: int
+      of mFloat:
+        fTotal*: float
 
   CommandType* = enum
     cmdEcho
@@ -196,6 +202,9 @@ type
     of ntInfix:
       infixOp*: InfixOp
       infixLeft*, infixRight*: Node
+    of ntMathStmt:
+      mathInfixOp*: MathOp
+      mathLeft*, mathRight*: Node
     of ntCondStmt:
       condOid*: Oid
       ifInfix*: Node
@@ -219,9 +228,6 @@ type
       forItem*, inItems*: Node
       forBody*: Node # ntStmtList
       forStorage*: ScopeTable
-    of ntMathStmt:
-      mathInfixOp: ArithmeticOperators
-      mathLeft, mathRight: Node
     of ntTagSelector, ntClassSelector, ntPseudoClassSelector, ntIDSelector:
       ident*: string
       parents*: seq[string]
@@ -284,10 +290,6 @@ proc getInfixOp*(kind: TokenKind, isInfixInfix: bool): InfixOp =
     of tkLTE: LTE
     of tkGT: GT
     of tkGTE: GTE
-    of tkPlus: Plus
-    of tkMinus: Minus
-    of tkMultiply: Multi
-    of tkDivide: Div
     else:
       if isInfixInfix:
         case kind
@@ -295,6 +297,16 @@ proc getInfixOp*(kind: TokenKind, isInfixInfix: bool): InfixOp =
         of tkOR, tkOrLit: OR
         else: None
       else: None
+
+proc getInfixCalcOp*(kind: TokenKind, isInfixInfix: bool): MathOp =
+  result =
+    case kind:
+    of tkPlus: mPlus
+    of tkMinus: mMinus
+    of tkMultiply: mMulti
+    of tkDivide: mDiv
+    of tkMod: mMod
+    else: invalidCalcOp
 
 proc walkAccessorStorage*(node: Node, index: string, scope: ScopeTable): Node =
   # todo catch IndexDefect
@@ -477,6 +489,10 @@ proc newInfix*(infixLeft: Node): Node =
   ## Create a new ntInfix node
   assert infixLeft.nt in {ntColor, ntString, ntInt, ntBool, ntFloat, ntCall, ntCallStack}
   result = Node(nt: ntInfix, infixLeft: infixLeft)
+
+proc newInfixCalc*(infixLeft: Node): Node =
+  assert infixLeft.nt in {ntInt, ntFloat, ntCall, ntCallStack}
+  result = Node(nt: ntMathStmt, mathLeft: infixLeft)
 
 proc newIf*(infix: Node): Node =
   ## Create a new `ntCondStmt`
