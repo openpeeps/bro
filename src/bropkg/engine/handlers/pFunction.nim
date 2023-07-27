@@ -50,8 +50,10 @@ newPrefixProc "parseFn":
         walk p
       else: break
   fnNode.fnIdent = identify(fnNode.fnName, types)
+
   if unlikely(p.inScope(fnNode.fnIdent, scope)):
     errorWithArgs(fnOverload, fnName, [fnName.value])
+  
   if p.curr.kind == tkRPAR:
     walk p
     # parse function return type
@@ -61,8 +63,10 @@ newPrefixProc "parseFn":
       if fnNode.fnReturnType != ntVoid:
         walk p
       else: error(fnInvalidReturn, p.curr)
+    
     # add the pre-initialized ScopeTable to seq[scope]
     scope.add(fnScope)
+
     # parse function body
     if p.curr.kind == tkAssign:
       if fn.line == p.curr.line:
@@ -128,12 +132,12 @@ newPrefixProc "parseCallFnCommand":
         error(fnExtraArg, ident)
       inc i 
     use(fn) # mark function as used
-    # try get a memoized return
-    let strargs = hashed($(args))
-    result = memoized(p.mCall, strargs)
+    # try get a memoized call
+    let hashedIdent = hashed(fnIdentName & $(args))
+    result = memoized(p.mCall, hashedIdent)
     if result == nil:
       # otherwise, create a new ntCallStack, then memoize it
       result = newFnCall(fn, args, fnIdentName, ident.value)
-      p.mCall.memoize(strargs, result)
+      p.mCall.memoize(hashedIdent, result)
   else:
     errorWithArgs(fnExtraArg, ident, [ident.value, $len(fn.fnParams), $len(args)])
