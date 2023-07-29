@@ -148,6 +148,22 @@ macro genInfixEval() =
         )
       )
 
+  proc getCallRec(): NimNode =
+    result = newNimNode(nnkOfBranch)
+    add result,
+      ident("ntCall"),
+      newCall(
+        ident("evalInfix"),
+        ident("c"),
+        ident("lht"),
+        newCall(
+          ident("call"),
+          ident("rht"),
+          ident("scope")
+        ),
+        ident("infixOp"), ident("scope")
+      )
+
   proc rhtCaseHandler(lident: NimNode, op: string): NimNode =
     result = newNimNode(nnkCaseStmt)
     add result, newDotExpr(ident("rht"), ident("nt"))
@@ -176,24 +192,11 @@ macro genInfixEval() =
       add result, rhtBranchRec("ntCallStack", op)
     elif eqIdent(lident, "ntCall"):
       add result, getDefaultCallableCase()
+      add result, getCallRec()
       add result, rhtBranchRec("ntCallStack", op)
     elif eqIdent(lident, "ntCallStack"):
       add result, getDefaultCallableCase()
-      add result,
-        nnkOfBranch.newTree(
-          ident("ntCall"),
-          newCall(
-            ident("evalInfix"),
-            ident("c"),
-            ident("lht"),
-            newCall(
-              ident("call"),
-              ident("rht"),
-              ident("scope")
-            ),
-            ident("infixOp"), ident("scope")
-          )
-        )
+      add result, getCallRec()
       add result, rhtBranchRec("ntCallStack", op)
     elif eqIdent(lident, "ntColor"):
       var fname = "getColor"
@@ -279,6 +282,6 @@ macro genInfixEval() =
       evalBody
     )
   )
-  # echo result.repr debug
+  echo result.repr # debug
 
 genInfixEval()
