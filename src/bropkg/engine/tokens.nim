@@ -247,6 +247,7 @@ registerTokens lexerSettings:
   cssVarDef # $$default-size 
   varTyped
   varCall
+  fnCall
   # class = tokenize(handleClassSelector, '.')
   class
   dotExpr = '.'
@@ -273,7 +274,6 @@ registerTokens lexerSettings:
   color
   fnDef = "fn"
   mixDef = "mix"
-  functionCall
   `if` = "if"
   `elif` = "elif"
   `else` = "else"

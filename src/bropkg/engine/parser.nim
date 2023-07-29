@@ -503,9 +503,13 @@ proc parseInfix(p: var Parser, left: Node, scope: var seq[ScopeTable]): Node =
       result = newInfixCalc(left)
       result.mathInfixOp = opMath
       let node = p.infixFn(result.mathLeft, scope)
-      if node != nil:
+      if likely(node != nil):
         result.mathRight = node
-
+        if result.mathLeft.nt == ntInt and result.mathRight.nt == ntInt:
+          result.mathResultType = ntInt
+        else:
+          result.mathResultType = ntFloat
+      else: discard # error
 #
 # Statement List
 #
@@ -529,15 +533,20 @@ proc parseStatement(p: var Parser, parent: (TokenTuple, Node), scope: var seq[Sc
       if node != nil and not p.hasErrors:
         case node.nt
         of ntReturn:
-          if node.returnStmt.nt != returnType:
-            if node.returnStmt.nt == ntCallStack:
-              if node.returnStmt.stackReturnType != returnType:
+          if unlikely(node.returnStmt.nt != returnType):
+            case node.returnStmt.nt:
+            of ntCallStack:
+              if unlikely(node.returnStmt.stackReturnType != returnType):
+                errorWithArgs(fnReturnTypeMismatch, tk, [$(node.returnStmt.stackReturnType), $(returnType)])  
+              else: discard
+            of ntMathStmt:
+              if unlikely(node.returnStmt.mathResultType != returnType):
                 errorWithArgs(fnReturnTypeMismatch, tk, [$(node.returnStmt.stackReturnType), $(returnType)])  
               else: discard
             else:
-              if node.returnStmt.nt == ntCall:
+              if likely(node.returnStmt.nt == ntCall):
                 let fnReturnType = node.returnStmt.getNodeType()
-                if fnReturnType != returnType:
+                if unlikely(fnReturnType != returnType):
                   errorWithArgs(fnReturnTypeMismatch, tk, [$(fnReturnType), $(returnType)])  
               else:
                 errorWithArgs(fnReturnTypeMismatch, tk, [$(node.returnStmt.nt), $(returnType)])  
@@ -606,7 +615,7 @@ proc getPrefixFn(p: var Parser, excludeOnly, includeOnly: set[TokenKind] = {}): 
   of tkIdentifier:
     if p.isFnCall():
       parseCallFnCommand
-    elif tkIdentifier notin excludeOnly:
+    elif tkIdentifier notin excludeOnly and tkFnCall notin includeOnly:
       parseProperty
     else: nil
   of tkInteger: parseInt
@@ -633,8 +642,8 @@ proc getPrefixFn(p: var Parser, excludeOnly, includeOnly: set[TokenKind] = {}): 
     else:
       nil
 
-proc parsePrefix(p: var Parser, excludeOnly, includeOnly: set[TokenKind] = {}, scope: var seq[ScopeTable],
-            returnType = ntVoid, isFunctionWrap = false): Node =
+proc parsePrefix(p: var Parser, excludeOnly, includeOnly: set[TokenKind] = {},
+            scope: var seq[ScopeTable], returnType = ntVoid, isFunctionWrap = false): Node =
   let prefixFn = p.getPrefixFn(excludeOnly, includeOnly)
   if likely(prefixFn != nil):
     return p.prefixFn(scope, excludeOnly, includeOnly, returnType, isFunctionWrap)

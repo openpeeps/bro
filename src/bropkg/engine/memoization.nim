@@ -5,7 +5,7 @@
 #          https://github.com/openpeeps/bro
 
 import std/[critbits, hashes, jsonutils, json]
-from ./ast import Node
+import ./ast
 
 export hashes
 
@@ -26,6 +26,9 @@ proc memoized*(memo: CritBitTree, ident: Hash): Node =
 
 proc memoize*(memo: var CritBitTree, ident: Hash, node: Node) =
   ## Store a new `node` using hashed `ident`
+  case node.nt:
+    of ntCall: node.callNode.varMemoized = true
+    else: discard
   memo[$(ident)] = node
 
 proc delete*(memo: CritBitTree, ident: Hash) =

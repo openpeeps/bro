@@ -146,7 +146,7 @@ type
       varName*: string
       varValue*: Node
       varMeta*: Meta 
-      varUsed*, varImmutable*, varArg*: bool
+      varUsed*, varArg*, varImmutable*, varMemoized*: bool
     of ntString:
       sVal*: string
     of ntInt:
@@ -194,6 +194,8 @@ type
     of ntMathStmt:
       mathInfixOp*: MathOp
       mathLeft*, mathRight*: Node
+      mathResultType*: NodeType # either ntInt or ntFloat
+      mathResult*: Node
     of ntCondStmt:
       condOid*: Oid
       ifInfix*: Node
@@ -319,12 +321,12 @@ proc walkAccessorStorage*(node: Node, index: string, scope: ScopeTable): Node =
 
 proc call*(node: Node, scope: ScopeTable): Node =
   if node.callNode != nil:
-    # if unlikely(node.callNode.varArg):
-      # return scope[node.callident].varValue
     return
       case node.callNode.nt
       of ntVariable:
-        node.callNode.varValue
+        case node.callNode.varValue.nt # todo find a better way
+        of ntMathStmt: node.callNode.varValue.mathResult
+        else: node.callNode.varValue
       of ntAccessor:
         walkAccessorStorage(node.callNode.accessorStorage, node.callNode.accessorKey, scope)
       else: nil
