@@ -7,7 +7,13 @@
 newPrefixProc "parseCond":
   let tk = p.curr # tkIf
   walk p
-  let compNode = p.getPrefixOrInfix(includeOnly = {tkVarCall, tkInteger, tkString, tkBool, tkIdentifier, tkFnCall}, scope = scope)
+  let
+    # due to a parser limitation, we'll have to pass both,
+    # `tkIdentifier` and `tkFnCall` to `includeOnly` to allow function calls.
+    # where `tkFnCall` is a simple token used to determine what kind of identifier
+    # is expected via the `includeOnly` set  
+    compTokens = {tkVarCall, tkInteger, tkString, tkBool, tkIdentifier, tkFnCall} 
+    compNode = p.getPrefixOrInfix(includeOnly = compTokens, scope = scope)
   var ifNode: Node
   if likely(compNode != nil):
     if p.curr.kind == tkColon:
@@ -20,12 +26,12 @@ newPrefixProc "parseCond":
       if likely(ifStmt != nil):
         ifNode.ifStmt = ifStmt
       else: error(BadIndentation, p.curr)
-      # ifStmt.cleanup # out of scope
+      ifStmt.cleanup # out of scope
 
       # parse `elif` branches
       while p.curr is tkElif:
         walk p # tkElif
-        let elifCompNode = p.getPrefixOrInfix(scope)
+        let elifCompNode = p.getPrefixOrInfix(includeOnly = compTokens, scope = scope)
         if likely(elifCompNode != nil and p.curr is tkColon):
           walk p # tkColon
           let elifNode = p.parseStatement((tk, ifNode), scope, excludeOnly,
