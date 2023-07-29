@@ -5,8 +5,9 @@
 #          https://github.com/openpeeps/bro
 
 import pkg/jsony
-import std/[tables, strutils, sequtils, json, critbits, algorithm, oids, terminal]
-import ./ast, ./sourcemap, ./eval
+import std/[tables, strutils, macros, sequtils, json,
+          critbits, algorithm, oids, terminal, enumutils]
+import ./ast, ./sourcemap
 
 type
   Warning* = tuple[msg: string, line, col: int]
@@ -25,6 +26,9 @@ proc write(c: var Compiler, node: Node, scope: ScopeTable = nil, data: Node = ni
 proc getSelectorGroup(c: var Compiler, node: Node, scope: ScopeTable = nil, parent: Node = nil): string
 proc handleInnerNode(c: var Compiler, node, parent: Node, scope: ScopeTable = nil, length: int, ix: var int)
 proc handleCallStack(c: var Compiler, node: Node, scope: ScopeTable): Node
+
+# eval
+include ./eval
 
 proc getTypeInfo(node: Node): string =
   # Return type info for given Node
@@ -214,7 +218,7 @@ proc handleExtendAOT(c: var Compiler, node: Node, scope: ScopeTable) =
     for aot in c.program.selectors[child].aotStmts:
       case aot.nt:
       of ntInfix:
-        if not evalInfix(aot.infixLeft, aot.infixRight, aot.infixOp, scope):
+        if not c.evalInfix(aot.infixLeft, aot.infixRight, aot.infixOp, scope):
           node.extendFrom.delete(node.extendFrom.find(child))
       of ntForStmt:
         discard # todo
@@ -293,10 +297,10 @@ proc handleCommand(c: var Compiler, node: Node, scope: ScopeTable = nil) =
     let meta = " (" & $(node.cmdMeta.line) & ":" & $(node.cmdMeta.pos) & ") "
     case node.cmdValue.nt:
     of ntInfix:
-      let output = evalInfix(node.cmdValue.infixLeft, node.cmdValue.infixRight, node.cmdValue.infixOp, scope)
+      let output = c.evalInfix(node.cmdValue.infixLeft, node.cmdValue.infixRight, node.cmdValue.infixOp, scope)
       stdout.styledWriteLine(fgGreen, "Debug", fgDefault, meta, fgDefault, getTypeInfo(node.cmdValue) & "\n" & $(output))
     of ntMathStmt:
-      let total = evalMathInfix(node.cmdValue.mathLeft, node.cmdValue.mathRight, node.cmdValue.mathInfixOp, scope)
+      let total = c.evalMathInfix(node.cmdValue.mathLeft, node.cmdValue.mathRight, node.cmdValue.mathInfixOp, scope)
       let output =
         if total.nt == ntInt:
           $(total.iVal)
@@ -310,12 +314,12 @@ proc handleCommand(c: var Compiler, node: Node, scope: ScopeTable = nil) =
       var output: string
       case varValue.nt:
       of ntMathStmt:
-        let total = evalMathInfix(varValue.mathLeft, varValue.mathRight, varValue.mathInfixOp, scope)
+        # let total = evalMathInfix(varValue.mathLeft, varValue.mathRight, varValue.mathInfixOp, scope)
         output =
-          if total.nt == ntInt:
-            $(total.iVal)
+          if varValue.mathResult.nt == ntInt:
+            $(varValue.mathResult.iVal)
           else:
-            $(total.fVal)
+            $(varValue.mathResult.fVal)
       else:
         output = c.toString(varValue)
       stdout.styledWriteLine(fgGreen, "Debug", fgDefault, meta, fgMagenta, getTypeInfo(node.cmdValue) & "\n", fgDefault, output)
@@ -376,6 +380,11 @@ proc handleInnerNode(c: var Compiler, node, parent: Node,
     c.handleCommand(node, scope)
   of ntCallStack:
     discard c.handleCallStack(node, scope)
+  of ntVariable:
+    case node.varValue.nt:
+    of ntMathStmt:
+      node.varValue.mathResult = c.evalMathInfix(node.varValue.mathLeft, node.varValue.mathRight, node.varValue.mathInfixOp, scope)
+    else: discard
   else: discard
 
 proc write(c: var Compiler, node: Node, scope: ScopeTable = nil, data: Node = nil) =
