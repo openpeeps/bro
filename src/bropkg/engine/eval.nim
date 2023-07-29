@@ -282,6 +282,6 @@ macro genInfixEval() =
       evalBody
     )
   )
-  echo result.repr # debug
+  # echo result.repr # debug
 
 genInfixEval()
