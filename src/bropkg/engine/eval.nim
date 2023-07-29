@@ -4,78 +4,22 @@
 #          Made by Humans from OpenPeeps
 #          https://github.com/openpeeps/bro
 
-# import std/[macros, math, parseutils, fenv]
-import std/macros
-import ./ast
-
-# Math
-# macro mathEpsilon*(x: float): untyped =
-#   result = quote:
-#     fenv.epsilon(x)
-
-# macro mathTan*(x: float): untyped =
-#   result = quote:
-#     math.tan(`x`)
-
-# macro mathSin*(x: float): untyped =
-#   result = quote:
-#     math.sin(`x`)
-
-# macro mathCeil*(x: float): untyped =
-#   ## Rounds x up to the next highest whole number.
-#   result = quote:
-#     math.ceil(`x`)
-
-# macro mathClamp*(x: float, min, max: int): untyped =
-#   ## Restricts x to the given range
-#   result = quote:
-#     math.clamp(`x`, `min` .. `max`)
-
-# macro mathFloor*(x: float): untyped =
-#   result = quote:
-#     math.floor(x)
-
-# # min max
-# # https://github.com/nim-lang/RFCs/issues/439
-
-# macro mathRound*(x: float): untyped =
-#   result = quote:
-#     math.round(x)
-
-# macro mathAbs*(x: float): untyped =
-#   result = quote:
-#     abs(x)
-
-# macro mathAbs*(x: int): untyped =
-#   result = quote:
-#     abs(x)
-
-# macro mathHypot*(x, y: float64): untyped =
-#   ## Computes the length of the hypotenuse of a right-angle
-#   ## triangle with x as its base and y as its height
-#   result = quote:
-#     math.hypot(x, y)
-
-# macro mathLog*(x, base: float): untyped =
-#   ## Computes the logarithm of `x` to `base`
-#   result = quote:
-#     math.log(x, base)
 
 # fwd declaration
-proc evalMathInfix*(lht, rht: Node, infixOp: MathOp, scope: ScopeTable): Node
-proc evalInfix*(lht, rht: Node, infixOp: InfixOp, scope: ScopeTable): bool
+proc evalMathInfix*(c: var Compiler, lht, rht: Node, infixOp: MathOp, scope: ScopeTable): Node
+proc evalInfix*(c: var Compiler, lht, rht: Node, infixOp: InfixOp, scope: ScopeTable): bool
 
-proc plus(lht, rht: int): int = lht + rht
-proc plus(lht, rht: float): float = lht + rht
+proc plus(lht, rht: int): int {.inline.} = lht + rht
+proc plus(lht, rht: float): float {.inline.} = lht + rht
 
-proc minus(lht, rht: int): int = lht - rht
-proc minus(lht, rht: float): float = lht - rht
+proc minus(lht, rht: int): int {.inline.} = lht - rht
+proc minus(lht, rht: float): float {.inline.} = lht - rht
 
-proc multi(lht, rht: int): int = lht * rht
-proc multi(lht, rht: float): float = lht * rht
+proc multi(lht, rht: int): int {.inline.} = lht * rht
+proc multi(lht, rht: float): float {.inline.} = lht * rht
 
-proc divide(lht, rht: int): int = lht div rht
-proc modulo(lht, rht: int): int = lht mod rht
+proc divide(lht, rht: int): int {.inline.} = lht div rht
+proc modulo(lht, rht: int): int {.inline.} = lht mod rht
 
 template calc(calcHandle): untyped {.dirty.} =
   case lht.nt
@@ -87,18 +31,18 @@ template calc(calcHandle): untyped {.dirty.} =
       Node(nt: ntFloat, fVal: calcHandle(toFloat(lht.iVal), rht.fVal))
     of ntCall:
       var rht = call(rht, scope)
-      evalMathInfix(lht, rht, infixOp, scope)
+      c.evalMathInfix(lht, rht, infixOp, scope)
     else: nil
   of ntCall:
     var lht = call(lht, scope)
     if lht.nt == ntMathStmt:
-      lht = evalMathInfix(lht.mathLeft, lht.mathRight, lht.mathInfixOp, scope)
+      lht = c.evalMathInfix(lht.mathLeft, lht.mathRight, lht.mathInfixOp, scope)
     case rht.nt:
       of ntInt, ntFloat:
-        evalMathInfix(lht, rht, infixOp, scope)
+        c.evalMathInfix(lht, rht, infixOp, scope)
       of ntCall:
         let rht = call(rht, scope)
-        evalMathInfix(lht, rht, infixOp, scope)
+        c.evalMathInfix(lht, rht, infixOp, scope)
       else: nil
   else: nil
 
@@ -110,22 +54,22 @@ template calcInt(calcHandle): untyped {.dirty.} =
       Node(nt: ntInt, iVal: calcHandle(lht.iVal, rht.iVal))
     of ntCall:
       var rht = call(rht, scope)
-      evalMathInfix(lht, rht, infixOp, scope)
+      c.evalMathInfix(lht, rht, infixOp, scope)
     else: nil
   of ntCall:
     var lht = call(lht, scope)
     if lht.nt == ntMathStmt:
-      lht = evalMathInfix(lht.mathLeft, lht.mathRight, lht.mathInfixOp, scope)
+      lht = c.evalMathInfix(lht.mathLeft, lht.mathRight, lht.mathInfixOp, scope)
     case rht.nt:
       of ntInt:
-        evalMathInfix(lht, rht, infixOp, scope)
+        c.evalMathInfix(lht, rht, infixOp, scope)
       of ntCall:
         let rht = call(rht, scope)
-        evalMathInfix(lht, rht, infixOp, scope)
+        c.evalMathInfix(lht, rht, infixOp, scope)
       else: nil
   else: nil
 
-proc evalMathInfix*(lht, rht: Node, infixOp: MathOp, scope: ScopeTable): Node =
+proc evalMathInfix*(c: var Compiler, lht, rht: Node, infixOp: MathOp, scope: ScopeTable): Node =
   case infixOp
   of mPlus:   calc(plus)
   of mMinus:  calc(minus)
@@ -134,146 +78,207 @@ proc evalMathInfix*(lht, rht: Node, infixOp: MathOp, scope: ScopeTable): Node =
   of mMod:    calcInt(modulo)
   else: nil
 
-proc evalInfix*(lht, rht: Node, infixOp: InfixOp, scope: ScopeTable): bool =
-  # todo a macro to generate this ugly statement
-  result =
-    case infixOp:
-    of EQ:
-      case lht.nt
-      of ntString:
-        case rht.nt:
-        of ntCall:
-          lht.sVal == call(rht, scope).sVal
-        of ntString:
-          lht.sVal == rht.sVal
-        else: false
-      of ntCall:
-        let l = call(lht, scope)
-        case rht.nt
-          of ntBool:    l.bVal == rht.bVal
-          of ntString:  l.sVal == rht.sVal
-          of ntInt:     l.iVal == rht.iVal
-          of ntColor:   l.getColor == rht.getColor
-          of ntCall:
-            evalInfix(l, call(rht, scope), infixOp, scope)
-          else: false
-      of ntBool:
-        case rht.nt:
-          of ntBool:    lht.bVal == rht.bVal
-          of ntCall:    lht.bVal == call(rht, scope).bVal
-          else: false
-      of ntInt:
-        case rht.nt:
-          of ntInt:     lht.iVal == rht.iVal
-          of ntCall:    lht.iVal == call(rht, scope).iVal
-          of ntFloat:   toFloat(lht.iVal) == rht.fVal
-          else: false
-      of ntFloat:
-        case rht.nt:
-          of ntFloat:   lht.fVal == rht.fVal
-          of ntInt:     lht.fVal == toFloat(rht.iVal)
-          of ntCall:    lht.fVal == toFloat(call(rht, scope).iVal)
-          else: false
-      else: false
-    of NE:
-      case lht.nt
-      of ntString:
-        case rht.nt:
-        of ntCall:
-          lht.sVal != call(rht, scope).sVal
-        of ntString:
-          lht.sVal != rht.sVal
-        else: false
-      of ntCall:
-        let l = call(lht, scope)
-        case rht.nt
-          of ntBool:    l.bVal != rht.bVal
-          of ntString:  l.sVal != rht.sVal
-          of ntInt:     l.iVal != rht.iVal
-          of ntColor:   l.getColor != rht.getColor
-          of ntCall:
-            evalInfix(l, call(rht, scope), infixOp, scope)
-          else: false
-      of ntBool:
-        case rht.nt:
-          of ntBool:    lht.bVal != rht.bVal
-          of ntCall:    lht.bVal != call(rht, scope).bVal
-          else: false
-      of ntInt:
-        case rht.nt:
-          of ntInt:     lht.iVal != rht.iVal
-          of ntCall:    lht.iVal != call(rht, scope).iVal
-          of ntFloat:   toFloat(lht.iVal) != rht.fVal
-          else: false
-      of ntFloat:
-        case rht.nt:
-          of ntFloat:   lht.fVal != rht.fVal
-          of ntInt:     lht.fVal != toFloat(rht.iVal)
-          of ntCall:    lht.fVal != toFloat(call(rht, scope).iVal)
-          else: false
-      else: false
-    of LT:
-      case lht.nt:
-      of ntInt:
-        case rht.nt:
-          of ntInt:     lht.iVal < rht.iVal
-          of ntCall:    lht.iVal < call(rht, scope).iVal
-          else: false
-      of ntFloat:
-        case rht.nt:
-          of ntFloat:   lht.fVal < rht.fVal
-          of ntInt:     lht.fVal < toFloat(rht.iVal)
-          of ntCall:    lht.fVal < toFloat(call(rht, scope).iVal)
-          else: false
-      of ntCall:
-        case rht.nt:
-          of ntInt:    call(lht, scope).iVal < rht.iVal
-          of ntCall:   call(lht, scope).iVal < call(rht, scope).iVal
-          else: false
-      else: false
-    of LTE:
-      case lht.nt:
-      of ntInt:
-        case rht.nt:
-          of ntInt:     lht.iVal <= rht.iVal
-          of ntCall:    lht.iVal <= call(rht, scope).iVal
-          else: false
-      of ntCall:
-        case rht.nt:
-          of ntInt:    call(lht, scope).iVal <= rht.iVal
-          of ntCall:   call(lht, scope).iVal <= call(rht, scope).iVal
-          else: false
-      else: false
-    of GT:
-      case lht.nt:
-      of ntInt:
-        case rht.nt:
-          of ntInt:     lht.iVal > rht.iVal
-          of ntCall:    lht.iVal > call(rht, scope).iVal
-          else: false
-      of ntCall:
-        case rht.nt:
-          of ntInt:    call(lht, scope).iVal > rht.iVal
-          of ntCall:   call(lht, scope).iVal > call(rht, scope).iVal
-          else: false
-      else: false
-    of GTE:
-      case lht.nt:
-      of ntInt:
-        case rht.nt:
-          of ntInt:     lht.iVal >= rht.iVal
-          of ntCall:    lht.iVal >= call(rht, scope).iVal
-          else: false
-      of ntCall:
-        case rht.nt:
-          of ntInt:    call(lht, scope).iVal >= rht.iVal
-          of ntCall:   call(lht, scope).iVal >= call(rht, scope).iVal
-          else: false
-      else: false
-    of AND:
-      evalInfix(lht.infixLeft, lht.infixRight, lht.infixOp, scope) and
-        evalInfix(rht.infixLeft, rht.infixRight, rht.infixOp, scope)
-    of OR:
-      evalInfix(lht.infixLeft, lht.infixRight, lht.infixOp, scope) or
-        evalInfix(rht.infixLeft, rht.infixRight, rht.infixOp, scope)
-    else: false
+macro genInfixEval() =
+  proc genInfixOp(op, fname: string): NimNode =
+    result = newNimNode(nnkInfix)
+    result.add(
+      ident(op),
+      newDotExpr(ident("lht"), ident(fname)),
+      newDotExpr(ident("rht"), ident(fname)))
+
+  proc genInfixOp(op, lht: string, rht: NimNode): NimNode =
+    result = newNimNode(nnkInfix)
+    add result, ident(op), newDotExpr(ident("lht"), ident(lht)), rht
+
+  proc genInfixOp(op: string, lht, rht: NimNode): NimNode =
+    result = newNimNode(nnkInfix)
+    result.add(ident(op), lht, rht)
+
+  proc rhtBranch(nt, op, fName: string): NimNode =
+    result = newNimNode(nnkOfBranch)
+    result.add(ident(nt), genInfixOp(op, fName))
+
+  proc rhtBranch(nt, op, lht: string, rht: NimNode): NimNode =
+    result = newNimNode(nnkOfBranch)
+    result.add(ident(nt), genInfixOp(op, lht, rht))
+
+  proc rhtBranch(nt, op: string, lht, rht: NimNode): NimNode =
+    result = newNimNode(nnkOfBranch)
+    result.add(ident(nt), genInfixOp(op, lht, rht))
+
+  proc rhtBranchRec(nt, op: string): NimNode =
+    result = newNimNode(nnkOfBranch)
+    result.add(ident(nt), nnkStmtList.newTree(
+      newVarStmt(
+        ident("rht"),
+        newcall(ident("handleCallStack"), ident("c"), ident("rht"), ident("scope"))
+      ),
+      newCall(ident("evalInfix"),  ident("c"), ident("lht"),
+              ident("rht"), ident("infixOp"), ident("scope"))))
+
+  proc rhtBranchToFloat(nt, op, fname: string): NimNode =
+    result =
+      rhtBranch("ntFloat", op,
+        newCall(ident("toFloat"), newDotExpr(ident("lht"), ident(fname))),
+        newDotExpr(ident("rht"), ident("fVal")))
+
+  proc toFloatNode(node, fname: string): NimNode =
+    newCall(ident("toFloat"),
+      newDotExpr(ident(node), ident(fname)))
+
+  proc rhtCall(fname: string): NimNode =
+    result =
+      newDotExpr(
+        newCall(ident("call"), ident("rht"), ident("scope")),
+        ident(fname))
+
+  proc getDefaultCallableCase(): NimNode =
+    result = newNimNode(nnkOfBranch)
+    add result,
+      ident("ntBool"), ident("ntFloat"),
+      ident("ntInt"), ident("ntString"),
+      ident("ntColor"),
+      newStmtList(
+        newCall(
+          ident("evalInfix"),
+          ident("c"),
+          ident("lht"),
+          ident("rht"),
+          ident("infixOp"), ident("scope")
+        )
+      )
+
+  proc rhtCaseHandler(lident: NimNode, op: string): NimNode =
+    result = newNimNode(nnkCaseStmt)
+    add result, newDotExpr(ident("rht"), ident("nt"))
+    if eqIdent(lident, "ntString"):
+      var fname = "sVal"
+      add result, rhtBranch("ntString", op, fname)
+      add result, rhtBranch("ntCall", op, fname, rhtCall(fname))
+      add result, rhtBranchRec("ntCallStack", op)
+    elif eqIdent(lident, "ntBool"):
+      var fname = "bVal"
+      add result, rhtBranch("ntBool", op, fname)
+      add result, rhtBranch("ntCall", op, fname, rhtCall(fname))
+      add result, rhtBranchRec("ntCallStack", op)
+    elif eqIdent(lident, "ntInt"):
+      var fname = "iVal"
+      add result, rhtBranch("ntInt", op, fname)
+      # add result, rhtBranchToFloat("ntFloat", op, fname)
+      add result, rhtBranch("ntFloat", op, toFloatNode("lht", "iVal"), newDotExpr(ident("rht"), ident("fVal")))
+      add result, rhtBranch("ntCall", op, fname, rhtCall(fname))
+      add result, rhtBranchRec("ntCallStack", op)
+    elif eqIdent(lident, "ntFloat"):
+      var fname = "fVal"
+      add result, rhtBranch("ntFloat", op, fname)
+      add result, rhtBranch("ntInt", op, fname, toFloatNode("rht", "iVal"))
+      add result, rhtBranch("ntCall", op, fname, rhtCall(fname))
+      add result, rhtBranchRec("ntCallStack", op)
+    elif eqIdent(lident, "ntCall"):
+      add result, getDefaultCallableCase()
+      add result, rhtBranchRec("ntCallStack", op)
+    elif eqIdent(lident, "ntCallStack"):
+      add result, getDefaultCallableCase()
+      add result,
+        nnkOfBranch.newTree(
+          ident("ntCall"),
+          newCall(
+            ident("evalInfix"),
+            ident("c"),
+            ident("lht"),
+            newCall(
+              ident("call"),
+              ident("rht"),
+              ident("scope")
+            ),
+            ident("infixOp"), ident("scope")
+          )
+        )
+      add result, rhtBranchRec("ntCallStack", op)
+    elif eqIdent(lident, "ntColor"):
+      var fname = "getColor"
+      add result, rhtBranch("ntColor", op, fname)
+    add result, nnkElse.newTree(ident("false"))
+  var
+    evalBody = newNimNode(nnkReturnStmt)
+    caseStmt = newNimNode(nnkCaseStmt)
+  caseStmt.add(ident("infixOp"))
+  for infixOperator in [EQ, NE, LT, LTE, GT, GTE, AND, OR]:
+    var
+      caseBranch = newNimNode(nnkOfBranch)
+      lhtCase = newNimNode(nnkCaseStmt)
+      rhtCase = newNimNode(nnkCaseStmt)
+      rhtBranch = newNimNode(nnkOfBranch)
+    if infixOperator in {EQ, NE}:
+      lhtCase.add(newDotExpr(ident("lht"), ident("nt")))
+      for lident in ["ntInt", "ntFloat", "ntString", "ntBool", "ntColor", "ntCall", "ntCallStack"]:
+        var lhtBranch = newNimNode(nnkOfBranch)
+        var lhtStmt = newStmtList()
+        if lident == "ntCallStack":
+          add lhtStmt,
+            newVarStmt(
+              ident("lht"),
+              newcall(ident("handleCallStack"), ident("c"), ident("lht"), ident("scope"))
+            )
+        elif lident == "ntCall":
+          add lhtStmt,
+            newVarStmt(
+              ident("lht"),
+              newCall(ident("call"), ident("lht"), ident("scope"))
+            )
+        add lhtStmt, rhtCaseHandler(ident(lident), $(infixOperator))
+        lhtBranch.add(
+          ident(lident),
+          lhtStmt
+        )
+        lhtCase.add(lhtBranch)
+      add lhtCase, nnkElse.newTree(ident("false"))
+      add caseBranch, ident(infixOperator.symbolName), lhtCase
+    elif infixOperator in {LT, LTE, GT, GTE}:
+      lhtCase.add(newDotExpr(ident("lht"), ident("nt")))
+      for lident in ["ntInt", "ntFloat", "ntCall", "ntCallStack"]:
+        var lhtBranch = newNimNode(nnkOfBranch)
+        var lhtStmt = newStmtList()
+        if lident == "ntCall":
+          add lhtStmt,
+            newVarStmt(
+              ident("lht"),
+              newCall(ident("call"), ident("lht"), ident("scope"))
+            )
+        add lhtStmt, rhtCaseHandler(ident(lident), $(infixOperator))
+        lhtBranch.add(
+          ident(lident),
+          lhtStmt
+        )
+        lhtCase.add(lhtBranch)
+      add lhtCase, nnkElse.newTree(ident("false"))
+      add caseBranch, ident(infixOperator.symbolName), lhtCase
+    else:
+      caseBranch.add(
+        ident(infixOperator.symbolName),
+        ident("false")
+      )
+    caseStmt.add(caseBranch)
+  add caseStmt, nnkElse.newTree(ident("false"))
+  evalBody.add(caseStmt)
+  result = newStmtList()
+  result.add(
+    newProc(
+      ident("evalInfix"),
+      [
+        ident("bool"),
+        newIdentDefs(
+          ident("c"),
+          nnkVarTy.newTree(ident("Compiler")),
+          newEmptyNode()
+        ),
+        nnkIdentDefs.newTree(ident("lht"), ident("rht"), ident("Node"), newEmptyNode()),
+        newIdentDefs(ident("infixOp"), ident("InfixOp"), newEmptyNode()),
+        newIdentDefs(ident("scope"), ident("ScopeTable"), newEmptyNode()),
+      ],
+      evalBody
+    )
+  )
+  # echo result.repr debug
+
+genInfixEval()
