@@ -7,7 +7,7 @@
 newPrefixProc "parseCond":
   let tk = p.curr # tkIf
   walk p
-  let compNode = p.getPrefixOrInfix(scope)
+  let compNode = p.getPrefixOrInfix(includeOnly = {tkVarCall, tkInteger, tkString, tkBool, tkIdentifier, tkFnCall}, scope = scope)
   var ifNode: Node
   if likely(compNode != nil):
     if p.curr.kind == tkColon:

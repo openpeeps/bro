@@ -45,7 +45,7 @@ proc parseVarCall(p: var Parser, tk: TokenTuple, varName: string,
   walk p # tkVariable
   if currentScope.st != nil:
     var callNode = memoized(p.mVar, hashedVarName)
-    if callNode == nil:
+    if likely(callNode == nil):
       var varNode = currentScope.st[varName]
       if p.curr is tkLB and p.curr.line == tk.line:
         var accessorNode: Node
@@ -56,16 +56,6 @@ proc parseVarCall(p: var Parser, tk: TokenTuple, varName: string,
         p.mVar.memoize(hashedVarName, callNode)
       use(varNode)
     return callNode
-
-  # if likely(p.program.stack.hasKey(varName)):
-  #   let gVal = p.program.stack[varName]
-  #   case gVal.nt:
-  #   of ntVariable: 
-  #     gVal.varUsed = true
-  #   else: discard
-  #   # if not skipWalk:
-  #     # walk p
-  #   return newCall(varName, gVal)
   errorWithArgs(UndeclaredVariable, tk, [varName])
 
 newPrefixProc "parseCallCommand":

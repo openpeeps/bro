@@ -9,9 +9,12 @@ newPrefixProc "parseFor":
   let tk = p.curr
   if p.next.kind == tkVarCall:
     walk p # tkFor
-    let itemToken = p.curr
-    let itemNode = p.parseVarDef(scope)
+    let
+      itemToken = p.curr
+      itemNode = p.parseVarDef(scope)
+    # item value cannot be changed during iteration
     itemNode.varImmutable = true
+
     if p.curr is tkIn and p.next.kind in {tkVarCall, tkVarTyped, tkLB, tkLC}:
       # todo when var, check if is iterable (array or object)
       walk p # tkIn
@@ -21,9 +24,11 @@ newPrefixProc "parseFor":
       if likely(itemsNode != nil and p.curr is tkColon):
         walk p # tkColon
         result = newForStmt(itemNode, itemsNode)
+        # add a pre-initialized ScopeTable to seq[ScopeTable]
         let forScope = ScopeTable()
         forScope[itemNode.varName] = itemNode
-        scope.add(forScope) # add a pre-initialized ScopeTable to seq[ScopeTable]
+        scope.add(forScope)
+        # parse for statement
         result.forBody = p.parseStatement((tk, result), scope, excludeOnly, includeOnly, skipInitScope = true)
         if likely(result.forBody != nil):
           result.forBody.cleanup(itemNode.varName)

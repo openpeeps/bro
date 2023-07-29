@@ -6,6 +6,7 @@
 
 proc parseAnoArray(p: var Parser, scope: var seq[ScopeTable],
       excludeOnly, includeOnly: set[TokenKind] = {}, returnType = ntVoid, isFunctionWrap = false): Node
+
 proc parseAnoObject(p: var Parser, scope: var seq[ScopeTable],
       excludeOnly, includeOnly: set[TokenKind] = {}, returnType = ntVoid, isFunctionWrap = false): Node
 
@@ -13,11 +14,10 @@ proc parseVarDef(p: var Parser, scope: seq[ScopeTable]): Node =
   if scope.len > 0:
     if unlikely(scope[^1].hasKey(p.curr.value)):
       let scopedVar = scope[^1][p.curr.value]
-      if scopedVar != nil:
-        if scopedVar.varImmutable:
+      if likely(scopedVar != nil):
+        if unlikely(scopedVar.varImmutable):
           error(reassignImmutableVar, p.curr)
-      else:
-          error(reassignImmutableVar, p.curr)
+      else: error(reassignImmutableVar, p.curr)
   result = newVariable(p.curr)
   walk p # $ident
 
@@ -96,15 +96,6 @@ newPrefixProc "parseAnoObject":
         else: return # todo error
     if p.curr is tkComma:
       walk p # next k/v pair
-    # case p.curr.kind:
-    # of tkComma:
-    #   walk p # next k/v pair
-    # of tkRC:
-    #   walk p # } end of object
-    #   break
-    # of tkIdentifier:
-    #   if p.curr.line == p.prev.line: return
-    # else: return
   if likely(p.curr is tkRC):
     walk p
   return anno
