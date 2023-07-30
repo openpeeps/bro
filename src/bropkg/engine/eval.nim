@@ -32,6 +32,9 @@ template calc(calcHandle): untyped {.dirty.} =
     of ntCall:
       var rht = call(rht, scope)
       c.evalMathInfix(lht, rht, infixOp, scope)
+    of ntMathStmt:
+      var rht = c.evalMathInfix(rht.mathLeft, rht.mathRight, rht.mathInfixOp, scope)
+      c.evalMathInfix(lht, rht, infixOp, scope)
     else: nil
   of ntCall:
     var lht = call(lht, scope)

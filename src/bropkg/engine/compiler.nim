@@ -406,6 +406,11 @@ proc write(c: var Compiler, node: Node, scope: ScopeTable = nil, data: Node = ni
     c.handleCommand(node)
   of ntCallStack:
     discard c.handleCallStack(node, scope)
+  of ntVariable:
+    case node.varValue.nt:
+    of ntMathStmt:
+      node.varValue.mathResult = c.evalMathInfix(node.varValue.mathLeft, node.varValue.mathRight, node.varValue.mathInfixOp, scope)
+    else: discard
   else: discard
 
 proc len*(c: var Compiler): int = c.program.nodes.len

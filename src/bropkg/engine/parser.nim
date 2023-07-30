@@ -472,14 +472,15 @@ proc parseCompOp(p: var Parser, left: Node, scope: var seq[ScopeTable]): Node =
 
 proc parseMathOp(p: var Parser, left: Node, scope: var seq[ScopeTable]): Node =
   walk p
-  case p.curr.kind
-  of tkInteger:
-    result = p.parseInt(scope)
-  of tkFloat:
-    result = p.parseFloat(scope)
-  of tkVarCall:
-    result = p.parseCallCommand(scope)
-  else: discard
+  result = p.getPrefixOrInfix(includeOnly = {tkInteger, tkFloat, tkVarCall, tkIdentifier, tkFnCall}, scope = scope)
+  # case p.curr.kind
+  # of tkInteger:
+  #   result = p.parseInt(scope)
+  # of tkFloat:
+  #   result = p.parseFloat(scope)
+  # of tkVarCall:
+  #   result = p.parseCallCommand(scope)
+  # else: discard
 
 proc getInfixFn(p: var Parser): InfixFunction =
   case p.curr.kind
@@ -488,11 +489,12 @@ proc getInfixFn(p: var Parser): InfixFunction =
   else: nil
 
 proc parseInfix(p: var Parser, left: Node, scope: var seq[ScopeTable]): Node =
+  var infixNode: Node # ntInfix
   let infixFn = p.getInfixFn()
   if infixFn != nil:
     let op = getInfixOp(p.curr.kind, false)
     if op != None:
-      var infixNode = newInfix(left)
+      infixNode = newInfix(left)
       infixNode.infixOp = op
       let node = p.infixFn(infixNode.infixLeft, scope)
       if node != nil:
@@ -500,16 +502,17 @@ proc parseInfix(p: var Parser, left: Node, scope: var seq[ScopeTable]): Node =
       return infixNode
     var opMath = getInfixCalcOp(p.curr.kind, false)
     if likely(opMath != invalidCalcOp):
-      result = newInfixCalc(left)
-      result.mathInfixOp = opMath
-      let node = p.infixFn(result.mathLeft, scope)
+      infixNode = newInfixCalc(left)
+      infixNode.mathInfixOp = opMath
+      var node = p.infixFn(infixNode.mathLeft, scope)
       if likely(node != nil):
-        result.mathRight = node
-        if result.mathLeft.nt == ntInt and result.mathRight.nt == ntInt:
-          result.mathResultType = ntInt
+        infixNode.mathRight = node
+        if infixNode.mathLeft.nt == ntInt and infixNode.mathRight.nt == ntInt:
+          infixNode.mathResultType = ntInt
         else:
-          result.mathResultType = ntFloat
-      else: discard # error
+          infixNode.mathResultType = ntFloat
+        return infixNode
+
 #
 # Statement List
 #
