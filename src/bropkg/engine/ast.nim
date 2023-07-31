@@ -20,7 +20,7 @@ type
     ntUniversalSelector
     ntAttrSelector
     ntClassSelector = "class"
-    ntPseudoClassSelector
+    ntPseudoSelector
     ntPseudoElements
     ntIDSelector
     ntAtRule
@@ -138,7 +138,7 @@ type
       fnParams*: CritBitTree[ParamDef]
       fnBody*: Node          # ntStmtList
       fnReturnType*: NodeType
-      fnUsed*, fnClosure*: bool
+      fnUsed*, fnClosure*, fnExport*: bool
       fnMeta*: Meta
     of ntComment:
       comment*: string
@@ -219,7 +219,7 @@ type
       forItem*, inItems*: Node
       forBody*: Node # ntStmtList
       forStorage*: ScopeTable
-    of ntTagSelector, ntClassSelector, ntPseudoClassSelector, ntIDSelector:
+    of ntTagSelector, ntClassSelector, ntPseudoSelector, ntIDSelector:
       ident*: string
       parents*: seq[string]
       multipleSelectors*: seq[string]
@@ -316,7 +316,8 @@ proc walkAccessorStorage*(node: Node, index: string, scope: ScopeTable): Node =
   of ntArray:
     result = node.itemsVal[parseInt(index)]
   of ntVariable:
-    result = node.varValue.itemsVal[parseInt(index)]
+    return walkAccessorStorage(node.varValue, index, scope)
+    # result = node.varValue.itemsVal[parseInt(index)]
   else: discard
 
 proc call*(node: Node, scope: ScopeTable): Node =
@@ -507,21 +508,21 @@ proc newComment*(str: string): Node =
   ## Create a new ntComment node
   result = Node(nt: ntComment, comment: str)
 
-proc newTag*(tk: TokenTuple, properties = KeyValueTable(), multipleSelectors = @[""], concat: seq[Node] = @[]): Node =
+proc newTag*(tk: TokenTuple, properties = KeyValueTable(), concat: seq[Node] = @[]): Node =
   ## Create a new ntTag node
-  Node(nt: ntTagSelector, ident: tk.prefixed, properties: properties, multipleSelectors: multipleSelectors, identConcat: concat)
+  Node(nt: ntTagSelector, ident: tk.prefixed, properties: properties, identConcat: concat)
 
-proc newClass*(tk: TokenTuple, properties = KeyValueTable(), multipleSelectors = @[""], concat: seq[Node] = @[]): Node =
+proc newClass*(tk: TokenTuple, properties = KeyValueTable(), concat: seq[Node] = @[]): Node =
   ## Create a new ntClassSelector
-  Node(nt: ntClassSelector, ident: tk.value, properties: properties, multipleSelectors: multipleSelectors, identConcat: concat)
+  Node(nt: ntClassSelector, ident: tk.value, properties: properties, identConcat: concat)
 
-proc newPseudoClass*(tk: TokenTuple, properties = KeyValueTable(), multipleSelectors = @[""], concat: seq[Node] = @[]): Node =
-  ## Create a new ntPseudoClassSelector
-  Node(nt: ntPseudoClassSelector, ident: tk.prefixed, properties: properties, multipleSelectors: multipleSelectors, identConcat: concat)
+proc newPseudoClass*(tk: TokenTuple, properties = KeyValueTable(), concat: seq[Node] = @[]): Node =
+  ## Create a new ntPseudoSelector
+  Node(nt: ntPseudoSelector, ident: tk.prefixed, properties: properties, identConcat: concat)
 
-proc newID*(tk: TokenTuple, properties = KeyValueTable(), multipleSelectors = @[""], concat: seq[Node] = @[]): Node =
+proc newID*(tk: TokenTuple, properties = KeyValueTable(), concat: seq[Node] = @[]): Node =
   ## Create a new ntIDSelector
-  Node(nt: ntIDSelector, ident: tk.prefixed, properties: properties, multipleSelectors: multipleSelectors, identConcat: concat)
+  Node(nt: ntIDSelector, ident: tk.prefixed, properties: properties,  identConcat: concat)
 
 proc newPreview*(tk: TokenTuple): Node =
   ## Create a new ntPreview
@@ -601,9 +602,14 @@ proc newFunction*(style: Program, name: string) =
   ## Create a new function (high-level API)
   style.add Node(nt: ntFunction, fnName: name)
 
-proc newTag*(name: string, properties = KeyValueTable(), multipleSelectors = @[""], concat: seq[Node] = @[]): Node =
+proc newTag*(name: string, properties = KeyValueTable(), concat: seq[Node] = @[]): Node =
   ## Create a new `ntTag` node
-  Node(nt: ntTagSelector, ident: name, properties: properties, multipleSelectors: multipleSelectors, identConcat: concat)
+  Node(nt: ntTagSelector, ident: name, properties: properties, identConcat: concat)
+
+proc newPseudoClass*(name: string, properties = KeyValueTable(), concat: seq[Node] = @[]): Node =
+  ## Create a new `ntPseudoSelector` node
+  Node(nt: ntPseudoSelector, ident: name, properties: properties, identConcat: concat)
+
 
 proc newVariable*(style: Program, name: string, value: Node) =
   ## Create a new variable node

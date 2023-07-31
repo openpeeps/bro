@@ -60,7 +60,7 @@ proc getTypeInfo(node: Node): string =
   of ntArray:
     add result, "$1[$2]($3)" % [$(node.nt), "mix", $(node.itemsVal.len)] # todo handle types of array (string, int, or mix for mixed values)
   of ntObject:
-    add result, "$1($3)" % [$(node.nt), $(node.pairsVal.len)]
+    add result, "$1($2)" % [$(node.nt), $(node.pairsVal.len)]
   of ntAccessor:
     add result, getTypeInfo(node.accessorStorage)
   of ntVariable:
@@ -84,7 +84,7 @@ proc getOtherParents(node: Node, childSelector: string): string =
   var res: seq[string]
   for parent in node.parents:
     if likely(node.nested == false):
-      if unlikely(node.nt == ntPseudoClassSelector):
+      if unlikely(node.nt == ntPseudoSelector):
         add res, parent & ":" & childSelector
       else:
         add res, parent & " " & childSelector
@@ -244,6 +244,9 @@ proc getSelectorGroup(c: var Compiler, node: Node,
     if node.parents.len > 0:
       add result, node.parents.join(" ") & spaces(1) & node.ident
     else:
+      if node.nt == ntPseudoSelector:
+        assert parent != nil
+        add result, parent.ident & ":"
       add result, node.ident
     if node.multipleSelectors.len > 0:
       add result, "," & node.multipleSelectors.join(",")
@@ -279,12 +282,6 @@ proc getSelectorGroup(c: var Compiler, node: Node,
     setLen c.deferred, 0
     # add c.css, c.deferred
     # setLen(c.deferred, 0)
-
-# proc writeClass(c: var Compiler, node: Node, scope: ScopeTable) =
-#   c.getSelectorGroup(node)
-#   if unlikely(node.pseudo.len != 0):
-#     for k, pseudoNode in node.pseudo:
-#       c.getSelectorGroup(pseudoNode, scope)
 
 proc handleImportStmt(c: var Compiler, node: Node, scope: ScopeTable) =
   for imported in node.modules:
@@ -361,9 +358,9 @@ proc handleInnerNode(c: var Compiler, node, parent: Node,
       add c.css, c.getSelectorGroup(node, scope)
     else:
       add c.deferred, c.getSelectorGroup(node, scope)
-    if unlikely(node.pseudo.len != 0):
+    if unlikely(node.pseudo.len > 0):
       for k, pseudoNode in node.pseudo:
-        add c.deferred, c.getSelectorGroup(pseudoNode, scope)
+        add c.deferred, c.getSelectorGroup(pseudoNode, scope, node)
   of ntForStmt:
     c.handleForStmt(node, parent, scope)
   of ntCondStmt:
@@ -391,9 +388,9 @@ proc write(c: var Compiler, node: Node, scope: ScopeTable = nil, data: Node = ni
   case node.nt:
   of ntClassSelector, ntTagSelector, ntIDSelector, ntRoot:
     add c.css, c.getSelectorGroup(node, scope)
-    if unlikely(node.pseudo.len != 0):
+    if unlikely(node.pseudo.len > 0):
       for k, pseudoNode in node.pseudo:
-        add c.css, c.getSelectorGroup(pseudoNode, scope) 
+        add c.css, c.getSelectorGroup(pseudoNode, scope, node) 
   of ntForStmt:
     c.handleForStmt(node, nil, scope)
   of ntCondStmt:
