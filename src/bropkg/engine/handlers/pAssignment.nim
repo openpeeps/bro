@@ -31,19 +31,21 @@ newPrefixProc "parseRegularAssignment":
 
 newPrefixProc "parseStreamAssignment":
   # parse JSON/YAML from external sources
+  result = p.parseVarDef(scope)
   var fpath: string
-  walk p
+  walk p # @json / @yaml
   case p.curr.kind
   of tkString:
     # get file path from string
     fpath = p.curr.value
+    walk p
   of tkVarCall:
     # get file path from a variable
     let call = p.parseCallCommand(scope)
     if call != nil:
       fpath = call.varValue.sVal
-  else: return
-  result = newStream(normalizedPath(p.filePath.parentDir / fpath))
+  else: return nil
+  result.varValue = newStream(normalizedPath(p.filePath.parentDir / fpath))
 
 newPrefixProc "parseAnoArray":
   ## parse an anonymous array
