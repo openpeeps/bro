@@ -12,9 +12,7 @@ newPrefixProc "parseFor":
     let
       itemToken = p.curr
       itemNode = p.parseVarDef(scope)
-    # item value cannot be changed during iteration
-    itemNode.varImmutable = true
-
+    itemNode.varImmutable = true # `$item` cannot be redeclared/reassigned in this scope
     if p.curr is tkIn and p.next.kind in {tkVarCall, tkVarTyped, tkLB, tkLC}:
       # todo when var, check if is iterable (array or object)
       walk p # tkIn
