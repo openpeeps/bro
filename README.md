@@ -137,6 +137,7 @@ Summary
    15.01 times faster than 'bun sass.js'
    19.07 times faster than 'node sass.js'
 ```
+[Check Benchmarks page for more](https://github.com/openpeeps/bro/wiki/Benchmarks)
 
 ### BRO vs BRO Binary AST
 
