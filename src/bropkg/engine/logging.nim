@@ -63,6 +63,7 @@ type
     fnInvalidReturn = "Invalid return type"
     fnAttemptRedefineIdent = "Attempt to redefine parameter $"
     fnOverload = "Attempt to redefine function $"
+    fnAnoExport = "Anonymous functions cannot be exported"
 
     InvalidContext = "Invalid $ in this context"
     InvalidSyntaxLoopStmt = "Invalid syntax for loop statement"
