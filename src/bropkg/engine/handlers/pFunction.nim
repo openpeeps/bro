@@ -8,7 +8,7 @@ newPrefixProc "parseFn":
   # Parse function definition using `fn` identifier.
   # Function definition is inspired from Nim language:
   #```bass
-  # fn hello(name: string): string =
+  # fn hello*(name: string): string =
   #   return $name
   #```
   let
@@ -17,6 +17,11 @@ newPrefixProc "parseFn":
     fnScope = ScopeTable()
   walk p # `fn`
   var fnNode = newFunction(fnName)
+  var isPublicFn =
+    if p.next is tkMultiply:
+      walk p
+      true
+    else: false
   walk p # function identifier
   var types: seq[NodeType]
   if p.curr.kind == tkLPAR and p.curr.line == fn.line:
@@ -79,7 +84,10 @@ newPrefixProc "parseFn":
           if unlikely(isFunctionWrap):
             fnNode.fnClosure = true
             scope[^2].localScope(fnNode)
+            if unlikely(isPublicFn):
+              error(fnAnoExport, fnName)
           else:
+            fnNode.fnExport = isPublicFn
             p.globalScope(fnNode)
         else: return nil
       result = fnNode
