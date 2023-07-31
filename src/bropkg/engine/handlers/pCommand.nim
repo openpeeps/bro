@@ -38,10 +38,9 @@ proc parseVarCall(p: var Parser, tk: TokenTuple, varName: string,
                 scope: var seq[ScopeTable], skipWalk = false): Node =
   # Parse a variable call. This handler can parse basic calls 
   let
-    varName = p.curr.value
+    varName = if likely(varName.len == 0): p.curr.value else: varName
     currentScope = p.getScope(varName, scope)
     hashedVarName = hash(varName & $(currentScope.index))
-  # var skipWalk = skipWalk
   walk p # tkVariable
   if currentScope.st != nil:
     var callNode = memoized(p.mVar, hashedVarName)
@@ -60,7 +59,7 @@ proc parseVarCall(p: var Parser, tk: TokenTuple, varName: string,
 
 newPrefixProc "parseCallCommand":
   # Parse variable calls
-  p.parseVarCall(p.curr, p.curr.value, scope)
+  p.parseVarCall(p.curr, "", scope)
 
 newPrefixProc "parseEchoCommand":
   # Parse an `echo` command. Echo can print literals, functions and infix operations

@@ -139,7 +139,7 @@ proc toString(c: var Compiler, val: Node, scope: ScopeTable = nil): string =
     of ntArray:     jsony.toJson(val.itemsVal)
     of ntObject:    jsony.toJson(val.pairsVal)
     of ntAccQuoted:
-      var accValues: string
+      var accValues: seq[string]
       for accVar in val.accVars:
         add accValues, accVar.callIdent[1..^1] # variable name without `$`
         add accValues, c.toString(c.getValue(accVar, scope))
