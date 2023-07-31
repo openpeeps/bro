@@ -590,7 +590,7 @@ proc parseSelectorStmt(p: var Parser, parent: (TokenTuple, Node),
           parent[1].innerNodes[$node.callOid] = node
         of ntCallStack:
           if node.stackReturnType in {ntProperty, ntTagSelector, ntClassSelector,
-                                      ntPseudoClassSelector, ntIDSelector}:
+                                      ntPseudoSelector, ntIDSelector}:
             # todo implement types for CSS selectors, example 
             parent[1].innerNodes[$node.stackOid] = node
           else: error(invalidCallContext, p.prev)

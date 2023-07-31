@@ -23,7 +23,7 @@ proc parseMultiSelector(p: var Parser, node: Node) =
   setLen(selectors, 0)
   if p.lastParent != nil:
     if p.lastParent.nt in {ntProperty, ntTagSelector, ntClassSelector,
-                          ntPseudoClassSelector, ntIDSelector}:
+                          ntPseudoSelector, ntIDSelector}:
       if p.lastParent.parents.len != 0:
         node.parents = concat(p.lastParent.parents, @[p.lastParent.ident])
       else:
