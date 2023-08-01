@@ -30,7 +30,30 @@ newPrefixProc "parseFloat":
 newPrefixProc "parseColor":
   # parse colors
   result = newColor(p.curr.value)
+  result.colorType = ColorType.cHex
   walk p
+
+newPrefixProc "parseNamedColor":
+  # parse named colors
+  result = newColor(p.curr.value)
+  result.colorType = ColorType.cNamed
+  walk p
+
+newPrefixProc "parseRGBColor":
+  # parse RGB colors
+  discard
+
+newPrefixProc "parseRGBAColor":
+  # parse RGBA colors
+  discard
+
+newPrefixProc "parseHSLColor":
+  # parse HSL colors
+  discard
+
+newPrefixProc "parseHSLAColor":
+  # parse HSLA colors
+  discard
 
 newPrefixProc "parseAccQuoted":
   # parse variable calls
