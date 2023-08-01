@@ -29,9 +29,11 @@ proc runCommand*(v: Values) =
   let
     t = cpuTime()
     p = parser.parseProgram(stylesheetPath)
-  if p.hasError:
-    for row in p.getError.rows:
-      display(row)
+  if p.hasErrors:
+    display("Build failed with errors")
+    for error in p.logger.errors:
+      display(error)
+    display(" 👉 " & p.logger.filePath)
     QuitFailure.quit
   else:
     if p.hasWarnings:
