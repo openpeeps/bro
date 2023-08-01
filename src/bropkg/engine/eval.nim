@@ -84,10 +84,10 @@ proc evalMathInfix*(c: var Compiler, lht, rht: Node, infixOp: MathOp, scope: Sco
 macro genInfixEval() =
   proc genInfixOp(op, fname: string): NimNode =
     result = newNimNode(nnkInfix)
-    result.add(
+    add result,
       ident(op),
       newDotExpr(ident("lht"), ident(fname)),
-      newDotExpr(ident("rht"), ident(fname)))
+      newDotExpr(ident("rht"), ident(fname))
 
   proc genInfixOp(op, lht: string, rht: NimNode): NimNode =
     result = newNimNode(nnkInfix)
