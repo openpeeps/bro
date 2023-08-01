@@ -11,21 +11,22 @@ import pkg/zippy
 import ../engine/[parser, compiler]
 
 proc runCommand*(v: Values) =
-  var stylesheetPath: string
+  var
+    cssPath: string
+    hasOutput = v.has("output")
+    stylesheetPath: string
+
   if v.has("style"):
     stylesheetPath = v.get("style").absolutePath()
     if not stylesheetPath.fileExists:
       display("Stylesheet does not exists")
       QuitFailure.quit
-  else:
-    QuitFailure.quit
-
+  else: QuitFailure.quit
+  
   if stylesheetPath.getFileSize == 0:
     display("Stylesheet is empty")
     QuitFailure.quit
-
-  var cssPath: string
-  var hasOutput = v.has("output")
+  
   if hasOutput:
     cssPath = v.get("output")
     if cssPath.splitFile.ext != ".css":
@@ -35,15 +36,18 @@ proc runCommand*(v: Values) =
       cssPath.normalizePath
       cssPath = cssPath.absolutePath()
     display("✨ Building...", br="after")
+  
   let
     t = getMonotime()
     p = parser.parseProgram(stylesheetPath)
-  if p.logger.warnLogs.len != 0:
+
+  if unlikely(p.logger.warnLogs.len > 0):
     for warning in p.logger.warnings:
       display(warning)
     display(" 👉 " & stylesheetPath, br="after")
 
-  if p.hasErrors:
+  if unlikely(p.hasErrors):
+    # check for lexer/parser errors
     display("Build failed with errors")
     for error in p.logger.errors:
       display(error)
@@ -51,6 +55,14 @@ proc runCommand*(v: Values) =
     QuitFailure.quit
 
   let c = newCompiler(p.getProgram, minify = v.flag("min"))
+  if unlikely(c.hasErrors):
+    # check for errors at compile time
+    display("Build failed with errors")
+    for error in c.logger.errors:
+      display(error)
+    display(" 👉 " & c.logger.filePath)
+    QuitFailure.quit
+
   if hasOutput:
     if v.flag("gzip"):
       writeFile(cssPath.changeFileExt(".css.gzip"), compress(c.getCSS, dataFormat = dfGzip))
