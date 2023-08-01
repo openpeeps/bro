@@ -249,8 +249,24 @@ type
     nodes*: seq[Node]
     selectors*: CritBitTree[Node]
     stack*: ScopeTable
+    sourcePath*: string
     meta: Meta
       ## Count lines and columns when using Macros
+
+# fwd declarations
+proc newStream*(node: JsonNode): Node
+proc newString*(sVal: string): Node
+
+proc newInt*(iVal: string): Node
+proc newInt*(iVal: int): Node
+
+proc newFloat*(fVal: string): Node
+proc newFloat*(fVal: float): Node
+
+proc newBool*(bVal: string): Node
+proc newBool*(bVal: bool): Node
+
+# proc newNull(): Node
 
 when not defined release:
   proc `$`*(node: Node): string =
@@ -299,7 +315,30 @@ proc getInfixCalcOp*(kind: TokenKind, isInfixInfix: bool): MathOp =
     of tkMod: mMod
     else: invalidCalcOp
 
+proc toString*(v: JsonNode): string =
+  # Return a stringified version of JSON `v`
+  case v.kind:
+  of JString: v.str
+  of JInt:    $(v.num)
+  of JFloat:  $(v.fnum)
+  of JObject,
+     JArray: $(v)
+  of JNull: "null"
+  of JBool: $(v.bval)
+
+proc toNode(v: JsonNode): Node =
+  case v.kind
+  of JString: newString(v.str)
+  of JInt:    newInt(v.num.int)
+  of JFloat:  newFloat(v.fnum)
+  of JObject,
+     JArray: newStream(v)
+  # of JNull: "null"
+  of JBool: newBool(v.bval)
+  else: nil
+
 proc walkAccessorStorage*(node: Node, index: string, scope: ScopeTable): Node =
+  # walk trough a Node tree using `index`
   # todo catch IndexDefect
   case node.nt:
   of ntAccessor:
@@ -318,6 +357,14 @@ proc walkAccessorStorage*(node: Node, index: string, scope: ScopeTable): Node =
   of ntVariable:
     return walkAccessorStorage(node.varValue, index, scope)
     # result = node.varValue.itemsVal[parseInt(index)]
+  of ntStream:
+    case node.streamContent.kind:
+    of JObject:
+      result = toNode(node.streamContent[index])
+    of JArray:
+      result = toNode(node.streamContent[parseInt(index)])
+    else:
+      result = toNode(node.streamContent)
   else: discard
 
 proc call*(node: Node, scope: ScopeTable): Node =
@@ -409,14 +456,26 @@ proc newInt*(iVal: string): Node =
   ## Create a new ntInt node
   result = Node(nt: ntInt, iVal: parseInt iVal)
 
+proc newInt*(iVal: int): Node =
+  ## Create a new ntInt node
+  result = Node(nt: ntInt, iVal: iVal)
+
 proc newFloat*(fVal: string): Node =
   ## Create a new ntFloat node
   result = Node(nt: ntFloat, fVal: parseFloat fVal)
+
+proc newFloat*(fVal: float): Node =
+  ## Create a new ntFloat node
+  result = Node(nt: ntFloat, fVal: fVal)
 
 proc newBool*(bVal: string): Node =
   ## Create a new ntbool node
   assert bVal in ["true", "false"]
   result = Node(nt: ntBool, bVal: parseBool bVal)
+
+proc newBool*(bVal: bool): Node =
+  ## Create a new ntbool node
+  result = Node(nt: ntBool, bVal: bVal)
 
 proc newColor*(cVal: string): Node =
   ## Create a new ntColor node
@@ -430,10 +489,6 @@ proc newSize*(size: int, unit: Units): Node =
 
 proc newInfo*(node: Node): Node = Node(nt: ntInfo, nodeType: node.getNodeType)
 
-# proc newJson*(jsonVal: JsonNode): Node =
-#   ## Create a new ntJsonValue node
-#   result = Node(nt: ntJsonValue, jsonVal: jsonVal)
-
 proc newStream*(src: string): Node =
   ## Create a new Stream node from YAML or JSON
   try:
@@ -444,16 +499,19 @@ proc newStream*(src: string): Node =
   except JsonParsingError:
     echo "internal error"
 
-proc newStream*(jsonNode: JsonNode): Node = Node(nt: ntStream, streamContent: jsonNode) ## Create a new Stream node from `jsonNode`
+proc newStream*(node: JsonNode): Node =
+  ## Create a new Stream from `node`
+  Node(nt: ntStream, streamContent: node)
+
 proc newObject*(): Node = Node(nt: ntObject) ## Create a new ntObject node
 proc newArray*(): Node = Node(nt: ntArray) ## Create a new ntArray node
 
 proc newAccessor*(accType: NodeType, accStorage: Node): Node =
   ## Create a new `ntAccessor` Node
   assert accType in {ntArray, ntObject}
-  assert accStorage.nt in {ntVariable, ntAccessor, ntArray, ntObject} # a var type of array or anonymous arrays/objects
+  assert accStorage.nt in {ntVariable, ntStream, ntAccessor, ntArray, ntObject} # a var type of array or anonymous arrays/objects
   if accStorage.nt == ntVariable:
-    assert accStorage.varValue.nt in {ntArray, ntObject}
+    assert accStorage.varValue.nt in {ntArray, ntObject, ntStream}
   case accType:
   of ntArray:
     result = Node(nt: ntAccessor, accessorType: ntArray, accessorStorage: accStorage)
@@ -471,15 +529,18 @@ proc newFnCall*[N: Node](node: N, args: seq[N], ident, name: string): Node =
         stackIdent: ident, stackIdentName: name,
         stackReturnType: node.fnReturnType)
 
+const allowedInfixTokens = {ntColor, ntString, ntInt,
+                            ntBool, ntFloat, ntCall, ntCallStack}
+
 proc newInfix*(infixLeft, infixRight: Node, infixOp: InfixOp): Node =
   ## Create a new ntInfix node
-  assert infixLeft.nt in {ntColor, ntString, ntInt, ntBool, ntFloat, ntCall, ntCallStack}
-  assert infixRight.nt in {ntColor, ntString, ntInt, ntBool, ntFloat, ntCall, ntCallStack}
+  assert infixLeft.nt in allowedInfixTokens
+  assert infixRight.nt in allowedInfixTokens
   result = Node(nt: ntInfix, infixLeft: infixLeft, infixRight: infixRight, infixOp: infixOp)
 
 proc newInfix*(infixLeft: Node): Node =
   ## Create a new ntInfix node
-  assert infixLeft.nt in {ntColor, ntString, ntInt, ntBool, ntFloat, ntCall, ntCallStack}
+  assert infixLeft.nt in allowedInfixTokens
   result = Node(nt: ntInfix, infixLeft: infixLeft)
 
 proc newInfixCalc*(infixLeft: Node): Node =

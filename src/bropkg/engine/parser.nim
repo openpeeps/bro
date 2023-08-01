@@ -125,46 +125,6 @@ const
   #   tkCSSCalc
   # }
 
-when compileOption("app", "console"):
-  template err(msg: string) =
-    add p.error, @[span("Error ($2:$3): $1" % [msg, $p.curr.line, $p.curr.col])]
-
-  template err(msg: string, tk: TokenTuple, sfmt: varargs[string]) =
-    var newRow: Row
-    add newRow, span("Error", fgRed, indentSize = 0)
-    add newRow, span("(" & $(tk.line) & ":" & $(tk.col) & ")")
-    add newRow, span(msg)
-    for str in sfmt:
-      add newRow, span(str, fgMagenta)
-    add p.error, newRow
-    add p.error, @[span(p.filePath)]
-    return
-
-  proc getError*(p: Parser): seq[Row] =
-    result =
-      if p.error.len != 0: p.error
-      else:
-        @[@[span(p.lex.getError)]]
-
-else:
-  template err(msg: string) =
-    p.error = "Error ($2:$3): $1" % [msg, $(p.curr.line), $(tk.col)]
-
-  template err(msg: string, tk: TokenTuple, sfmt: varargs[string]) =
-    var errmsg = msg
-    for str in sfmt:
-      add errmsg, indent("\"" & str & "\"", 1)  
-    p.error = "Error ($2:$3): $1" % [errmsg, $(tk.line), $(tk.col)]
-    return
-
-  proc getError*(p: Parser): string =
-    result =
-      if p.error.len != 0: p.error
-      else: p.lex.getError
-
-proc hasError*(p: Parser): bool =
-  result = p.error.len != 0 or p.lex.hasError
-
 proc hasWarnings*(p: Parser): bool =
   result = p.logger.warnLogs.len != 0
 
@@ -622,6 +582,7 @@ proc getPrefixFn(p: var Parser, excludeOnly, includeOnly: set[TokenKind] = {}): 
       parseProperty
     else: nil
   of tkInteger: parseInt
+  of tkColor: parseColor
   of tkString:  parseString
   of tkVarCall: parseCallCommand
   of tkVarDef:  parseAssignment
@@ -639,6 +600,7 @@ proc getPrefixFn(p: var Parser, excludeOnly, includeOnly: set[TokenKind] = {}): 
   of tkExtend:  parseExtend
   of tkThis:    parseThis
   of tkAccQuoted: parseAccQuoted
+  of tkNamedColors: parseNamedColor
   else:
     if p.next isnot tkColon:
       parseSelectorTag

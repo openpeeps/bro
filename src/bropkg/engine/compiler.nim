@@ -7,7 +7,7 @@
 import pkg/jsony
 import std/[tables, strutils, macros, sequtils, json,
           critbits, algorithm, oids, terminal, enumutils]
-import ./ast, ./sourcemap
+import ./ast, ./sourcemap, ./logging
 
 type
   Warning* = tuple[msg: string, line, col: int]
@@ -18,6 +18,8 @@ type
     minify: bool
     stack: Table[int, Node]
     warnings*: seq[Warning]
+    when compileOption("app", "console"):
+      logger*: Logger
 
 var strNL, strCL, strCR: string
 
@@ -26,6 +28,8 @@ proc write(c: var Compiler, node: Node, scope: ScopeTable = nil, data: Node = ni
 proc getSelectorGroup(c: var Compiler, node: Node, scope: ScopeTable = nil, parent: Node = nil): string
 proc handleInnerNode(c: var Compiler, node, parent: Node, scope: ScopeTable = nil, length: int, ix: var int)
 proc handleCallStack(c: var Compiler, node: Node, scope: ScopeTable): Node
+proc getValue(c: var Compiler, v: Node, scope: ScopeTable): Node
+
 
 # eval
 include ./eval
@@ -70,6 +74,8 @@ proc getTypeInfo(node: Node): string =
 proc getCSS*(c: Compiler): string =
   result = c.css
 
+proc hasErrors*(c: Compiler): bool = c.logger.errorLogs.len > 0
+
 proc prefix(node: Node): string =
   # Prefix CSS selector, `.myclass` for ntClassSelector,
   # `#myId` for `ntIDSelector` and so on
@@ -113,82 +119,65 @@ proc dumpHook*(s: var string, v: Node) =
 
 template handleVariableValue(varNode: Node, scope: ScopeTable) {.dirty.} =
   if varNode.varValue != nil:
-    case varNode.varValue.nt:
-    of ntStream:
-      result = c.getValue(varNode.varValue, nil)
-    else:
-      result = c.getValue(varNode.varValue, nil)
-  else:
-    case scope[varNode.varName].varValue.nt:
-    of ntStream:
-      result = c.getValue(scope[varNode.varName].varValue, nil)
-    else:
-      result = c.getValue(scope[varNode.varName].varValue, nil)
+    return c.getValue(varNode.varValue, nil)
+  result = c.getValue(scope[varNode.varName].varValue, nil)
 
-proc getValue(c: var Compiler, val: Node, scope: ScopeTable): Node # fwd declaration
-
-proc toString(c: var Compiler, val: Node, scope: ScopeTable = nil): string =
-  # Return stringified version of `val`
+proc toString(c: var Compiler, v: Node, scope: ScopeTable = nil): string =
+  # Return stringified version of `v`
   result =
-    case val.nt
-    of ntString: val.sVal
-    of ntFloat:  $(val.fVal)
-    of ntInt:    $(val.iVal)
-    of ntBool:   $(val.bVal)
-    of ntColor:  $(val.cVal)
-    of ntArray:     jsony.toJson(val.itemsVal)
-    of ntObject:    jsony.toJson(val.pairsVal)
+    case v.nt
+    of ntString: v.sVal
+    of ntFloat:  $(v.fVal)
+    of ntInt:    $(v.iVal)
+    of ntBool:   $(v.bVal)
+    of ntColor:  $(v.cVal)
+    of ntArray:     jsony.toJson(v.itemsVal)
+    of ntObject:    jsony.toJson(v.pairsVal)
     of ntAccQuoted:
       var accValues: seq[string]
-      for accVar in val.accVars:
+      for accVar in v.accVars:
         add accValues, accVar.callIdent[1..^1] # variable name without `$`
         add accValues, c.toString(c.getValue(accVar, scope))
-      val.accVal.format(accValues)
+      v.accVal.format(accValues)
     of ntStream:
-      case val.streamContent.kind:
-      of JString: val.streamContent.str
-      of JInt:    $(val.streamContent.num)
-      of JFloat:  $(val.streamContent.fnum)
-      of JObject,
-          JArray: $(val.streamContent)
-      of JNull: "null"
-      of JBool: $(val.streamContent.bval)
+      toString(v.streamContent)
     else: ""
 
-proc getValue(c: var Compiler, val: Node, scope: ScopeTable): Node =
-  case val.nt
-  # of ntInfix:
-    # $(evalInfix(val.infixLeft, val.infixRight, val.infixOp, scope))
+proc getValue(c: var Compiler, v: Node, scope: ScopeTable): Node =
+  case v.nt
   of ntCall:
-    if val.callNode != nil:
-      case val.callNode.nt
+    if v.callNode != nil:
+      case v.callNode.nt
         of ntAccessor:
           var x: Node
-          if val.callNode.accessorType == ntArray:
+          if v.callNode.accessorType == ntArray:
             # handle `ntArray` storages
-            x = walkAccessorStorage(val.callNode.accessorStorage, val.callNode.accessorKey, scope)
+            x = walkAccessorStorage(v.callNode.accessorStorage, v.callNode.accessorKey, scope)
             return c.getValue(x, scope)  
           # handle `ntObject` storages
-          x = walkAccessorStorage(val.callNode.accessorStorage, val.callNode.accessorKey, scope)
-          return c.getValue(x, scope)
+          try:
+            x = walkAccessorStorage(v.callNode.accessorStorage, v.callNode.accessorKey, scope)
+            result = c.getValue(x, scope)
+          except KeyError as e:
+            newError(c.logger, internalError, 0, 0, true, e.msg)
         of ntVariable:
-          handleVariableValue(val.callNode, scope)
+          handleVariableValue(v.callNode, scope)
         of ntReturn:
-          result = c.handleCallStack(val.callNode, scope)
+          result = c.handleCallStack(v.callNode, scope)
         else: discard
     else:
-      return c.getValue(scope[val.callIdent], nil)
+      return c.getValue(scope[v.callIdent], nil)
   of ntCallStack:
-    result = c.handleCallStack(val, scope)
+    result = c.handleCallStack(v, scope)
   of ntVariable:
-    handleVariableValue(val, scope)
+    handleVariableValue(v, scope)
   else:
-    result = val
+    result = v
 
 proc getValue(c: var Compiler, vals: seq[Node], scope: ScopeTable): string =
   var strVal: seq[string]
-  for val in vals:
-    add strVal, c.toString(c.getValue(val, scope))
+  for v in vals:
+    add strVal, c.toString(c.getValue(v, scope))
   result = strVal.join(" ") # todo make it work with a valid separator (space, colon) 
 
 proc getProperty(c: var Compiler, n: Node, k: string, i: var int,
@@ -294,32 +283,38 @@ proc handleCommand(c: var Compiler, node: Node, scope: ScopeTable = nil) =
     let meta = " (" & $(node.cmdMeta.line) & ":" & $(node.cmdMeta.pos) & ") "
     case node.cmdValue.nt:
     of ntInfix:
-      let output = c.evalInfix(node.cmdValue.infixLeft, node.cmdValue.infixRight, node.cmdValue.infixOp, scope)
-      stdout.styledWriteLine(fgGreen, "Debug", fgDefault, meta, fgDefault, getTypeInfo(node.cmdValue) & "\n" & $(output))
+      let output = c.evalInfix(node.cmdValue.infixLeft,
+                    node.cmdValue.infixRight, node.cmdValue.infixOp, scope)
+      stdout.styledWriteLine(fgGreen, "Debug", fgDefault, meta, fgDefault,
+                        getTypeInfo(node.cmdValue) & "\n" & $(output))
     of ntMathStmt:
-      let total = c.evalMathInfix(node.cmdValue.mathLeft, node.cmdValue.mathRight, node.cmdValue.mathInfixOp, scope)
+      let total = c.evalMathInfix(node.cmdValue.mathLeft,
+                    node.cmdValue.mathRight, node.cmdValue.mathInfixOp, scope)
       let output =
         if total.nt == ntInt:
           $(total.iVal)
         else:
           $(total.fVal)
-      stdout.styledWriteLine(fgGreen, "Debug", fgDefault, meta, fgDefault, getTypeInfo(node.cmdValue) & "\n" & $(output))
+      stdout.styledWriteLine(fgGreen, "Debug", fgDefault, meta, fgDefault,
+                        getTypeInfo(node.cmdValue) & "\n" & $(output))
     of ntInfo:
-      stdout.styledWriteLine(fgGreen, "Debug", fgDefault, meta, fgMagenta, "[[" & $(node.cmdValue.nodeType) & "]]")
+      stdout.styledWriteLine(fgGreen, "Debug", fgDefault, meta, fgMagenta,
+                            "[[" & $(node.cmdValue.nodeType) & "]]")
     else:
       let varValue = c.getValue(node.cmdValue, scope)
-      var output: string
-      case varValue.nt:
-      of ntMathStmt:
-        # let total = evalMathInfix(varValue.mathLeft, varValue.mathRight, varValue.mathInfixOp, scope)
-        output =
-          if varValue.mathResult.nt == ntInt:
-            $(varValue.mathResult.iVal)
-          else:
-            $(varValue.mathResult.fVal)
-      else:
-        output = c.toString(varValue)
-      stdout.styledWriteLine(fgGreen, "Debug", fgDefault, meta, fgMagenta, getTypeInfo(node.cmdValue) & "\n", fgDefault, output)
+      if likely(varValue != nil):
+        var output: string
+        case varValue.nt:
+        of ntMathStmt:
+          output =
+            if varValue.mathResult.nt == ntInt:
+              $(varValue.mathResult.iVal)
+            else:
+              $(varValue.mathResult.fVal)
+        else:
+          output = c.toString(varValue)
+        stdout.styledWriteLine(fgGreen, "Debug", fgDefault, meta, fgMagenta,
+                          getTypeInfo(node.cmdValue) & "\n", fgDefault, output)
 
 proc handleCallStack(c: var Compiler, node: Node, scope: ScopeTable): Node =
   var
@@ -414,6 +409,8 @@ proc len*(c: var Compiler): int = c.program.nodes.len
 
 proc newCompiler*(p: Program, minify = false): Compiler =
   var c = Compiler(program: p, minify: minify)
+  when compileOption("app", "console"):
+    c.logger = Logger(filePath: p.sourcePath)
   strCL = "{"
   strCR = "}"
   if minify == false:
@@ -435,6 +432,8 @@ proc newCompiler*(p: Program, minify = false): Compiler =
   setLen strNL, 0
   setLen strCL, 0
   setLen strCR, 0
+  if unlikely(c.hasErrors):
+    setLen(c.css, 0)
 
 proc toCSS*(p: Program, minify = false): string =
   newCompiler(p, minify).getCSS

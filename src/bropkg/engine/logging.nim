@@ -71,7 +71,7 @@ type
     TypeMismatch = "Type mismatch"
     InvalidIdent = "Invalid identifier"
     EndOfFileError = "EOF reached before end of $ statement"
-    InternalError = "$"
+    internalError = "$"
 
   Level* = enum
     lvlInfo
@@ -193,22 +193,22 @@ proc error*(logger: Logger, msg: Message, line, col: int, args: varargs[string])
 
 when defined napiOrWasm:
   proc runIterator(i: Log, label = ""): string =
-      if label.len != 0:
-        add result, label
-      add result, "(" & $i.line & ":" & $i.col & ")" & spaces(1)
-      if i.useFmt:
-        var x: int
-        var str = split($i.msg, "$")
-        let length = count($i.msg, "$") - 1
-        for s in str:
-          add result, s.strip()
-          if length >= x:
-            add result, indent(i.args[x], 1)
-          inc x
-      else:
-        add result, $i.msg
-        for a in i.args:
-          add result, a
+    if label.len != 0:
+      add result, label
+    add result, "(" & $i.line & ":" & $i.col & ")" & spaces(1)
+    if i.useFmt:
+      var x: int
+      var str = split($i.msg, "$")
+      let length = count($i.msg, "$") - 1
+      for s in str:
+        add result, s.strip()
+        if length >= x:
+          add result, indent(i.args[x], 1)
+        inc x
+    else:
+      add result, $i.msg
+      for a in i.args:
+        add result, a
 
   proc `$`*(i: Log): string =
     runIterator(i)
