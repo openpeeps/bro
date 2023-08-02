@@ -25,9 +25,10 @@ newPrefixProc "parseRegularAssignment":
   ## parse a regular `string`, `int`, `float`, `bool` assignment
   result = p.parseVarDef(scope)
   if unlikely(result == nil): return nil
-  let varValue = p.getPrefixOrInfix(includeOnly = {tkInteger, tkFloat, tkString, tkBool, tkVarCall, tkIdentifier}, scope = scope)
+  let varValue = p.getPrefixOrInfix(scope = scope)
   if likely(varValue != nil):
-    result.varValue = varValue  
+    result.varValue = varValue
+    result.varType = varValue.nt
 
 newPrefixProc "parseStreamAssignment":
   # parse JSON/YAML from external sources
@@ -50,21 +51,26 @@ newPrefixProc "parseStreamAssignment":
 newPrefixProc "parseAnoArray":
   ## parse an anonymous array
   walk p # [
-  let anno = newArray()
+  var anno = newArray()
   while p.curr.kind != tkRB:
     var item = p.getAssignableNode(scope)
     if likely(item != nil):
-      add anno.itemsVal, item
+      if anno.arrayType == ntVoid:
+        # set type of array
+        anno.arrayType = item.getNodeType
+      elif item.getNodeType != anno.arrayType:
+        discard # error invalid type, expecting `x`
+      add anno.arrayItems, item
     else:
       if p.curr is tkLB:
         item = p.parseAnoArray(scope)
         if likely(item != nil):
-          add anno.itemsVal, item
+          add anno.arrayItems, item
         else: return # todo error multi dimensional array
       elif p.curr is tkLC:
         item = p.parseAnoObject(scope)
         if likely(item != nil):
-          add anno.itemsVal, item
+          add anno.arrayItems, item
         else: return # todo error object construction
       else: return # todo error
     if p.curr is tkComma:
@@ -107,6 +113,7 @@ newPrefixProc "parseArrayAssignment":
   result = p.parseVarDef(scope)
   if unlikely(result == nil): return nil
   result.varValue = p.parseAnoArray(scope)
+  result.varType = ntArray
 
 newPrefixProc "parseObjectAssignment":
   ## parse object construction using `{}` and assign to a variable 

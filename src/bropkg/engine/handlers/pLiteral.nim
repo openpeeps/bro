@@ -56,12 +56,13 @@ newPrefixProc "parseHSLAColor":
   discard
 
 newPrefixProc "parseAccQuoted":
-  # parse variable calls
+  # parse string/var concat using backticks
+  result = newAccQuoted(p.curr.value)
   if p.curr.attr.len != 0:
-    result = newAccQuoted(p.curr.value)
-    for varName in p.curr.attr:
-      let varNode = p.parseVarCall(p.curr, "$" & varName, scope)
+    let acc = p.curr
+    for varName in acc.attr:
+      let varNode = p.parseVarCall(acc, "$" & varName, scope)
       if unlikely(varNode == nil):
         return nil
       add result.accVars, varNode
-  walk p
+  else: walk p

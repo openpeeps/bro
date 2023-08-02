@@ -34,8 +34,7 @@ proc parseAccessor(p: var Parser, varNode: Node, scope: var seq[ScopeTable], tk:
         result = p.parseObjectAccessor(result, scope)
       else: result = nil # error
 
-proc parseVarCall(p: var Parser, tk: TokenTuple, varName: string,
-                scope: var seq[ScopeTable], skipWalk = false): Node =
+proc parseVarCall(p: var Parser, tk: TokenTuple, varName: string, scope: var seq[ScopeTable]): Node =
   # Parse a variable call. This handler can parse basic calls 
   let
     varName = if likely(varName.len == 0): p.curr.value else: varName
