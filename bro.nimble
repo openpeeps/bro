@@ -12,7 +12,8 @@ skipDirs      = @["bro/utils"]
 
 # Dependencies
 
-requires "nim >= 1.6.10"
+requires "nim >= 2.0.0"
+requires "checksums"
 requires "toktok#head"
 requires "kapsis"
 requires "watchout"

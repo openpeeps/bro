@@ -12,7 +12,7 @@ newPrefixProc "parseCond":
     # `tkIdentifier` and `tkFnCall` to `includeOnly` to allow function calls.
     # where `tkFnCall` is a simple token used to determine what kind of identifier
     # is expected via the `includeOnly` set  
-    compTokens = {tkVarCall, tkInteger, tkString, tkBool, tkIdentifier, tkFnCall} 
+    compTokens = {tkVarCall, tkInteger, tkString, tkBool, tkColor, tkIdentifier, tkFnCall} + tkNamedColors 
     compNode = p.getPrefixOrInfix(includeOnly = compTokens, scope = scope)
   var ifNode: Node
   if likely(compNode != nil):
@@ -25,7 +25,7 @@ newPrefixProc "parseCond":
                       includeOnly, returnType, isFunctionWrap)
       if likely(ifStmt != nil):
         ifNode.ifStmt = ifStmt
-      else: error(BadIndentation, p.curr)
+      else: error(badIndentation, p.curr)
       ifStmt.cleanup # out of scope
 
       # parse `elif` branches
@@ -39,7 +39,7 @@ newPrefixProc "parseCond":
           if likely(elifNode != nil):
             add ifNode.elifStmt, (elifCompNode, elifNode)
           else:
-            error(BadIndentation, p.curr)
+            error(badIndentation, p.curr)
           elifNode.cleanup # out of scope
         else: return nil
 
@@ -52,13 +52,13 @@ newPrefixProc "parseCond":
           if likely(elseNode != nil):
             ifNode.elseStmt = elseNode
           else:
-            error(BadIndentation, p.curr)
+            error(badIndentation, p.curr)
           elseNode.cleanup # out of scope
         else:
-          error(BadIndentation, p.curr)
+          error(badIndentation, p.curr)
       scope.delete(scope.high)
       return ifNode
-    error(BadIndentation, p.curr)
+    error(badIndentation, p.curr)
 
 newPrefixProc "parseCase":
   let tk = p.curr # case
@@ -66,7 +66,7 @@ newPrefixProc "parseCase":
   if p.curr is tkVarCall: # todo support function calls
     let
       caseVar = p.parseCallCommand(scope)
-      caseVarType = caseVar.getNodeType
+      caseVarType = caseVar.getTypedValue
       caseNode = newCaseStmt(caseVar)
     if p.curr is tkOf and p.curr.pos > tk.pos:
       let tkOfTuple = p.curr
@@ -74,17 +74,22 @@ newPrefixProc "parseCase":
       while p.curr is tkOf and p.curr.pos == tkOfTuple.pos:
         walk p # tkOf
         let tkOfIdent = p.curr # literal or variable
-        let ofCond = p.parsePrefix(excludeOnly = {tkEcho, tkReturn, tkFnDef}, scope = scope, returnType = returnType)
-        if ofCond != nil:
+        let caseOf = p.parsePrefix(excludeOnly = {tkEcho, tkReturn, tkFnDef}, scope = scope, returnType = returnType)
+        if caseOf != nil:
           checkColon
-          if likely(ofCond.getNodeType == caseVarType):
-            let ofBody = p.parseStatement((tkOfTuple, caseNode), scope, excludeOnly,
+          if likely(caseOf.getNodeType == caseVarType):
+            let caseBody = p.parseStatement((tkOfTuple, caseNode), scope, excludeOnly,
                           includeOnly, returnType, isFunctionWrap)
-            if likely(ofBody != nil):
-              add caseNode.caseCond, (ofCond, ofBody)
-            else: error(BadIndentation, p.curr)
-          else: errorWithArgs(caseInvalidValueType, tkOfIdent, [$(ofCond.getNodeType), $(caseVarType)])
+            if likely(caseBody != nil):
+              add caseNode.caseCond, (caseOf, caseBody)
+              # caseBody.cleanup # out of scope
+              scope.delete(scope.high)
+            else: error(badIndentation, p.curr)
+          else: errorWithArgs(caseInvalidValueType, tkOfIdent, [$(caseOf.getNodeType), $(caseVarType)])
         else: error(caseInvalidValue, p.curr)
+      
+      if p.curr.pos > tk.pos and p.curr isnot tkElse:
+        error(badIndentation, p.curr)
       
       # parse `else` branch
       if p.curr is tkElse:
@@ -95,6 +100,7 @@ newPrefixProc "parseCase":
         if likely(elseBody != nil):
           caseNode.caseElse = elseBody
         else: error(caseInvalidValue, p.curr)
-        caseNode.cleanup # out of scope
+        # elseBody.cleanup # out of scope
+        scope.delete(scope.high)
       return caseNode
-    error(BadIndentation, p.curr)
+    error(badIndentation, p.curr)
