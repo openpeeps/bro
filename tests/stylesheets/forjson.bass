@@ -1,5 +1,5 @@
 $config = @json "sample.json"
 
-for $color in $config.colors:
+for $color in $config["colors"]:
   .btn-{$color}
     color: $color

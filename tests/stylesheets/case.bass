@@ -1,12 +1,12 @@
 $colors = [yellow, blue, pink]
 
 for $color in $colors:
-  case $color:
-    of yellow
-      .sooo-{$color}
-        color: $color
+  case $color
+    of yellow:
+      .bg-{$color}
+        background-color: $color
         font-weight: bold
-    else
-      .sooo-cool
-        color: $color
+    else:
+      .bg-{$color}
+        background-color: $color
         font-style: italic

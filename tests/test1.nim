@@ -19,17 +19,17 @@ test "can compile":
 
   var c: Compiler
   # unminified
-  c = newCompiler(p.getProgram, basic)
+  c = newCompiler(p.getProgram)
   check c.getCSS.count("\n") == 3
   # minified
-  c = newCompiler(p.getProgram, basic, minify = true)
+  c = newCompiler(p.getProgram, minify = true)
   check c.getCSS.count("\n") == 0
   check c.getCSS == ".btn{border:2px #FFF solid}"
 
 test "can catch errors":
   var p = parseProgram(paths[1].getPath)
   check p.hasErrors == true
-  check p.logger.errorLogs[0].getMessage == InvalidProperty
+  check p.logger.errorLogs[0].getMessage == invalidProperty
 
 test "can catch warnings":
   var p = parseProgram(paths[5].getPath)
@@ -41,19 +41,19 @@ test "can compile `for` blocks":
   var p = parseProgram(path)
   check p.hasErrors == false
   check p.hasWarnings == false
-  let c = newCompiler(p.getProgram, path)
+  let c = newCompiler(p.getProgram)
 
 test "can compile `for` blocks w/ @json":
   let path = paths[3].getPath()
   var p = parseProgram(path)
   check p.hasErrors == false
   check p.hasWarnings == false
-  let c = newCompiler(p.getProgram, path)
+  let c = newCompiler(p.getProgram)
 
 test "can compile `case` blocks":
   let path = paths[4].getPath()
   var p = parseProgram(path)
   check p.hasErrors == false
   check p.hasWarnings == false
-  let c = newCompiler(p.getProgram, path)
+  let c = newCompiler(p.getProgram)
   echo c.getCSS
