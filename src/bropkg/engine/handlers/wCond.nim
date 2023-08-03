@@ -41,16 +41,17 @@ proc handleCondStmt(c: var Compiler, node, parent: Node, scope: ScopeTable) =
     for elseNode in node.elseStmt.stmtList:
       c.handleInnerNode(elseNode, parent, scope, node.elseStmt.stmtList.len, ix)
 
-proc handleCaseStmt(c: var Compiler, node: Node, scope: ScopeTable) =
+proc handleCaseStmt(c: var Compiler, node, parent: Node, scope: ScopeTable) =
   # Compiler handler to evaluate `case` `of` statements
   var ix = 0
-  for i in 0 .. node.caseCond.high:
-    if c.evalInfix(node.caseIdent, node.caseCond[i].`of`, EQ, scope):
-      for ii in 0 .. node.caseCond[i].body.stmtList.high:
-        let len = node.caseCond[i].body.stmtList.len
-        c.handleInnerNode(node.caseCond[i].body.stmtList[ii], node, scope, len, ix)
+  for caseNode in node.caseCond:
+    if c.evalInfix(node.caseIdent, caseNode.caseOf, EQ, scope):
+      let len = caseNode.body.stmtList.len
+      for caseBody in caseNode.body.stmtList:
+        c.handleInnerNode(caseBody, parent, scope, len, ix)
       return
+  if node.caseElse != nil:
     ix = 0
-  let len = node.caseElse.stmtList.len
-  for i in 0 .. node.caseElse.stmtList.high:
-    c.handleInnerNode(node.caseElse.stmtList[i], node, scope, len, ix)
+    let len = node.caseElse.stmtList.len
+    for caseBody in node.caseElse.stmtList:
+      c.handleInnerNode(caseBody, parent, scope, len, ix)

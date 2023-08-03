@@ -68,39 +68,41 @@ newPrefixProc "parseCase":
       caseVar = p.parseCallCommand(scope)
       caseVarType = caseVar.getTypedValue
       caseNode = newCaseStmt(caseVar)
-    if p.curr is tkOf and p.curr.pos > tk.pos:
-      let tkOfTuple = p.curr
-      # parse `of` branches
-      while p.curr is tkOf and p.curr.pos == tkOfTuple.pos:
-        walk p # tkOf
-        let tkOfIdent = p.curr # literal or variable
-        let caseOf = p.parsePrefix(excludeOnly = {tkEcho, tkReturn, tkFnDef}, scope = scope, returnType = returnType)
-        if caseOf != nil:
+    if likely(caseVarType in {ntColor, ntInt, ntFloat}):
+      if p.curr is tkOf and p.curr.pos > tk.pos:
+        # parse `of` branches
+        let tkOfTuple = p.curr
+        while p.curr is tkOf and p.curr.pos == tkOfTuple.pos:
+          walk p # tkOf
+          let tkOfIdent = p.curr # literal or variable
+          let caseOf = p.parsePrefix(excludeOnly = {tkEcho, tkReturn, tkFnDef}, scope = scope, returnType = returnType)
+          if caseOf != nil:
+            checkColon
+            if likely(caseOf.getNodeType == caseVarType):
+              let caseBody = p.parseStatement((tkOfTuple, caseNode), scope, excludeOnly,
+                            includeOnly, returnType, isFunctionWrap)
+              if likely(caseBody != nil):
+                add caseNode.caseCond, (caseOf, caseBody)
+                # caseBody.cleanup # out of scope
+                scope.delete(scope.high)
+              else: error(badIndentation, p.curr)
+            else: errorWithArgs(caseInvalidValueType, tkOfIdent, [$(caseOf.getNodeType), $(caseVarType)])
+          else: error(caseInvalidValue, p.curr)
+        
+        if unlikely(p.curr.pos == tkOfTuple.pos and p.curr isnot tkElse):
+          error(badIndentation, p.curr)
+        
+        # parse `else` branch
+        if p.curr is tkElse:
+          walk p
           checkColon
-          if likely(caseOf.getNodeType == caseVarType):
-            let caseBody = p.parseStatement((tkOfTuple, caseNode), scope, excludeOnly,
-                          includeOnly, returnType, isFunctionWrap)
-            if likely(caseBody != nil):
-              add caseNode.caseCond, (caseOf, caseBody)
-              # caseBody.cleanup # out of scope
-              scope.delete(scope.high)
-            else: error(badIndentation, p.curr)
-          else: errorWithArgs(caseInvalidValueType, tkOfIdent, [$(caseOf.getNodeType), $(caseVarType)])
-        else: error(caseInvalidValue, p.curr)
-      
-      if p.curr.pos > tk.pos and p.curr isnot tkElse:
-        error(badIndentation, p.curr)
-      
-      # parse `else` branch
-      if p.curr is tkElse:
-        walk p
-        checkColon
-        let elseBody = p.parseStatement((tkOfTuple, caseNode), scope, excludeOnly,
-                        includeOnly, returnType, isFunctionWrap) 
-        if likely(elseBody != nil):
-          caseNode.caseElse = elseBody
-        else: error(caseInvalidValue, p.curr)
-        # elseBody.cleanup # out of scope
-        scope.delete(scope.high)
-      return caseNode
-    error(badIndentation, p.curr)
+          let elseBody = p.parseStatement((tkOfTuple, caseNode), scope, excludeOnly,
+                          includeOnly, returnType, isFunctionWrap) 
+          if likely(elseBody != nil):
+            caseNode.caseElse = elseBody
+          else: error(caseInvalidValue, p.curr)
+          # elseBody.cleanup # out of scope
+          scope.delete(scope.high)
+        return caseNode
+      error(badIndentation, p.curr)
+    else: error(caseInvalidValue, p.curr)
