@@ -13,12 +13,14 @@ newPrefixProc "parseFor":
       itemToken = p.curr
       itemNode = p.parseVarDef(scope)
     itemNode.varImmutable = true # `$item` cannot be redeclared/reassigned in this scope
+    itemNode.varInitType = ntArray
     if p.curr is tkIn and p.next.kind in {tkVarCall, tkVarTyped, tkLB, tkLC}:
       # todo when var, check if is iterable (array or object)
       walk p # tkIn
       if p.curr.kind notin {tkLB, tkLC}:
         p.curr.kind = tkVarCall
       var itemsNode = p.parsePrefix(scope = scope)
+      itemNode.varType = itemsNode.getTypedValue
       if likely(itemsNode != nil and p.curr is tkColon):
         walk p # tkColon
         result = newForStmt(itemNode, itemsNode)

@@ -20,7 +20,7 @@ proc handleForStmt(c: var Compiler, node, parent: Node, scope: ScopeTable) =
   case itemsNode.nt:
   of ntVariable:
     # Array or Object iterator via Variable call
-    let items = itemsNode.varValue.itemsVal
+    let items = itemsNode.varValue.arrayItems
     let len = node.forBody.stmtList.len
     for i in 0 .. items.high:
       node.forStorage[node.forItem.varName].varValue = items[i]
@@ -29,8 +29,8 @@ proc handleForStmt(c: var Compiler, node, parent: Node, scope: ScopeTable) =
   of ntArray:
     # Array iterator
     let len = node.forBody.stmtList.len
-    for i in 0 .. itemsNode.itemsVal.high:
-      node.forStorage[node.forItem.varName].varValue = itemsNode.itemsVal[i]
+    for i in 0 .. itemsNode.arrayItems.high:
+      node.forStorage[node.forItem.varName].varValue = itemsNode.arrayItems[i]
       for n in node.forBody.stmtList:
         c.handleInnerNode(n, parent, node.forStorage, len, ix)
   of ntStream:
@@ -45,8 +45,8 @@ proc handleForStmt(c: var Compiler, node, parent: Node, scope: ScopeTable) =
     if itemsNode.accessorType == ntArray:
       x = walkAccessorStorage(itemsNode.accessorStorage, itemsNode.accessorKey, scope)
       let len = node.forBody.stmtList.len
-      for i in 0 .. x.itemsVal.high:
-        node.forStorage[node.forItem.varName].varValue = x.itemsVal[i]
+      for i in 0 .. x.arrayItems.high:
+        node.forStorage[node.forItem.varName].varValue = x.arrayItems[i]
         for nodeBody in node.forBody.stmtList:
           c.handleInnerNode(nodeBody, parent, node.forStorage, len, ix)
       return
