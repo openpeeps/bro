@@ -124,13 +124,13 @@ handlers:
               break
             of EndOfFile, NewLines:
               lex.setError("EOF reached before closing curly bracket")
-              return
+              break
             of IdentChars:
               add varName, lex.buf[lex.bufpos]
               inc lex.bufpos
             else:
               lex.setError("Invalid variable name")
-              return
+              break
           if varName.len > 0:
             add lex.token, varName
             add lex.attr, varName
@@ -138,10 +138,10 @@ handlers:
       of '`':
         inc lex.bufpos
         lex.kind = kind
-        return
+        break
       of EndOfFile:
         lex.setError("EOF reached before closing accent quoted string")
-        return
+        break
       else:
         add lex
 
