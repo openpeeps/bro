@@ -173,9 +173,9 @@ const broSocket = new WebSocket("ws://127.0.0.1:6710/ws");
 var lastTimeModified = localStorage.getItem("watchout") || 0
 broSocket.addEventListener("message", (e) => {
   if(parseInt(e.data) > lastTimeModified) {
-    localStorage.setItem("watchout", e.data)
-    lastTimeModified = e.data
-    location.reload()
+    localStorage.setItem("watchout", e.data);
+    lastTimeModified = e.data;
+    location.reload();
   }
 })
 """
@@ -196,7 +196,7 @@ document.addEventListener('DOMContentLoaded', function() {
         assignment: '=',
         annotations: ["param", "return", "author", "year", "copyright"],
         annotations_prefix: '@',
-        punctuation: [' ' , '.', ',', ';', ':', '{', '}', '(', ')', '[', ']', '+', '='],
+        punctuation: [' ' , '.', ',', ';', ':', '{', '}', '(', ')', '[', ']', '+', '=', '>', '<'],
         comment_inline: "//",
         comment_block: {
           start: "/*",
@@ -231,7 +231,7 @@ document.addEventListener('DOMContentLoaded', function() {
           p("CSS Reload & Browser syncing via WebSockets!"),
           `pre`(class="sweetsyntax dark-theme", style="margin:35px 0", jsSnippet),
           p(style="text-align:center",
-            small("&copy; 2023 😋 MIT License"),
+            small("&copy; 2023 😋 LGPLv3 License"),
             br(),
             small("Made by Humans from OpenPeeps")
           )
