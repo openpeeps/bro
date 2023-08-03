@@ -24,7 +24,7 @@ type
     unexpectedToken = "Unexpected token $"
     UndefinedValueVariable = "Undefined value for variable"
     DeclaredEmptySelector = "Declared CSS selector $ has no properties"
-    BadIndentation = "Nestable statement requires indentation"
+    badIndentation = "Nestable statement requires indentation"
     UnstablePropertyStatus = "Use of $ is marked as $"
     DuplicateExtendStatement = "Cannot be extended more than once"
     InvalidNestSelector = "Invalid nest for given selector"
@@ -33,8 +33,12 @@ type
     UndefinedPropertyAccessor = "Undefined property accessor $ for object $"
     InvalidInfixMissingValue = "Invalid infix missing assignable token"
     InvalidInfixOperator = "Invalid infix operator $ for $"
-    DeclaredNotUsed = "Declared and not used $"
+    declaredNotUsed = "Declared and not used $"
     TryingAccessNonObject = "Trying to get property $ on a non-object variable $"
+
+    # accessor storage
+    invalidAccessorStorage = "Invalid accessor storage"
+
     duplicateObjectKey = "Duplicate key in object"
     duplicateCaseLabel = "Duplicate case label"
 
@@ -50,8 +54,8 @@ type
     importModuleNotFound = "Module $ not found"
 
     # Condition - Case statements
+    caseInvalidValue = "Invalid case statement"
     caseInvalidValueType = "Invalid case statement. Got $, expected $"
-    caseInvalidValue = "Invalid value for case statement"
     # Condition - If statements
 
     # Functions

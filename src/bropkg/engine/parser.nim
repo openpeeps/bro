@@ -4,9 +4,11 @@
 #          Made by Humans from OpenPeeps
 #          https://github.com/openpeeps/bro
 
-import pkg/[stashtable, jsony]
+{.warning[ImplicitDefaultValue]:off.}
+
+import pkg/[stashtable, jsony, checksums/md5]
 import std/[os, strutils, sequtils, critbits, sequtils,
-            tables, json, memfiles, times, oids, md5,
+            tables, json, memfiles, times, oids,
             macros, jsonutils]
 
 import ./tokens, ./ast, ./css, ./memoization, ./logging, ./stdlib, ./properties
@@ -18,8 +20,6 @@ when compileOption("app", "console"):
   # import std/[jsonutils] 
 
 export logging
-
-# {.warning[ImplicitDefaultValue]:off.}
 
 type
   ParserType = enum
@@ -161,7 +161,7 @@ proc parseCallFnCommand(p: var Parser, scope: var seq[ScopeTable],
 proc getPrefixOrInfix(p: var Parser, scope: var seq[ScopeTable], includeOnly, excludeOnly: set[TokenKind] = {}): Node
 proc importModule(th: (string, Stylesheets)) {.thread.}
 proc importModuleCSS(th: (string, Stylesheets)) {.thread.}
-proc parseVarCall(p: var Parser, tk: TokenTuple, varName: string, scope: var seq[ScopeTable], skipWalk = false): Node
+proc parseVarCall(p: var Parser, tk: TokenTuple, varName: string, scope: var seq[ScopeTable]): Node
 
 #
 # Parse utils
@@ -191,19 +191,9 @@ macro newPrefixProc(name: static string, body: untyped) =
         nnkVarTy.newTree(ident("Parser")),
         newEmptyNode()
       ),
-      # nnkIdentDefs.newTree(
-      #   ident("scope"),
-      #   ident("ScopeTable"),
-      #   newEmptyNode()
-      # ),
       nnkIdentDefs.newTree(
-        newIdentNode("scope"),
-        nnkVarTy.newTree(
-          nnkBracketExpr.newTree(
-            newIdentNode("seq"),
-            newIdentNode("ScopeTable")
-          ),
-        ),
+        ident("scope"),
+        nnkVarTy.newTree(nnkBracketExpr.newTree(ident("seq"), ident("ScopeTable"))),
         newEmptyNode()
       ),
       nnkIdentDefs.newTree(
@@ -212,16 +202,8 @@ macro newPrefixProc(name: static string, body: untyped) =
         nnkBracketExpr.newTree(ident("set"), ident("TokenKind")),
         newNimNode(nnkCurly)
       ),
-      nnkIdentDefs.newTree(
-        ident("returnType"),
-        newEmptyNode(),
-        ident("ntVoid"),
-      ),
-      nnkIdentDefs.newTree(
-        ident("isFunctionWrap"),
-        newEmptyNode(),
-        ident("false")
-      )
+      nnkIdentDefs.newTree(ident("returnType"), newEmptyNode(), ident("ntVoid")),
+      nnkIdentDefs.newTree(ident("isFunctionWrap"), newEmptyNode(), ident("false"))
     ],
     body
   )
@@ -264,6 +246,18 @@ proc getScope(p: var Parser, name: string, scopetables: var seq[ScopeTable]): tu
 
 proc inScope(p: var Parser, name: string, scopetables: var seq[ScopeTable]): bool =
   result = p.getScope(name, scopetables).st != nil
+
+proc use(node: Node) =
+  ## Mark a callable (function or variable) as used
+  case node.nt:
+  of ntVariable:
+    node.varUsed = true
+  of ntFunction:
+    node.fnUsed = true 
+  of ntCall:
+    if node.callNode.nt == ntVariable:
+      node.callNode.varUsed = true
+  else: discard
 
 proc getLiteralType(p: var Parser): NodeType =
   result =
@@ -339,7 +333,7 @@ proc toUnits(kind: TokenKind): Units =
 
 template checkColon() =
   if p.curr is tkColon: walk p
-  else: error(BadIndentation, p.curr)
+  else: error(badIndentation, p.curr)
 
 #
 # Parse Literals
@@ -380,9 +374,9 @@ include handlers/[pImport, pExtend, pAssignment, pCond,
                   pFor, pCommand, pFunction, pSelector, pThis]
 
 newPrefixProc "parseDotExpr":
-  if unlikely(p.prev is tkVarCall and p.prev.line == p.curr.line):
-    echo "ntDotExpr"
-    return
+  # if unlikely(p.prev is tkVarCall and p.prev.line == p.curr.line):
+  #   echo "ntDotExpr"
+  #   return
   walk p
   p.curr.kind = tkClass
   p.curr.value = "." & p.curr.value
@@ -506,6 +500,7 @@ proc parseStatement(p: var Parser, parent: (TokenTuple, Node), scope: var seq[Sc
               if unlikely(node.returnStmt.mathResultType != returnType):
                 errorWithArgs(fnReturnTypeMismatch, tk, [$(node.returnStmt.stackReturnType), $(returnType)])  
               else: discard
+            of ntInfix: discard
             else:
               if likely(node.returnStmt.nt == ntCall):
                 let fnReturnType = node.returnStmt.getNodeType()
@@ -705,9 +700,9 @@ proc parseProgram*(src: string): Parser =
     case v.nt:
     of ntVariable:
       if unlikely(v.varUsed == false):
-        p.logger.warn(DeclaredNotUsed, v.varMeta.line, v.varMeta.pos, true, k)
+        p.logger.warn(declaredNotUsed, v.varMeta.line, v.varMeta.pos, true, k)
     of ntFunction:
       if unlikely(v.fnUsed == false):
-        p.logger.warn(DeclaredNotUsed, v.fnMeta.line, v.fnMeta.pos, true, v.fnName)
+        p.logger.warn(declaredNotUsed, v.fnMeta.line, v.fnMeta.pos, true, v.fnName)
     else: discard
   result = p
