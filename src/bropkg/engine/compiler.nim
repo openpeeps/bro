@@ -46,7 +46,7 @@ proc getTypeInfo(node: Node): string =
         case node.callNode.varValue.nt:
         of ntArray:
           # todo handle types of array (string, int, or mix for mixed values)
-          add result, "$1[$2]($3)" % [$(node.callNode.varValue.nt), "mix", $(node.callNode.varValue.itemsVal.len)]
+          add result, "$1[$2]($3)" % [$(node.callNode.varValue.nt), "mix", $(node.callNode.varValue.arrayItems.len)]
         of ntObject:
           add result, "$1($2)" % [$(node.callNode.varValue.nt), $(node.callNode.varValue.pairsVal.len)]
         else:
@@ -62,7 +62,7 @@ proc getTypeInfo(node: Node): string =
   of ntCallStack:
     add result, "$1[$2]" % [$ntFunction, $node.stackReturnType]
   of ntArray:
-    add result, "$1[$2]($3)" % [$(node.nt), "mix", $(node.itemsVal.len)] # todo handle types of array (string, int, or mix for mixed values)
+    add result, "$1[$2]($3)" % [$(node.nt), "mix", $(node.arrayItems.len)] # todo handle types of array (string, int, or mix for mixed values)
   of ntObject:
     add result, "$1($2)" % [$(node.nt), $(node.pairsVal.len)]
   of ntAccessor:
@@ -131,7 +131,7 @@ proc toString(c: var Compiler, v: Node, scope: ScopeTable = nil): string =
     of ntInt:    $(v.iVal)
     of ntBool:   $(v.bVal)
     of ntColor:  $(v.cVal)
-    of ntArray:     jsony.toJson(v.itemsVal)
+    of ntArray:     jsony.toJson(v.arrayItems)
     of ntObject:    jsony.toJson(v.pairsVal)
     of ntAccQuoted:
       var accValues: seq[string]
@@ -154,8 +154,8 @@ proc getValue(c: var Compiler, v: Node, scope: ScopeTable): Node =
             # handle `ntArray` storages
             x = walkAccessorStorage(v.callNode.accessorStorage, v.callNode.accessorKey, scope)
             return c.getValue(x, scope)  
-          # handle `ntObject` storages
           try:
+            # handle `ntObject` storages
             x = walkAccessorStorage(v.callNode.accessorStorage, v.callNode.accessorKey, scope)
             result = c.getValue(x, scope)
           except KeyError as e:
@@ -171,6 +171,8 @@ proc getValue(c: var Compiler, v: Node, scope: ScopeTable): Node =
     result = c.handleCallStack(v, scope)
   of ntVariable:
     handleVariableValue(v, scope)
+  of ntInfix:
+    result = newBool(c.evalInfix(v.infixLeft, v.infixRight, v.infixOp, scope))
   else:
     result = v
 
@@ -283,8 +285,7 @@ proc handleCommand(c: var Compiler, node: Node, scope: ScopeTable = nil) =
     let meta = " (" & $(node.cmdMeta.line) & ":" & $(node.cmdMeta.pos) & ") "
     case node.cmdValue.nt:
     of ntInfix:
-      let output = c.evalInfix(node.cmdValue.infixLeft,
-                    node.cmdValue.infixRight, node.cmdValue.infixOp, scope)
+      let output = c.evalInfix(node.cmdValue.infixLeft, node.cmdValue.infixRight, node.cmdValue.infixOp, scope)
       stdout.styledWriteLine(fgGreen, "Debug", fgDefault, meta, fgDefault,
                         getTypeInfo(node.cmdValue) & "\n" & $(output))
     of ntMathStmt:
@@ -297,9 +298,9 @@ proc handleCommand(c: var Compiler, node: Node, scope: ScopeTable = nil) =
           $(total.fVal)
       stdout.styledWriteLine(fgGreen, "Debug", fgDefault, meta, fgDefault,
                         getTypeInfo(node.cmdValue) & "\n" & $(output))
-    of ntInfo:
-      stdout.styledWriteLine(fgGreen, "Debug", fgDefault, meta, fgMagenta,
-                            "[[" & $(node.cmdValue.nodeType) & "]]")
+    # of ntInfo:
+      # stdout.styledWriteLine(fgGreen, "Debug", fgDefault, meta, fgMagenta,
+                            # "[[" & $(node.cmdValue.nodeType) & "]]")
     else:
       let varValue = c.getValue(node.cmdValue, scope)
       if likely(varValue != nil):
@@ -361,7 +362,7 @@ proc handleInnerNode(c: var Compiler, node, parent: Node,
   of ntCondStmt:
     c.handleCondStmt(node, parent, scope)
   of ntCaseStmt:
-    c.handleCaseStmt(node, scope)
+    c.handleCaseStmt(node, parent, scope)
   of ntExtend:
     for eKey, eProp in node.extendProps:
       var ix = 0
@@ -391,7 +392,7 @@ proc write(c: var Compiler, node: Node, scope: ScopeTable = nil, data: Node = ni
   of ntCondStmt:
     c.handleCondStmt(node, nil, scope)
   of ntCaseStmt:
-    c.handleCaseStmt(node, scope)
+    c.handleCaseStmt(node, nil, scope)
   of ntImport:
     c.handleImportStmt(node, scope)
   of ntCommand:

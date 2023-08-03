@@ -118,7 +118,7 @@ type
 
   ScopeTable* = TableRef[string, Node]
 
-  CaseCondTuple* = tuple[`of`: Node, body: Node]
+  CaseCondTuple* = tuple[caseOf: Node, body: Node]
   Meta* = tuple[line, pos: int]
   ParamDef* = (string, NodeType, Node)
 
@@ -145,7 +145,8 @@ type
     of ntVariable:
       varName*: string
       varValue*: Node
-      varMeta*: Meta 
+      varMeta*: Meta
+      varType*, varInitType*: NodeType
       varUsed*, varArg*, varImmutable*, varMemoized*: bool
     of ntString:
       sVal*: string
@@ -160,14 +161,15 @@ type
       colorGlobals: GlobalValue
       cVal*: string
     of ntArray:
-      itemsVal*: seq[Node]
+      arrayType*: NodeType
+      arrayItems*: seq[Node]
     of ntObject:
       pairsVal*: CritBitTree[Node]
       usedObject*: bool
     of ntAccessor:
       accessorStorage*: Node # Node of `ntArray` or `ntObject`
       accessorType*: NodeType # either `ntArray` or `ntObject`
-      accessorKey*: string # a parseable `int` or string
+      accessorKey*: Node # `ntString`, `ntInt` or `ntCall` (type of `ntString`, `ntInt`)
     of ntAccQuoted:
       accVal*: string
       accVars*: seq[Node] # seq[ntVariable]
@@ -266,7 +268,8 @@ proc newFloat*(fVal: float): Node
 proc newBool*(bVal: string): Node
 proc newBool*(bVal: bool): Node
 
-# proc newNull(): Node
+proc call*(node: Node, scope: ScopeTable): Node
+proc walkAccessorStorage*(node: Node, index: Node, scope: ScopeTable): Node
 
 when not defined release:
   proc `$`*(node: Node): string =
@@ -337,7 +340,15 @@ proc toNode(v: JsonNode): Node =
   of JBool: newBool(v.bval)
   else: nil
 
-proc walkAccessorStorage*(node: Node, index: string, scope: ScopeTable): Node =
+proc walkObject*(tree: CritBitTree, index: Node, scope: ScopeTable): Node =
+  case index.nt
+  of ntString:
+    result = tree[index.sVal]
+  of ntCall:
+    result = tree[call(index, scope).sVal]
+  else: discard
+
+proc walkAccessorStorage*(node: Node, index: Node, scope: ScopeTable): Node {.raises: IndexDefect.} =
   # walk trough a Node tree using `index`
   # todo catch IndexDefect
   case node.nt:
@@ -351,18 +362,25 @@ proc walkAccessorStorage*(node: Node, index: string, scope: ScopeTable): Node =
     x = walkAccessorStorage(node.accessorStorage, node.accessorKey, scope)
     return walkAccessorStorage(x, index, scope)
   of ntObject:
-    result = node.pairsVal[index]
+    if index.nt == ntCall:
+      return walkObject(node.pairsVal, index, scope)
+    result = node.pairsVal[index.sVal]
   of ntArray:
-    result = node.itemsVal[parseInt(index)]
+    if index.nt == ntCall:
+      return node.arrayItems[call(index, scope).iVal]
+    result = node.arrayItems[index.iVal]
   of ntVariable:
     return walkAccessorStorage(node.varValue, index, scope)
-    # result = node.varValue.itemsVal[parseInt(index)]
   of ntStream:
     case node.streamContent.kind:
     of JObject:
-      result = toNode(node.streamContent[index])
+      if index.nt == ntCall:
+        return toNode(node.streamContent[call(index, scope).sVal])
+      result = toNode(node.streamContent[index.sVal])
     of JArray:
-      result = toNode(node.streamContent[parseInt(index)])
+      if index.nt == ntCall:
+        return toNode(node.streamContent[call(index, scope).iVal])
+      result = toNode(node.streamContent[index.iVal])
     else:
       result = toNode(node.streamContent)
   else: discard
@@ -380,21 +398,6 @@ proc call*(node: Node, scope: ScopeTable): Node =
       else: nil
   assert scope != nil
   result = scope[node.callIdent]
-
-proc use*(node: Node) =
-  ## Mark a variable as used. If `node`
-  ## is not a variable it does nothing.
-  case node.nt:
-  of ntVariable:
-    node.varUsed = true
-  of ntFunction:
-    node.fnUsed = true 
-  of ntCall:
-    case node.callNode.nt:
-    of ntVariable:
-      node.callNode.varUsed = true
-    else: discard
-  else: discard
 
 proc trace*(stmtNode: Node, key: string) =
   add stmtNode.stmtTraces, key
@@ -419,16 +422,36 @@ proc getColor*(node: Node): string =
 proc getString*(node: Node): string =
   result = node.sVal
 
-proc getNodeType*(node: Node): NodeType =
+proc getNodeType*(node: Node, getVarInitType = false): NodeType =
+  # Return the NodeType of `node`. When `getCallableType` is true,
+  # returns the type of the initializer `varInitType`.
   result =
     case node.nt
     of ntCall:
-      node.callNode.varValue.nt
+      if not getVarInitType:
+        node.callNode.varValue.nt
+      else:
+        node.callNode.varInitType
     of ntInfix: ntBool
     of ntMathStmt: ntInt # todo ntInt or ntFloat
-    of ntArray, ntObject, ntBool, ntString, ntInt, ntFloat: node.nt   # anonymous array
+    of ntArray, ntObject, ntBool, ntString, ntInt, ntFloat: node.nt
     of ntFunction: ntFunction
     else: node.nt
+
+proc getTypedValue*(node: Node): NodeType =
+  result =
+    case node.nt
+    of ntCall:
+      getTypedValue(node.callNode)
+    of ntArray:
+      node.arrayType
+    of ntVariable:
+      if node.varValue != nil:
+        getTypedValue(node.varValue)
+      else:
+        node.varType
+    of ntString, ntInt, ntFloat, ntBool: node.nt
+    else: ntVoid
 
 proc `$`(types: openarray[NodeType]): string =
   let t = types.map(proc(x: NodeType): string = $(x))
@@ -440,6 +463,10 @@ proc identify*(ident: string, types: openarray[NodeType]): string =
     add result, $(types)
 
 # API
+
+proc newNode*(nt: NodeType): Node =
+  ## Create a new `Node` of `nt`
+  result = Node(nt: nt)
 
 proc newProperty*(pName: string): Node =
   ## Create a new ntProperty node

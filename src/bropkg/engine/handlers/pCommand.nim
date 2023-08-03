@@ -19,20 +19,34 @@ newPrefixProc "parseReturnCommand":
 
 proc parseAccessor(p: var Parser, varNode: Node, scope: var seq[ScopeTable], tk: TokenTuple): Node =
   while p.curr is tkLB and p.curr.line == tk.line:
-    if p.next notin {tkInteger, tkString}:
-      errorWithArgs(unexpectedToken, p.next, [p.next.value])
     if result == nil:
-      if p.next is tkInteger:
+      case p.next.kind
+      of tkInteger:
         result = p.parseArrayAccessor(varNode, scope)
-      elif p.next is tkString:
+      of tkString:
         result = p.parseObjectAccessor(varNode, scope)
-      else: result = nil # error
+      of tkVarCall:
+        result = p.parseCallAccessor(varNode, scope)
+      of tkIdentifier:
+        walk p
+        if p.isFnCall():
+          echo "todo"
+        else: return nil
+      else: return nil # error
     else:
-      if p.next is tkInteger:
+      case p.next.kind
+      of tkInteger:
         result = p.parseArrayAccessor(result, scope)
-      elif p.next is tkString:
+      of tkString:
         result = p.parseObjectAccessor(result, scope)
-      else: result = nil # error
+      of tkVarCall:
+        result = p.parseCallAccessor(result, scope)
+      of tkIdentifier:
+        walk p
+        if p.isFnCall():
+          echo "todo"
+        else: return nil
+      else: return nil # error
 
 proc parseVarCall(p: var Parser, tk: TokenTuple, varName: string, scope: var seq[ScopeTable]): Node =
   # Parse a variable call. This handler can parse basic calls 
@@ -48,7 +62,10 @@ proc parseVarCall(p: var Parser, tk: TokenTuple, varName: string, scope: var seq
       if p.curr is tkLB and p.curr.line == tk.line:
         var accessorNode: Node
         accessorNode = p.parseAccessor(varNode, scope, tk)
-        callNode = newCall(varName, accessorNode)
+        if likely(accessorNode != nil):
+          callNode = newCall(varName, accessorNode)
+        else:
+          error(invalidAccessorStorage, tk)
       else:
         callNode = newCall(varName, varNode)
         p.mVar.memoize(hashedVarName, callNode)

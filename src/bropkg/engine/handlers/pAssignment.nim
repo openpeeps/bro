@@ -83,7 +83,7 @@ newPrefixProc "parseAnoObject":
   ## parse an anonymous object
   let anno = newObject()
   walk p # {
-  while p.curr.kind == tkIdentifier and p.next.kind == tkColon:
+  while p.curr.value.validIdentifier() and p.next.kind == tkColon:
     let fName = p.curr.value
     walk p, 2
     if likely(anno.pairsVal.hasKey(fName) == false):
@@ -126,7 +126,7 @@ proc parseArrayAccessor(p: var Parser, accStorage: Node, scope: var seq[ScopeTab
   walk p # tkLB
   result = newAccessor(ntArray, accStorage)
   if likely(p.curr is tkInteger):  # todo support string type variable calls or functions that returns string
-    result.accessorKey = p.curr.value
+    result.accessorKey = newInt(p.curr.value)
   else: return nil # invalidArrayAccessorKey
   walk p # tKInteger
   if likely(p.curr is tkRB):
@@ -136,10 +136,27 @@ proc parseObjectAccessor(p: var Parser, accStorage: Node, scope: var seq[ScopeTa
   # parse an object accessor using `["myprop"]`
   walk p # tkLB
   result = newAccessor(ntObject, accStorage)
-  if likely(p.curr is tkString): # todo support string type variable calls or functions that returns string 
-    result.accessorKey = p.curr.value
-  else: return nil # invalidObjectAccessorKey
+  if likely(p.curr is tkString):
+    result.accessorKey = newString(p.curr.value)
+  else:
+    return nil # invalidObjectAccessorKey
   walk p # tkString
+  if likely(p.curr is tkRB):
+    walk p # tkRB
+
+proc parseCallAccessor(p: var Parser, accStorage: Node, scope: var seq[ScopeTable]): Node =
+  walk p # tkLB
+  let varCall = p.parseCallCommand(scope)
+  if likely(varCall != nil):
+    case varCall.callNode.varType
+    of ntString:
+      result = newAccessor(ntObject, accStorage)
+      result.accessorKey = varCall
+    of ntInt:
+      result = newAccessor(ntArray, accStorage)
+      result.accessorKey = varCall
+    else:
+      return nil
   if likely(p.curr is tkRB):
     walk p # tkRB
 
