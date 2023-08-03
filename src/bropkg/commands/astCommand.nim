@@ -7,9 +7,8 @@
 import std/[os, times, tables]
 import ../engine/[parser, ast]
 
-import pkg/zippy
+import pkg/[flatty, supersnappy]
 import pkg/kapsis/[runtime, cli]
-import ../private/msgpack/[msgpack4nim, msgpack4nim/msgpack4collection]
 
 proc runCommand*(v: Values) =
   var stylesheetPath: string
@@ -45,12 +44,6 @@ proc runCommand*(v: Values) =
           span(stylesheetPath),
           span("($1:$2)\n" % [$warning.line, $warning.col]),
         )
-    var s = MsgStream.init()
-    s.pack(p.getProgram)
-    s.pack_bin(sizeof(p.getProgram))
-    if likely(v.flag("gzip")):
-      writeFile(stylesheetPath.changeFileExt("ast.gzip"), compress(s.data, dataFormat = dfGzip))
-    else:
-      writeFile(stylesheetPath.changeFileExt("ast"), s.data)
+    writeFile(stylesheetPath.changeFileExt("ast"), toFlatty(p.getProgram).compress())
     display "Done in " & $(cpuTime() - t)
     QuitSuccess.quit

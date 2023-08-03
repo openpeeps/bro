@@ -20,10 +20,10 @@ requires "watchout"
 requires "jsony", "nyml"
 requires "denim"
 requires "chroma#head"
-requires "zippy"
 requires "pkginfo"
 requires "stashtable"
 requires "httpx", "websocketx"
+requires "flatty", "supersnappy"
 
 task dev, "development build":
   exec "nimble build --threads:on -d:useMalloc --mm:arc --deepcopy:on"

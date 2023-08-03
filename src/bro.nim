@@ -27,7 +27,7 @@ else:
 
     App:
       settings(
-        database = dbMsgPacked, # enable flat file database via Klymene
+        database = dbMsgPacked,
         mainCmd = "c",          # set `c` command as main
       )
 
@@ -36,29 +36,29 @@ else:
         "   https://github.com/openpeeps/bro"
       
       commands:
-        $ "c" `style` `output` ["min", "map", "gzip"]:
+        $ "c" `style` `output` ["min", "map"]:
           ?         "Compiles a stylesheet to CSS"
           ? style   "A stylesheet path"
           ? min     "Output minified CSS code"
-          ? gzip    "Compress CSS using gzip"
-          ? stdout  "Return CSS to stdout"
+          ? map     "Build with Source Map"
         
         --- "Development"
-        $ "watch" `style` `output` `delay` ["sync"]:
+        $ "watch" `style` `output` `delay` ["sync", "map"]:
           ? "Watch for changes and compile"
           ? style    "Your main .bass file"
           ? output   "Where to save the final CSS output"
           ? delay    "Delay time in ms for watcher (default 550)"
           ? sync     "Fast http server to handle CSS reload & browser syncing"
+          ? map      "Build with Source Map"
 
         $ "map" `style`:
           ? "Generates a source map"
         
-        $ "ast" `style` ["gzip"]:
-          ? "Generates a packed AST"
+        $ "ast" `style`:
+          ? "Generates binary AST"
         
-        $ "repr" `ast` ["minify", "gzip"]:
-          ? "Compiles packed AST to CSS"
+        $ "repr" `ast` ["min"]:
+          ? "Compiles from binary AST to CSS"
 
         --- "Documentation"
         $ "doc" `style`:

@@ -6,7 +6,7 @@
 
 import std/[times, os, strutils, monotimes]
 import pkg/kapsis/[runtime, cli]
-import pkg/zippy
+# import pkg/zippy
 
 import ../engine/[parser, compiler]
 
@@ -64,10 +64,10 @@ proc runCommand*(v: Values) =
     QuitFailure.quit
 
   if hasOutput:
-    if v.flag("gzip"):
-      writeFile(cssPath.changeFileExt(".css.gzip"), compress(c.getCSS, dataFormat = dfGzip))
-    else:
-      writeFile(cssPath, c.getCSS)
+    # if v.flag("gzip"):
+    #   writeFile(cssPath.changeFileExt(".css.gzip"), compress(c.getCSS, dataFormat = dfGzip))
+    # else:
+    writeFile(cssPath, c.getCSS)
   else:
     display(c.getCSS)
   if hasOutput:

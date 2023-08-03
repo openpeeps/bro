@@ -7,9 +7,8 @@
 import std/[times, os]
 import ../engine/[ast, compiler]
 
-import pkg/zippy
+import pkg/[flatty, supersnappy]
 import pkg/kapsis/[runtime, cli]
-import ../private/msgpack/[msgpack4nim, msgpack4nim/msgpack4collection]
 
 proc runCommand*(v: Values) =
   ## Compiles binary AST to CSS
@@ -30,12 +29,8 @@ proc runCommand*(v: Values) =
     QuitFailure.quit
   display("✨ Building Stylesheet from AST...", br="after")
   let t = cpuTime()
-  var astStruct: Program
-  unpack(readFile(astPath), astStruct)
-  let c = newCompiler(astStruct, minify = v.flag("minify"))
-  if likely(not v.flag("gzip")):
-    writeFile(astPath.changeFileExt("css"), c.getCSS)
-  else:
-    writeFile(astPath.changeFileExt(".css.gzip"), compress(c.getCSS, dataFormat = dfGzip))
+  var astStylesheet = uncompress(readFile(astPath)).fromFlatty(Program)
+  let c = newCompiler(astStylesheet, minify = v.flag("minify"))
+  writeFile(astPath.changeFileExt("css"), c.getCSS)
   display "Done in " & $(cpuTime() - t)
   QuitSuccess.quit
