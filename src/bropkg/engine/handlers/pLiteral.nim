@@ -75,6 +75,11 @@ newPrefixProc "parseAccQuoted":
             if likely(varNode != nil):
               add result.accVars, varNode
             else: return nil
+          else:
+            let prefixInfixNode = p.getPrefixOrInfix(scope, includeOnly = {tkInteger})
+            if likely(prefixInfixNode != nil):
+              add result.accVars, prefixInfixNode
+            else: return nil
         walk p # tkRC
     else:
       add result.accVal, indent(p.curr.value, p.curr.wsno)

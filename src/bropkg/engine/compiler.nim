@@ -134,11 +134,19 @@ proc toString(c: var Compiler, v: Node, scope: ScopeTable = nil): string =
     of ntArray:     jsony.toJson(v.arrayItems)
     of ntObject:    jsony.toJson(v.pairsVal)
     of ntAccQuoted:
-      var accValues: seq[string]
+      var accValues: seq[(string, string)]
       for accVar in v.accVars:
-        add accValues, "bro" & $(hash(accVar.callIdent[1..^1])) # variable name without `$`
-        add accValues, c.toString(c.getValue(accVar, scope))
-      v.accVal.format(accValues)
+        var accVal: (string, string)
+        accVal[0] = "$bro"
+        case accVar.nt
+        of ntCall:
+          add accVal[0], $(hash(accVar.callIdent[1..^1])) # variable name without `$`
+        of ntInt:
+          add accVal[0], $(hash($accVar.iVal))
+        else: discard
+        accVal[1] = c.toString(c.getValue(accVar, scope))
+        add accValues, accVal
+      v.accVal.multiReplace(accValues)
     of ntStream:
       toString(v.streamContent)
     else: ""
@@ -303,6 +311,7 @@ proc handleCommand(c: var Compiler, node: Node, scope: ScopeTable = nil) =
                             # "[[" & $(node.cmdValue.nodeType) & "]]")
     else:
       let varValue = c.getValue(node.cmdValue, scope)
+      # echo varValue
       if likely(varValue != nil):
         var output: string
         case varValue.nt:
