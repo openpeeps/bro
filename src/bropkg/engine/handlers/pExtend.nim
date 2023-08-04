@@ -4,7 +4,7 @@
 #          Made by Humans from OpenPeeps
 #          https://github.com/openpeeps/bro
 
-proc resolveExtended(p: var Parser, pNode: Node, stylesheet: Program) =
+proc resolveExtended(p: var Parser, pNode: Node, stylesheet: Stylesheet) =
   if pNode.ident notin p.currentSelector.extendFrom:
     p.currentSelector.extendFrom.add(pNode.ident)
     pNode.extendBy.add(p.currentSelector.ident)

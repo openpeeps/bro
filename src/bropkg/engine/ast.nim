@@ -212,7 +212,7 @@ type
       caseCond*: seq[CaseCondTuple]
       caseElse*: Node # ntStmtList
     of ntImport:
-      modules*: seq[tuple[path: string, module: Program]]
+      modules*: seq[tuple[path: string, module: Stylesheet]]
     of ntPreview:
       previewContent: string
     of ntExtend:
@@ -248,7 +248,7 @@ type
     else: discard
     aotStmts*: seq[Node]
 
-  Program* = ref object
+  Stylesheet* = ref object
     # info*: tuple[version: string, createdAt: DateTime]
     nodes*: seq[Node]
     selectors*: CritBitTree[Node]
@@ -651,11 +651,11 @@ proc newStmt*(stmtScope: ScopeTable = nil): Node =
 #
 # High Level API
 #
-proc newStylesheet*: Program = 
+proc newStylesheet*: Stylesheet = 
   new(result)
   result.meta = (0, 1)
 
-proc add*(p: Program, node: Node) =
+proc add*(p: Stylesheet, node: Node) =
   ## Add a new `node` to `Stylesheet`
   assert node != nil
   case node.nt
@@ -669,7 +669,7 @@ proc add*(p: Program, node: Node) =
   p.nodes.add(node)
   inc p.meta.line
 
-proc newBool*(style: Program, bVal: bool) =
+proc newBool*(style: Stylesheet, bVal: bool) =
   ## Create a new ntbool node
   style.add Node(nt: ntBool, bVal: bVal) 
 
@@ -682,13 +682,13 @@ proc newProperty*(selector: Node, pName: string, pVal: seq[Node]) =
   selector.properties[pName] =
     Node(nt: ntProperty, pName: pName, pVal: pVal)
 
-proc newEcho*(style: Program, val: Node) =
+proc newEcho*(style: Stylesheet, val: Node) =
   ## Create a new `echo` (high-level API)
   assert val != nil, "Expect a node value. Got nil"
   assert val.nt in {ntString, ntInt}, "Got " & $(val.nt)
   style.add Node(nt: ntCommand, cmdIdent: cmdEcho, cmdValue: val)
 
-proc newFunction*(style: Program, name: string) =
+proc newFunction*(style: Stylesheet, name: string) =
   ## Create a new function (high-level API)
   style.add Node(nt: ntFunction, fnName: name)
 
@@ -701,10 +701,10 @@ proc newPseudoClass*(name: string, properties = KeyValueTable(), concat: seq[Nod
   Node(nt: ntPseudoSelector, ident: name, properties: properties, identConcat: concat)
 
 
-proc newVariable*(style: Program, name: string, value: Node) =
+proc newVariable*(style: Stylesheet, name: string, value: Node) =
   ## Create a new variable node
   style.add Node(nt: ntVariable, varName: name, varValue: value)
 
-proc newVariable*(style: Program, name: string, value: string) =
+proc newVariable*(style: Stylesheet, name: string, value: string) =
   ## Create a new variable node
   style.add Node(nt: ntVariable, varName: name, varValue: newString(value))

@@ -13,7 +13,7 @@ type
   Warning* = tuple[msg: string, line, col: int]
   Compiler* = ref object
     css*, deferred, deferredProps: string
-    program: Program
+    program: Stylesheet
     sourceMap: SourceInfo
     minify: bool
     stack: Table[int, Node]
@@ -408,7 +408,7 @@ proc write(c: var Compiler, node: Node, scope: ScopeTable = nil, data: Node = ni
 
 proc len*(c: var Compiler): int = c.program.nodes.len
 
-proc newCompiler*(p: Program, minify = false): Compiler =
+proc newCompiler*(p: Stylesheet, minify = false): Compiler =
   var c = Compiler(program: p, minify: minify)
   when compileOption("app", "console"):
     c.logger = Logger(filePath: p.sourcePath)
@@ -436,5 +436,5 @@ proc newCompiler*(p: Program, minify = false): Compiler =
   if unlikely(c.hasErrors):
     setLen(c.css, 0)
 
-proc toCSS*(p: Program, minify = false): string =
+proc toCSS*(p: Stylesheet, minify = false): string =
   newCompiler(p, minify).getCSS

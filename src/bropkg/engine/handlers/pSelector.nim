@@ -34,6 +34,8 @@ proc parseSelector(p: var Parser, node: Node, tk: TokenTuple, scope: var seq[Sco
   if eatIdent: walk p # selector ident
   p.parseMultiSelector(node)
   p.parseSelectorStmt((tk, node), scope = scope, excludeOnly = {tkImport, tkFnDef})
+  if unlikely(node.properties.len == 0 and node.innerNodes.len == 0):
+    warnWithArgs(declaredEmptySelector, tk, [node.ident])
   result = node
 
 template handleSelectorConcat(parseWithConcat, parseWithoutConcat: untyped) {.dirty.} =
@@ -139,9 +141,9 @@ newPrefixProc "parseProperty":
             use(varCallNode)
         else: break
     return result
-  let suggests = toSeq(p.propsTable.itemsWithPrefix(p.curr.value))
-  if suggests.len > 0:
-    error(invalidProperty, p.curr, true, suggests,
+  let suggest = toSeq(p.propsTable.itemsWithPrefix(p.curr.value))
+  if suggest.len > 0:
+    error(invalidProperty, p.curr, true, suggest,
           "Did you mean?", p.curr.value)
   else:
     errorWithArgs(invalidProperty, p.curr, [p.curr.value])

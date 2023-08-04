@@ -139,11 +139,13 @@ type
     prev, curr, next: CSSTokenTuple
     errorStack*: tuple[msg: string, line, col: int]
     hasErrors*: bool
-    stylesheet: Program # todo rename Program to Stylesheet
+    stylesheet: Stylesheet
+
+const pseudoSelectors = ["active", "checked", "disabled", "hover"]
 
 when not defined release:
   proc `$`(node: Node): string = pretty(node.toJson(), 2)
-  proc `$`(program: Program): string = pretty(program.toJson(), 2)
+  proc `$`(program: Stylesheet): string = pretty(program.toJson(), 2)
 
 proc walk(p: var CSSParser, offset = 1) =
   var i = 0
@@ -203,10 +205,24 @@ proc parseID(p: var CSSParser) =
 
 proc parseTag(p: var CSSParser): Node =
   # parse named selectors and pseudo-selectors
+  # if unlikely(p.stylesheet.selectors.hasKey(p.curr.value)):
+  #   result = p.stylesheet.selectors[p.curr.value]
+  # else:
   result = newTag(p.curr.value)
-  if p.curr.kind == tkkLC:
-    walk p
+  if p.next.kind == tkkLC:
+    walk p, 2
     p.parseProperties(result)
+  elif p.next.kind == tkkColon:
+    walk p
+    if p.next.value in pseudoSelectors:
+      walk p
+      let pseudoSelectorName = p.curr.value
+      result.pseudo[pseudoSelectorName] = newPseudoClass(pseudoSelectorName)
+      if likely(p.next.kind == tkkLC):
+        walk p, 2
+        p.parseProperties(result.pseudo[pseudoSelectorName])
+      else:
+        return nil # error missing left curly bracket
 
 proc parse(p: var CSSParser): Node =
   case p.curr.kind
@@ -226,7 +242,7 @@ proc parse(p: var CSSParser): Node =
   else:
     result = nil
 
-proc parseCSS*(input: string): tuple[status: bool, msg: string, line, col: int, stylesheet: Program] =
+proc parseCSS*(input: string): tuple[status: bool, msg: string, line, col: int, stylesheet: Stylesheet] =
   var
     p = CSSParser(lex: newLexer(input), stylesheet: newStylesheet())
   p.curr = p.lex.getToken()
