@@ -12,6 +12,8 @@ export critbits
 
 when not defined release:
   import std/jsonutils
+else:
+  import pkg/jsony
 
 type
   NodeType* = enum
@@ -273,10 +275,11 @@ proc newBool*(bVal: bool): Node
 proc call*(node: Node, scope: ScopeTable): Node
 proc walkAccessorStorage*(node: Node, index: Node, scope: ScopeTable): Node
 
-when not defined release:
-  proc `$`*(node: Node): string =
-    # print nodes while in dev mode
-    result = pretty(toJson(node), 2)
+proc `$`*(node: Node): string =
+  when not defined release:
+    pretty(toJson(node), 2)
+  else:
+    toJson(node)
 
 proc prefixed*(tk: TokenTuple): string =
   result = case tk.kind
