@@ -46,7 +46,7 @@ handlers:
         add lex
       else: break
     if lex.token == "$":
-      lex.setError("Invalid variable")
+      lex.kind = tkVarSymbol
       return
     while lex.buf[lex.bufpos] == ' ':
       inc lex.bufpos
@@ -111,36 +111,12 @@ handlers:
     inc lex.bufpos # `
     while true:
       case lex.buf[lex.bufpos]
-      of '$':
-        add lex.token, '$' 
-        inc lex.bufpos
-        if lex.current == '{':
-          inc lex.bufpos
-          var varName: string
-          while true:
-            case lex.buf[lex.bufpos]:
-            of '}':
-              inc lex.bufpos
-              break
-            of EndOfFile, NewLines:
-              lex.setError("EOF reached before closing curly bracket")
-              break
-            of IdentChars:
-              add varName, lex.buf[lex.bufpos]
-              inc lex.bufpos
-            else:
-              lex.setError("Invalid variable name")
-              break
-          if varName.len > 0:
-            add lex.token, varName
-            add lex.attr, varName
-            setLen(varName, 0)
       of '`':
         inc lex.bufpos
         lex.kind = kind
         break
       of EndOfFile:
-        lex.setError("EOF reached before closing accent quoted string")
+        lex.setError("EOF reached before closing backtick string")
         break
       else:
         add lex
@@ -243,15 +219,16 @@ registerTokens lexerSettings:
   # excRule = tokenize(handleExclamation, '!')
   hash = tokenize(handleHash, '#')
   varConcat = tokenize(handleCurlyVar, '{')
+  varSymbol # $
   varDef = tokenize(handleVariable, '$')
   cssVarDef # $$default-size 
   varTyped
   varCall
   fnCall
-  # class = tokenize(handleClassSelector, '.')
   class
   dotExpr = '.'
-  accQuoted = tokenize(handleAccQuoted, '`')
+  # accQuoted = tokenize(handleAccQuoted, '`')
+  accQuoted = '`'
   divide = '/':
     comment = '/' .. EOL
   at = '@':
@@ -281,6 +258,7 @@ registerTokens lexerSettings:
   `in` = "in"
   `when` = "when"
   `echo` = "echo"
+  `assert` = "assert"
   `return` = "return"
   this = "this"
   selectorType = "Selector"

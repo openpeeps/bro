@@ -170,13 +170,6 @@ proc parseVarCall(p: var Parser, tk: TokenTuple, varName: string, scope: var seq
 #
 # Parse utils
 #
-# when not defined release:
-#   proc `$`(node: Node): string = pretty(toJson(node), 2)
-#   proc `$`(program: Stylesheet): string = pretty(toJson(program), 2)
-# else:
-proc `$`(node: Node): string = $(toJson(node))
-proc `$`(program: Stylesheet): string = $(toJson(program))  
-
 proc walk(p: var Parser, offset = 1) =
   var i = 0
   while offset > i:
@@ -239,8 +232,7 @@ proc stack(p: var Parser, node: Node, scope: var seq[ScopeTable]) =
 
 proc getScope(p: var Parser, name: string, scopetables: var seq[ScopeTable]): tuple[st: ScopeTable, index: int] =
   ## Search through available `scopetables` and return
-  ## the `ScopeTable` together with its `index` number.
-  ## `index` is used by memoization module
+  ## the `ScopeTable` followed by `index`
   if scopetables.len > 0:
     for i in countdown(scopetables.high, scopetables.low):
       if scopetables[i].hasKey(name):
@@ -528,6 +520,7 @@ proc parseSelectorStmt(p: var Parser, parent: (TokenTuple, Node),
         returnType = ntVoid, isFunctionWrap = false) =
   if p.curr isnot tkEOF:
     while p.curr.kind != tkEOF and (p.curr.line > parent[0].line and p.curr.pos > parent[0].pos):
+      let curr = p.curr
       let node = p.parsePrefix(excludeOnly, includeOnly, scope, returnType, isFunctionWrap)
       if likely(node != nil):
         p.lastParent = parent[1]
@@ -540,11 +533,7 @@ proc parseSelectorStmt(p: var Parser, parent: (TokenTuple, Node),
           parent[1].innerNodes[$node.condOid] = node
         of ntCaseStmt:
           parent[1].innerNodes[$node.caseOid] = node
-        of ntExtend:
-          discard
-          # if parent[1].properties.len != 0:
-          #   error(extendMixedOrder, p.curr)
-          # else: discard
+        of ntExtend: discard
         of ntCall:
           parent[1].innerNodes[$node.callOid] = node
         of ntCallStack:
@@ -553,13 +542,13 @@ proc parseSelectorStmt(p: var Parser, parent: (TokenTuple, Node),
             # todo implement types for CSS selectors, example 
             parent[1].innerNodes[$node.stackOid] = node
           else: error(invalidCallContext, p.prev)
-        else:
+        of ntClassSelector, ntIDSelector, ntPseudoSelector:
           if likely(parent[1].innerNodes.hasKey(node.ident) == false):
             parent[1].innerNodes[node.ident] = node
           else:
             for k, v in node.innerNodes:
               parent[1].innerNodes[node.ident].innerNodes[k] = v
-          # parent[1].innerNodes[node.ident] = node
+        else: errorWithArgs(unexpectedToken, curr, [curr.value])
       else: return
     p.lastParent = nil
 
@@ -600,6 +589,7 @@ proc getPrefixFn(p: var Parser, excludeOnly, includeOnly: set[TokenKind] = {}): 
   of tkThis:    parseThis
   of tkAccQuoted:   parseAccQuoted
   of tkNamedColors: parseNamedColor
+  of tkAssert:  parseAssert
   else:
     if p.next isnot tkColon:
       parseSelectorTag

@@ -6,7 +6,7 @@
 
 import pkg/jsony
 import std/[tables, strutils, macros, sequtils, json,
-          algorithm, oids, terminal, enumutils]
+          algorithm, oids, hashes, terminal, enumutils]
 import ./ast, ./sourcemap, ./logging
 
 type
@@ -136,7 +136,7 @@ proc toString(c: var Compiler, v: Node, scope: ScopeTable = nil): string =
     of ntAccQuoted:
       var accValues: seq[string]
       for accVar in v.accVars:
-        add accValues, accVar.callIdent[1..^1] # variable name without `$`
+        add accValues, "bro" & $(hash(accVar.callIdent[1..^1])) # variable name without `$`
         add accValues, c.toString(c.getValue(accVar, scope))
       v.accVal.format(accValues)
     of ntStream:

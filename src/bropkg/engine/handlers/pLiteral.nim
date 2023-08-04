@@ -57,12 +57,26 @@ newPrefixProc "parseHSLAColor":
 
 newPrefixProc "parseAccQuoted":
   # parse string/var concat using backticks
-  result = newAccQuoted(p.curr.value)
-  if p.curr.attr.len != 0:
-    let acc = p.curr
-    for varName in acc.attr:
-      let varNode = p.parseVarCall(acc, "$" & varName, scope)
-      if unlikely(varNode == nil):
-        return nil
-      add result.accVars, varNode
-  else: walk p
+  let tk = p.curr
+  walk p
+  result = Node(nt: ntAccQuoted)
+  while p.curr isnot tkAccQuoted:
+    case p.curr.kind
+    of tkEOF: return nil
+    of tkVarSymbol:
+      let tkSymbol = p.curr
+      if p.next is tkLC:
+        walk p, 2
+        while p.curr isnot tkRC:
+          if unlikely(p.curr is tkEOF): return nil
+          add result.accVal, indent("$bro" & $(hash(p.curr.value)), tkSymbol.wsno)
+          if p.curr is tkIdentifier:
+            let varNode = p.parseVarCall(tk, "$" & p.curr.value, scope)
+            if likely(varNode != nil):
+              add result.accVars, varNode
+            else: return nil
+        walk p # tkRC
+    else:
+      add result.accVal, indent(p.curr.value, p.curr.wsno)
+      walk p
+  walk p # tkAccQuoted
