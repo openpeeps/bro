@@ -23,7 +23,7 @@ else:
     import kapsis/commands
     import kapsis/db
     import bropkg/commands/[watchCommand, cCommand,
-                    mapCommand, astCommand, docCommand, reprCommand]
+        mapCommand, astCommand, docCommand, reprCommand]
 
     App:
       settings(
@@ -36,18 +36,19 @@ else:
         "   https://github.com/openpeeps/bro"
       
       commands:
-        $ "c" `style` `output` ["min", "map"]:
+        $ "c" `style` `output` ["min", "map", "cache"]:
           ?         "Compiles a stylesheet to CSS"
           ? style   "A stylesheet path"
           ? min     "Output minified CSS code"
           ? map     "Build with Source Map"
+          ? cache   "Enables binary AST Caching"
         
         --- "Development"
         $ "watch" `style` `output` `delay` ["sync", "map"]:
           ? "Watch for changes and compile"
           ? style    "Your main .bass file"
           ? output   "Where to save the final CSS output"
-          ? delay    "Delay time in ms for watcher (default 550)"
+          ? delay    "Delay in miliseconds (default 550)"
           ? sync     "Fast http server to handle CSS reload & browser syncing"
           ? map      "Build with Source Map"
 
@@ -63,6 +64,7 @@ else:
         --- "Documentation"
         $ "doc" `style`:
           ? "Builds a documentation website"
+
   else:
     import bropkg/engine/[parser, compiler]
     export parser, compiler
