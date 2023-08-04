@@ -23,7 +23,7 @@ type
     DuplicateSelector = "Duplicated CSS declaration"
     unexpectedToken = "Unexpected token $"
     UndefinedValueVariable = "Undefined value for variable"
-    DeclaredEmptySelector = "Declared CSS selector $ has no properties"
+    declaredEmptySelector = "Declared selector $ has no properties"
     badIndentation = "Nestable statement requires indentation"
     UnstablePropertyStatus = "Use of $ is marked as $"
     DuplicateExtendStatement = "Cannot be extended more than once"
@@ -166,6 +166,10 @@ proc warn*(logger: Logger, msg: Message, line, col: int, args: varargs[string]) 
 
 proc warn*(logger: Logger, msg: Message, line, col: int, strFmt: bool, args: varargs[string]) =
   logger.add(lvlWarn, msg, line, col, true, args)
+
+template warnWithArgs*(msg: Message, tk: TokenTuple, args: openarray[string]) =
+  if not p.hasErrors:
+    p.logger.newWarn(msg, tk.line, tk.pos, true, args)
 
 template error*(msg: Message, tk: TokenTuple) =
   if not p.hasErrors:

@@ -6,7 +6,8 @@
 
 {.warning[ImplicitDefaultValue]:off.}
 
-import pkg/[stashtable, jsony, flatty, flatty/hexprint, supersnappy, checksums/md5]
+import pkg/[stashtable, jsony, flatty, flatty/hexprint,
+           supersnappy, checksums/md5]
 import std/[os, strutils, sequtils, sequtils,
             tables, json, memfiles, times, oids,
             macros]
@@ -29,14 +30,14 @@ type
 
   Warning* = tuple[msg: string, line, col: int]
   
-  Stylesheets = StashTable[string, Program, 1000]
+  Stylesheets = StashTable[string, Stylesheet, 1000]
     # Where we'll store other Stylesheet instances
   Imports = OrderedTableRef[string, Node]
 
   Parser* = object
     lex: Lexer
     prev, curr, next: TokenTuple
-    program: Program
+    program: Stylesheet
     propsTable: PropertiesTable
     when compileOption("app", "console"):
       error: seq[Row]
@@ -44,6 +45,8 @@ type
     else:
       error: string
     hasErrors*: bool
+    when compileOption("app", "console"): 
+      cacheEnabled*: bool
     warnings*: seq[Warning]
     currentSelector, lastParent: Node
     imports: Imports
@@ -129,7 +132,7 @@ const
 proc hasWarnings*(p: Parser): bool =
   result = p.logger.warnLogs.len != 0
 
-proc getProgram*(p: Parser): Program = p.program
+proc getStylesheet*(p: Parser): Stylesheet = p.program
 
 #
 # Forward declaration
@@ -169,10 +172,10 @@ proc parseVarCall(p: var Parser, tk: TokenTuple, varName: string, scope: var seq
 #
 # when not defined release:
 #   proc `$`(node: Node): string = pretty(toJson(node), 2)
-#   proc `$`(program: Program): string = pretty(toJson(program), 2)
+#   proc `$`(program: Stylesheet): string = pretty(toJson(program), 2)
 # else:
 proc `$`(node: Node): string = $(toJson(node))
-proc `$`(program: Program): string = $(toJson(program))  
+proc `$`(program: Stylesheet): string = $(toJson(program))  
 
 proc walk(p: var Parser, offset = 1) =
   var i = 0
@@ -551,7 +554,7 @@ proc parseSelectorStmt(p: var Parser, parent: (TokenTuple, Node),
             parent[1].innerNodes[$node.stackOid] = node
           else: error(invalidCallContext, p.prev)
         else:
-          if not parent[1].innerNodes.hasKey(node.ident):
+          if likely(parent[1].innerNodes.hasKey(node.ident) == false):
             parent[1].innerNodes[node.ident] = node
           else:
             for k, v in node.innerNodes:
@@ -578,7 +581,7 @@ proc getPrefixFn(p: var Parser, excludeOnly, includeOnly: set[TokenKind] = {}): 
       parseProperty
     else: nil
   of tkInteger: parseInt
-  of tkColor: parseColor
+  of tkColor:   parseColor
   of tkString:  parseString
   of tkVarCall: parseCallCommand
   of tkVarDef:  parseAssignment
@@ -595,7 +598,7 @@ proc getPrefixFn(p: var Parser, excludeOnly, includeOnly: set[TokenKind] = {}): 
   of tkComment: parseComment
   of tkExtend:  parseExtend
   of tkThis:    parseThis
-  of tkAccQuoted: parseAccQuoted
+  of tkAccQuoted:   parseAccQuoted
   of tkNamedColors: parseNamedColor
   else:
     if p.next isnot tkColon:
@@ -635,19 +638,19 @@ proc parseRoot(p: var Parser, scope: var seq[ScopeTable], excludeOnly, includeOn
     errorWithArgs(unexpectedToken, tk, [tk.value])
 
 
-template startParseProgram(src: string, scope: var seq[ScopeTable]) =
+template startParseStylesheet(src: string, scope: var seq[ScopeTable]) =
   when defined wasm:
     p.lex = tokens.newLexer(src) # read from string
     p.logger = Logger(filePath: "")
   else:
     p.lex = tokens.newLexer(readFile(src))
     p.logger = Logger(filePath: src)
-    p.stylesheets = newStashTable[string, Program, 1000]()
+    p.stylesheets = newStashTable[string, Stylesheet, 1000]()
   p.imports = Imports()
   p.propsTable = initPropsTable()
   p.lib = StandardLibrary()
   scope.add(ScopeTable())
-  p.program = Program(stack: scope[0])
+  p.program = Stylesheet(stack: scope[0])
   p.curr = p.lex.getToken()
   p.next = p.lex.getToken()
   while p.curr isnot tkEOF:
@@ -667,7 +670,7 @@ proc importModule(th: (string, Stylesheets)) {.thread.} =
     proc newImporter(): Parser =
       var p = Parser(ptype: Secondary, filePath: th[0])
       var scope = newSeq[ScopeTable]()
-      startParseProgram(th[0], scope)
+      startParseStylesheet(th[0], scope)
       result = p
     var subParser = newImporter()
     if subParser.hasErrors:
@@ -676,8 +679,7 @@ proc importModule(th: (string, Stylesheets)) {.thread.} =
       display(" 👉 " & subParser.logger.filePath)
       return
     th[1].withValue(th[0]):
-      value[] = subParser.getProgram
-      # cache(th[0], toAst.toJson(value[]))
+      value[] = subParser.getStylesheet
 
 proc importModuleCSS(th: (string, Stylesheets)) {.thread.} =
   {.gcsafe.}:
@@ -689,14 +691,16 @@ proc importModuleCSS(th: (string, Stylesheets)) {.thread.} =
     th[1].withValue(th[0]):
       value[] = cssParser.stylesheet
 
-proc parseProgram*(src: string): Parser =
+proc parseStylesheet*(src: string, enableCache = false): Parser =
   var p = Parser(ptype: Main)
   when not defined wasm:
     p.filePath = src 
     p.directory = src.parentDir()
     p.path = src.parentDir()
+  when compileOption("app", "console"): 
+    p.cacheEnabled = enableCache
   var scope = newSeq[ScopeTable]()
-  startParseProgram(src, scope)
+  startParseStylesheet(src, scope)
   for k, v in p.program.stack:
     # check for unused variables/functions
     case v.nt:
