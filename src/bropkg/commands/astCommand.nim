@@ -27,7 +27,7 @@ proc runCommand*(v: Values) =
   display("✨ Building AST...", br="after")
   let
     t = cpuTime()
-    p = parser.parseProgram(stylesheetPath)
+    p = parser.parseStylesheet(stylesheetPath)
   if p.hasErrors:
     display("Build failed with errors")
     for error in p.logger.errors:
@@ -44,6 +44,6 @@ proc runCommand*(v: Values) =
           span(stylesheetPath),
           span("($1:$2)\n" % [$warning.line, $warning.col]),
         )
-    writeFile(stylesheetPath.changeFileExt("ast"), toFlatty(p.getProgram).compress())
+    writeFile(stylesheetPath.changeFileExt("ast"), toFlatty(p.getStylesheet).compress())
     display "Done in " & $(cpuTime() - t)
     QuitSuccess.quit

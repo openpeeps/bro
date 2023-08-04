@@ -6,7 +6,7 @@
 
 import pkg/jsony
 import std/[tables, strutils, macros, sequtils, json,
-          critbits, algorithm, oids, terminal, enumutils]
+          algorithm, oids, terminal, enumutils]
 import ./ast, ./sourcemap, ./logging
 
 type

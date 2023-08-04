@@ -29,7 +29,7 @@ proc runCommand*(v: Values) =
     QuitFailure.quit
   display("✨ Building Stylesheet from AST...", br="after")
   let t = cpuTime()
-  var astStylesheet = uncompress(readFile(astPath)).fromFlatty(Program)
+  var astStylesheet = uncompress(readFile(astPath)).fromFlatty(Stylesheet)
   let c = newCompiler(astStylesheet, minify = v.flag("minify"))
   writeFile(astPath.changeFileExt("css"), c.getCSS)
   display "Done in " & $(cpuTime() - t)

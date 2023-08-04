@@ -4,8 +4,8 @@
 #          Made by Humans from OpenPeeps
 #          https://github.com/openpeeps/bro
 
-import std/[critbits, hashes, jsonutils, json]
 import ./ast
+import std/[hashes, jsonutils, json]
 
 export hashes
 

@@ -11,6 +11,15 @@ import std/[times, os, strutils, net, osproc,
 
 var hasOutput: bool
 
+proc parseStylesheet(path, outpath: string) =
+  display("✨ Changes detected")
+  display(path, indent = 2, br="after")
+  if path.getFileSize > 0:
+    let broCommand = execCmdEx("bro " & path & " " & outpath & " --cache")
+    display(broCommand.output)
+  else:
+    display("Stylesheet is empty")
+
 proc runCommand*(v: Values) =
   var stylesheetPath: string
   var cssPath: string
@@ -48,26 +57,13 @@ proc runCommand*(v: Values) =
     display("🪄 CSS Reload & Browser Sync: http://localhost:9009", br="after")
   else:
     display("✨ Watching for changes...", br="after")
-  var watchFiles: seq[string]
+  var watchMain = @[stylesheetPath] # only main stylsheet
   proc watchoutCallback(file: watchout.File) {.closure.} =
-    display("✨ Changes detected")
-    display(file.getPath, indent = 2, br="after")
-    if stylesheetPath.getFileSize > 0:
-      let
-        # t = getMonotime()
-        broCommand = execCmdEx("bro " & file.getPath & " " & cssPath)
-      display(broCommand.output)
-      # display("Done in " & $(getMonotime() - t).inMilliseconds & "ms")
-    else:
-      display("Stylesheet is empty")
-
-  watchFiles.add(stylesheetPath)
-  let
-    # t = getMonotime()
-    broCommand = execCmdEx("bro " & stylesheetPath & " " & cssPath)
+    parseStylesheet(file.getPath, cssPath)
+  let broCommand = execCmdEx("bro " & stylesheetPath & " " & cssPath & " --cache")
   display(broCommand.output)
-  # display("Done in " & $(getMonotime() - t).inMilliseconds & "ms")
-  startThread(watchoutCallback, watchFiles, delay, shouldJoinThread = v.flag("sync") == false)
+  if broCommand.exitCode != 0: QuitFailure.quit
+  startThread(watchoutCallback, watchMain, delay, shouldJoinThread = v.flag("sync") == false)
 
   if v.flag("sync"):
     const inlineCSS = """

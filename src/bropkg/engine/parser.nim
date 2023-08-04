@@ -6,12 +6,13 @@
 
 {.warning[ImplicitDefaultValue]:off.}
 
-import pkg/[stashtable, jsony, checksums/md5]
-import std/[os, strutils, sequtils, critbits, sequtils,
+import pkg/[stashtable, jsony, flatty, flatty/hexprint, supersnappy, checksums/md5]
+import std/[os, strutils, sequtils, sequtils,
             tables, json, memfiles, times, oids,
-            macros, jsonutils]
+            macros]
 
-import ./tokens, ./ast, ./css, ./memoization, ./logging, ./stdlib, ./properties
+import ./tokens, ./ast, ./css, ./memoization,
+       ./logging, ./stdlib, ./properties
 
 when compileOption("app", "console"):
   import pkg/kapsis/cli
@@ -166,12 +167,12 @@ proc parseVarCall(p: var Parser, tk: TokenTuple, varName: string, scope: var seq
 #
 # Parse utils
 #
-when not defined release:
-  proc `$`(node: Node): string = pretty(jsonutils.toJson(node), 2)
-  proc `$`(program: Program): string = pretty(jsonutils.toJson(program), 2)
-else:
-  proc `$`(node: Node): string = $(jsonutils.toJson(node))
-  proc `$`(program: Program): string = $(jsonutils.toJson(program))  
+# when not defined release:
+#   proc `$`(node: Node): string = pretty(toJson(node), 2)
+#   proc `$`(program: Program): string = pretty(toJson(program), 2)
+# else:
+proc `$`(node: Node): string = $(toJson(node))
+proc `$`(program: Program): string = $(toJson(program))  
 
 proc walk(p: var Parser, offset = 1) =
   var i = 0
@@ -676,6 +677,7 @@ proc importModule(th: (string, Stylesheets)) {.thread.} =
       return
     th[1].withValue(th[0]):
       value[] = subParser.getProgram
+      # cache(th[0], toAst.toJson(value[]))
 
 proc importModuleCSS(th: (string, Stylesheets)) {.thread.} =
   {.gcsafe.}:

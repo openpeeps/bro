@@ -4,9 +4,11 @@
 #          Made by Humans from OpenPeeps
 #          https://github.com/openpeeps/bro
 
-import std/[tables, strutils, critbits, json, sequtils, oids]
-import ./stdlib
+import std/[tables, strutils, json, sequtils, oids]
+import ./stdlib, ./critbits
 from ./tokens import TokenKind, TokenTuple
+
+export critbits
 
 when not defined release:
   import std/jsonutils
@@ -252,7 +254,7 @@ type
     selectors*: CritBitTree[Node]
     stack*: ScopeTable
     sourcePath*: string
-    meta: Meta
+    meta*: Meta
       ## Count lines and columns when using Macros
 
 # fwd declarations

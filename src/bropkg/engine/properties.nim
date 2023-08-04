@@ -10,8 +10,7 @@
 ## (c) 2023 George Lemon | LGPL License
 ##          Made by Humans from OpenPeep
 ##          https://github.com/openpeep/bro
-import
-  std / [tables, critbits]
+import ./critbits
 
 type
   Separator* = enum
