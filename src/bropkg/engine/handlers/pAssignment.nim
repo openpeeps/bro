@@ -38,6 +38,7 @@ newPrefixProc "parseRegularAssignment":
         return # result
       if unlikely(result.varValue.getNodeType != varValue.getNodeType):
         errorWithArgs(fnMismatchParam, tk, [result.varName, $(varValue.getNodeType), $(result.varValue.getNodeType)]) 
+      return # result
   return nil
 
 newPrefixProc "parseStreamAssignment":
