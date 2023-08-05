@@ -111,7 +111,7 @@ const
   #   tkTemplate, tkTextarea, tkTfoot, tkTh, tkThead, tkTime, tkTitle, tkTr, tkTrack, tkTt,
   #   tkUnderline, tkUl, tkVideo, tkWbr, tkRoot
   # }
-  tkAssignable = {tkString, tkInteger, tkBool, tkColor} + tkVars + tkNamedColors
+  tkAssignable = {tkString, tkInteger, tkBool, tkColor, tkAccQuoted} + tkVars + tkNamedColors
   tkComparable = tkAssignable
   tkAssignableFn = {tkJSON}
   tkTypedLiterals = {
@@ -120,7 +120,7 @@ const
   }
   tkAssignableValue = {
     tkString, tkBool, tkFloat, tkInteger,
-    tkIdentifier, tkVarCall, tkColor
+    tkIdentifier, tkVarCall, tkColor, tkAccQuoted
   } + tkNamedColors
   tkCompOperators = {tkEQ, tkNE, tkGT, tkGTE, tkLT, tkLTE}
   tkMathOperators = {tkPlus, tkMinus, tkMultiply, tkDivide}

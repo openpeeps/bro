@@ -17,6 +17,10 @@ proc parseVarDef(p: var Parser, scope: seq[ScopeTable]): Node =
       if likely(scopedVar != nil):
         if unlikely(scopedVar.varImmutable):
           error(reassignImmutableVar, p.curr)
+        else:
+          scopedVar.varOverwrite = true
+          walk p
+        return scopedVar
       else: error(reassignImmutableVar, p.curr)
   result = newVariable(p.curr)
   walk p # $ident
@@ -24,11 +28,17 @@ proc parseVarDef(p: var Parser, scope: seq[ScopeTable]): Node =
 newPrefixProc "parseRegularAssignment":
   ## parse a regular `string`, `int`, `float`, `bool` assignment
   result = p.parseVarDef(scope)
-  if unlikely(result == nil): return nil
-  let varValue = p.getPrefixOrInfix(scope = scope)
-  if likely(varValue != nil):
-    result.varValue = varValue
-    result.varType = varValue.nt
+  if likely(result != nil):
+    let tk = p.curr
+    let varValue = p.getPrefixOrInfix(scope = scope)
+    if likely(varValue != nil):
+      if likely(result.varOverwrite == false):
+        result.varValue = varValue
+        result.varType = varValue.nt
+        return # result
+      if unlikely(result.varValue.getNodeType != varValue.getNodeType):
+        errorWithArgs(fnMismatchParam, tk, [result.varName, $(varValue.getNodeType), $(result.varValue.getNodeType)]) 
+  return nil
 
 newPrefixProc "parseStreamAssignment":
   # parse JSON/YAML from external sources
@@ -131,6 +141,8 @@ proc parseArrayAccessor(p: var Parser, accStorage: Node, scope: var seq[ScopeTab
   walk p # tKInteger
   if likely(p.curr is tkRB):
     walk p # tkRB
+    return # result
+  error(missingRB, p.curr)
 
 proc parseObjectAccessor(p: var Parser, accStorage: Node, scope: var seq[ScopeTable]): Node =
   # parse an object accessor using `["myprop"]`
@@ -143,6 +155,8 @@ proc parseObjectAccessor(p: var Parser, accStorage: Node, scope: var seq[ScopeTa
   walk p # tkString
   if likely(p.curr is tkRB):
     walk p # tkRB
+    return # result
+  error(missingRB, p.curr)
 
 proc parseCallAccessor(p: var Parser, accStorage: Node, scope: var seq[ScopeTable]): Node =
   walk p # tkLB
@@ -168,5 +182,5 @@ newPrefixProc "parseAssignment":
     of tkJSON:            p.parseStreamAssignment(scope)
     of tkAssignableValue: p.parseRegularAssignment(scope)
     else: nil
-  if not p.hasErrors:
+  if likely(p.hasErrors == false and result != nil):
     p.stack(result, scope) # add in scope

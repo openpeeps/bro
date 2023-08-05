@@ -151,7 +151,7 @@ type
       varValue*: Node
       varMeta*: Meta
       varType*, varInitType*: NodeType
-      varUsed*, varArg*, varImmutable*, varMemoized*: bool
+      varUsed*, varArg*, varImmutable*, varMemoized*, varOverwrite*: bool
     of ntString:
       sVal*: string
     of ntInt:
