@@ -581,7 +581,7 @@ proc getPrefixFn(p: var Parser, excludeOnly, includeOnly: set[TokenKind] = {}): 
   of tkThis:    parseThis
   of tkAccQuoted:   parseAccQuoted
   of tkNamedColors: parseNamedColor
-  of tkAssert:  parseAssert
+  # of tkAssert:  parseAssert
   else:
     if p.next isnot tkColon:
       parseSelectorTag
