@@ -1,5 +1,8 @@
-switch("path", "$projectDir/../src")
-switch("threads", "on")
-switch("define", "useMalloc")
-switch("gc", "arc")
-switch("deepcopy", "on")
+--path:"$projectDir/../src"
+--threads:on
+--define:useMalloc
+--mm:arc
+--deepcopy:on
+--define:msgpack_obj_to_map
+--define:httpxServerName:"BroStyleSync"
+--define:nimPreviewHashRef
