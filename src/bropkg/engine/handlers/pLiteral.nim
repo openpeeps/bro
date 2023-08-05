@@ -69,14 +69,20 @@ newPrefixProc "parseAccQuoted":
         walk p, 2
         while p.curr isnot tkRC:
           if unlikely(p.curr is tkEOF): return nil
-          add result.accVal, indent("$bro" & $(hash(p.curr.value)), tkSymbol.wsno)
           if p.curr is tkIdentifier:
+            add result.accVal, indent("$bro" & $(hash(p.curr.value)), tkSymbol.wsno)
             let varNode = p.parseVarCall(tk, "$" & p.curr.value, scope)
             if likely(varNode != nil):
               add result.accVars, varNode
             else: return nil
           else:
             let prefixInfixNode = p.getPrefixOrInfix(scope, includeOnly = {tkInteger})
+            case prefixInfixNode.nt
+            of ntInt, ntBool:
+              add result.accVal, indent("$bro" & $(hash(p.curr.value)), tkSymbol.wsno)
+            of ntMathStmt, ntInfix:
+              add result.accVal, indent("$bro" & $(hash(prefixInfixNode)), tkSymbol.wsno)
+            else: discard
             if likely(prefixInfixNode != nil):
               add result.accVars, prefixInfixNode
             else: return nil

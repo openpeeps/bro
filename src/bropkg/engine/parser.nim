@@ -423,14 +423,6 @@ proc parseCompOp(p: var Parser, left: Node, scope: var seq[ScopeTable]): Node =
 proc parseMathOp(p: var Parser, left: Node, scope: var seq[ScopeTable]): Node =
   walk p
   result = p.getPrefixOrInfix(includeOnly = {tkInteger, tkFloat, tkVarCall, tkIdentifier, tkFnCall}, scope = scope)
-  # case p.curr.kind
-  # of tkInteger:
-  #   result = p.parseInt(scope)
-  # of tkFloat:
-  #   result = p.parseFloat(scope)
-  # of tkVarCall:
-  #   result = p.parseCallCommand(scope)
-  # else: discard
 
 proc getInfixFn(p: var Parser): InfixFunction =
   case p.curr.kind

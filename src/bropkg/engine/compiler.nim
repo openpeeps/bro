@@ -143,6 +143,8 @@ proc toString(c: var Compiler, v: Node, scope: ScopeTable = nil): string =
           add accVal[0], $(hash(accVar.callIdent[1..^1])) # variable name without `$`
         of ntInt:
           add accVal[0], $(hash($accVar.iVal))
+        of ntMathStmt, ntInfix:
+          add accVal[0], $(hash(accVar)) 
         else: discard
         accVal[1] = c.toString(c.getValue(accVar, scope))
         add accValues, accVal
@@ -181,6 +183,8 @@ proc getValue(c: var Compiler, v: Node, scope: ScopeTable): Node =
     handleVariableValue(v, scope)
   of ntInfix:
     result = newBool(c.evalInfix(v.infixLeft, v.infixRight, v.infixOp, scope))
+  of ntMathStmt:
+    result = c.evalMathInfix(v.mathLeft, v.mathRight, v.mathInfixOp, scope)
   else:
     result = v
 
@@ -297,13 +301,13 @@ proc handleCommand(c: var Compiler, node: Node, scope: ScopeTable = nil) =
       stdout.styledWriteLine(fgGreen, "Debug", fgDefault, meta, fgDefault,
                         getTypeInfo(node.cmdValue) & "\n" & $(output))
     of ntMathStmt:
-      let total = c.evalMathInfix(node.cmdValue.mathLeft,
-                    node.cmdValue.mathRight, node.cmdValue.mathInfixOp, scope)
-      let output =
-        if total.nt == ntInt:
-          $(total.iVal)
-        else:
-          $(total.fVal)
+      let
+        total =
+          c.evalMathInfix(node.cmdValue.mathLeft, node.cmdValue.mathRight,
+            node.cmdValue.mathInfixOp, scope)
+        output =
+          if total.nt == ntInt: $(total.iVal)
+          else: $(total.fVal)
       stdout.styledWriteLine(fgGreen, "Debug", fgDefault, meta, fgDefault,
                         getTypeInfo(node.cmdValue) & "\n" & $(output))
     # of ntInfo:
@@ -311,7 +315,6 @@ proc handleCommand(c: var Compiler, node: Node, scope: ScopeTable = nil) =
                             # "[[" & $(node.cmdValue.nodeType) & "]]")
     else:
       let varValue = c.getValue(node.cmdValue, scope)
-      # echo varValue
       if likely(varValue != nil):
         var output: string
         case varValue.nt:
