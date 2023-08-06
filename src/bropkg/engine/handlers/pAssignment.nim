@@ -32,12 +32,11 @@ newPrefixProc "parseRegularAssignment":
     let tk = p.curr
     let varValue = p.getPrefixOrInfix(scope = scope)
     if likely(varValue != nil):
-      if likely(result.varOverwrite == false):
-        result.varValue = varValue
-        result.varType = varValue.nt
-        return # result
-      if unlikely(result.varValue.getNodeType != varValue.getNodeType):
-        errorWithArgs(fnMismatchParam, tk, [result.varName, $(varValue.getNodeType), $(result.varValue.getNodeType)]) 
+      if likely(result.varOverwrite):
+        if unlikely(result.varValue.getNodeType != varValue.getNodeType):
+          errorWithArgs(fnMismatchParam, tk, [result.varName, $(varValue.getNodeType), $(result.varValue.getNodeType)]) 
+      result.varValue = varValue
+      result.varType = varValue.nt
       return # result
   return nil
 
