@@ -10,18 +10,16 @@ proc parseAnoArray(p: var Parser, scope: var seq[ScopeTable],
 proc parseAnoObject(p: var Parser, scope: var seq[ScopeTable],
       excludeOnly, includeOnly: set[TokenKind] = {}, returnType = ntVoid, isFunctionWrap = false): Node
 
-proc parseVarDef(p: var Parser, scope: seq[ScopeTable]): Node =
-  if scope.len > 0:
-    if unlikely(scope[^1].hasKey(p.curr.value)):
-      let scopedVar = scope[^1][p.curr.value]
-      if likely(scopedVar != nil):
-        if unlikely(scopedVar.varImmutable):
-          errorWithArgs(immutableReassign, p.curr, [p.curr.value])
-        else:
-          scopedVar.varOverwrite = true
-          walk p
-        return scopedVar
-      # else: error(immutableReassign, p.curr)
+proc parseVarDef(p: var Parser, scope: var seq[ScopeTable]): Node =
+  let currentScope = p.getScope(p.curr.value, scope)
+  if currentScope.st != nil:
+    let scopedVar = currentScope.st[p.curr.value]
+    if unlikely(scopedVar.varImmutable):
+      errorWithArgs(immutableReassign, p.curr, [p.curr.value])
+    else:
+      scopedVar.varOverwrite = true
+      walk p
+    return scopedVar
   if p.curr.kind == tkVarDef:
     result = newVariable(p.curr)
   else:
