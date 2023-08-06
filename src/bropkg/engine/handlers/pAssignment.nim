@@ -26,15 +26,18 @@ proc parseVarDef(p: var Parser, scope: seq[ScopeTable]): Node =
   walk p # $ident
 
 newPrefixProc "parseRegularAssignment":
-  ## parse a regular `string`, `int`, `float`, `bool` assignment
   result = p.parseVarDef(scope)
   if likely(result != nil):
-    let tk = p.curr
-    let varValue = p.getPrefixOrInfix(scope = scope)
+    let
+      tk = p.curr
+      varValue = p.getPrefixOrInfix(scope = scope)
     if likely(varValue != nil):
       if likely(result.varOverwrite):
-        if unlikely(result.varValue.getNodeType != varValue.getNodeType):
-          errorWithArgs(fnMismatchParam, tk, [result.varName, $(varValue.getNodeType), $(result.varValue.getNodeType)]) 
+        let
+          varInitType = result.varValue.getNodeType()
+          varReassignType = varValue.getNodeType
+        if unlikely(varInitType != varReassignType):
+          errorWithArgs(fnMismatchParam, tk, [result.varName, $(varReassignType), $(varInitType)]) 
       result.varValue = varValue
       result.varType = varValue.nt
       return # result
