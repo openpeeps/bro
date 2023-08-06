@@ -422,14 +422,15 @@ proc write(c: Compiler, node: Node, scope: ScopeTable = nil, data: Node = nil) =
 
 proc len*(c: Compiler): int = c.program.nodes.len
 
-proc newCompiler*(p: Stylesheet, minify = false, imports: Stylesheets): Compiler =
+proc newCompiler*(p: Stylesheet, minify = false, imports: Stylesheets = nil): Compiler =
   var c = Compiler(program: p, minify: minify, stylesheets: imports)
   when compileOption("app", "console"):
     c.logger = Logger(filePath: p.sourcePath)
   if not minify:
-    c.strNL = "\n"
     c.strCL = spaces(1) & c.strCL & c.strNL
     c.strCR = c.strCR & c.strNL
+  else:
+    c.strNL = ""
   # var info = SourceInfo()
   # info.newLine("test.sass", 11)
   # info.addSegment(0, 0)

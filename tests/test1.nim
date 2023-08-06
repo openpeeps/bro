@@ -24,7 +24,7 @@ test "can compile":
   # minified
   c = newCompiler(p.getStylesheet, minify = true)
   check c.getCSS.count("\n") == 0
-  check c.getCSS == ".btn{border:2px #FFF solid}"
+  check c.getCSS == ".btn{border:2px #FFF solid;}"
 
 test "can catch errors":
   var p = parseStylesheet(paths[1].getPath)
