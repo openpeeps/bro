@@ -4,10 +4,11 @@
 #          Made by Humans from OpenPeeps
 #          https://github.com/openpeeps/bro
 
+import pkg/stashtable
 import std/[tables, strutils, json, sequtils, oids]
 import ./stdlib, ./critbits
-from ./tokens import TokenKind, TokenTuple
 
+from ./tokens import TokenKind, TokenTuple
 export critbits
 
 when not defined release:
@@ -151,7 +152,8 @@ type
       varValue*: Node
       varMeta*: Meta
       varType*, varInitType*: NodeType
-      varUsed*, varArg*, varImmutable*, varMemoized*, varOverwrite*: bool
+      varUsed*, varArg*, varImmutable*,
+        varMemoized*, varOverwrite*, varRef*: bool
     of ntString:
       sVal*: string
     of ntInt:
@@ -214,7 +216,8 @@ type
       caseCond*: seq[CaseCondTuple]
       caseElse*: Node # ntStmtList
     of ntImport:
-      modules*: seq[tuple[path: string, module: Stylesheet]]
+      # modules*: seq[tuple[path: string, module: Stylesheet]]
+      modules*: seq[string] # absolute path of imported stylesheets (one or more for comma separated imports)
     of ntPreview:
       previewContent: string
     of ntExtend:
@@ -258,6 +261,8 @@ type
     sourcePath*: string
     meta*: Meta
       ## Count lines and columns when using Macros
+
+  Stylesheets* = StashTable[string, Stylesheet, 1000]
 
 # fwd declarations
 proc newStream*(node: JsonNode): Node
@@ -434,13 +439,14 @@ proc getNodeType*(node: Node, getVarInitType = false): NodeType =
     case node.nt
     of ntCall:
       if not getVarInitType:
-        node.callNode.varValue.nt
+        node.callNode.varType
       else:
         node.callNode.varInitType
     of ntInfix: ntBool
     of ntMathStmt: ntInt # todo ntInt or ntFloat
     of ntArray, ntObject, ntBool, ntString, ntInt, ntFloat: node.nt
     of ntFunction: ntFunction
+    of ntCallStack: node.stackReturnType
     else: node.nt
 
 proc getTypedValue*(node: Node): NodeType =
@@ -588,34 +594,54 @@ proc newImport*: Node =
   ## Create a new `ntImport` node
   result = Node(nt: ntImport)
 
-proc newVariable*(varName: string, varValue: Node, tk: TokenTuple, isImmutable, isArg = false): Node =
+proc isImmutable(varName: string): bool =
+  for ch in varName[1..^1]:
+    if ch in {'-', '_', '0'..'9'}: continue
+    if not ch.isUpperAscii:
+      return false
+  result = true
+
+proc newVariable*(varName: string, varValue: Node, tk: TokenTuple, isArg = false): Node =
   ## Create a new `ntVariable` (declaration) node
   result = Node(nt: ntVariable, varName: varName, varValue: varValue,
-                varImmutable: isImmutable, varArg: isArg, varMeta: (tk.line, tk.pos))
+                varImmutable: isImmutable(varName), varArg: isArg, varMeta: (tk.line, tk.pos))
 
 proc newVariable*(tk: TokenTuple): Node =
   ## Create a new `ntVariable` (declaration) node
-  result = Node(nt: ntVariable, varName: tk.value, varMeta: (tk.line, tk.pos))
+  result = Node(nt: ntVariable, varImmutable: isImmutable(tk.value), varName: tk.value, varMeta: (tk.line, tk.pos))
+
+proc newVariableRef*(tk: TokenTuple): Node =
+  ## Create a new `ntVariable` reference
+  result = Node(nt: ntVariable, varName: tk.value,
+        varMeta: (tk.line, tk.pos), varRef: true)
 
 proc newComment*(str: string): Node =
   ## Create a new ntComment node
   result = Node(nt: ntComment, comment: str)
 
-proc newTag*(tk: TokenTuple, properties = KeyValueTable(), concat: seq[Node] = @[]): Node =
+proc newTag*(tk: TokenTuple, properties = KeyValueTable(),
+            concat: seq[Node] = @[]): Node =
   ## Create a new ntTag node
-  Node(nt: ntTagSelector, ident: tk.prefixed, properties: properties, identConcat: concat)
+  Node(nt: ntTagSelector, ident: tk.prefixed,
+    properties: properties, identConcat: concat)
 
-proc newClass*(tk: TokenTuple, properties = KeyValueTable(), concat: seq[Node] = @[]): Node =
+proc newClass*(tk: TokenTuple, properties = KeyValueTable(),
+            concat: seq[Node] = @[]): Node =
   ## Create a new ntClassSelector
-  Node(nt: ntClassSelector, ident: tk.value, properties: properties, identConcat: concat)
+  Node(nt: ntClassSelector, ident: tk.value,
+    properties: properties, identConcat: concat)
 
-proc newPseudoClass*(tk: TokenTuple, properties = KeyValueTable(), concat: seq[Node] = @[]): Node =
+proc newPseudoClass*(tk: TokenTuple, properties = KeyValueTable(),
+            concat: seq[Node] = @[]): Node =
   ## Create a new ntPseudoSelector
-  Node(nt: ntPseudoSelector, ident: tk.prefixed, properties: properties, identConcat: concat)
+  Node(nt: ntPseudoSelector, ident: tk.prefixed,
+    properties: properties, identConcat: concat)
 
-proc newID*(tk: TokenTuple, properties = KeyValueTable(), concat: seq[Node] = @[]): Node =
+proc newID*(tk: TokenTuple, properties = KeyValueTable(),
+            concat: seq[Node] = @[]): Node =
   ## Create a new ntIDSelector
-  Node(nt: ntIDSelector, ident: tk.prefixed, properties: properties,  identConcat: concat)
+  Node(nt: ntIDSelector, ident: tk.prefixed,
+    properties: properties,  identConcat: concat)
 
 proc newPreview*(tk: TokenTuple): Node =
   ## Create a new ntPreview

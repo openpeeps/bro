@@ -41,7 +41,8 @@ newPrefixProc "parseFn":
             fnNode.fnParams["$" & pName.value] = ("$" & pName.value, nTyped, nil)
             fnScope["$" & pName.value] =
               newVariable("$" & pName.value, Node(nt: nTyped),
-                          tk = pName, isImmutable = true, isArg = true)
+                          tk = pName, isArg = true)
+            fnScope["$" & pName.value].varImmutable = true
             types.add(nTyped)
             walk p
             # todo support default assignments

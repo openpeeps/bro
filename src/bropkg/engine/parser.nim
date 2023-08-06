@@ -29,9 +29,6 @@ type
     Secondary 
 
   Warning* = tuple[msg: string, line, col: int]
-  
-  Stylesheets = StashTable[string, Stylesheet, 1000]
-    # Where we'll store other Stylesheet instances
   Imports = OrderedTableRef[string, Node]
 
   Parser* = object
@@ -56,17 +53,17 @@ type
     lib: StandardLibrary
     mCall: MCall
     mVar: MVar
-    case ptype: ParserType
-    of Main:
-      directory: string
-    else: discard
-    path, filePath, cachePath: string
+    # case ptype: ParserType
+    # of Main:
+    #   directory: string
+    # else: discard
+    path, filePath, cachePath, dirPath: string
 
   PrefixFunction = proc(p: var Parser, scope: var seq[ScopeTable],
                         excludeOnly, includeOnly: set[TokenKind] = {},
                         returnType = ntVoid, isFunctionWrap = false): Node
   InfixFunction = proc(p: var Parser, left: Node, scope: var seq[ScopeTable]): Node
-  ImportHandler = proc(th: (string, Stylesheets)) {.thread, nimcall, gcsafe.}
+  ImportHandler = proc(th: (string, Stylesheets, string)) {.thread, nimcall, gcsafe.}
 
 const
   tkVars = {tkVarCall, tkVarDef}
@@ -133,6 +130,7 @@ proc hasWarnings*(p: Parser): bool =
   result = p.logger.warnLogs.len != 0
 
 proc getStylesheet*(p: Parser): Stylesheet = p.program
+proc getStylesheets*(p: Parser): Stylesheets = p.stylesheets
 
 #
 # Forward declaration
@@ -163,8 +161,8 @@ proc parseCallFnCommand(p: var Parser, scope: var seq[ScopeTable],
           returnType = ntVoid, isFunctionWrap = false): Node
 
 proc getPrefixOrInfix(p: var Parser, scope: var seq[ScopeTable], includeOnly, excludeOnly: set[TokenKind] = {}): Node
-proc importModule(th: (string, Stylesheets)) {.thread.}
-proc importModuleCSS(th: (string, Stylesheets)) {.thread.}
+proc importModule(th: (string, Stylesheets, string)) {.thread.}
+proc importModuleCSS(th: (string, Stylesheets, string)) {.thread.}
 proc parseVarCall(p: var Parser, tk: TokenTuple, varName: string, scope: var seq[ScopeTable]): Node
 
 #
@@ -477,7 +475,7 @@ proc parseStatement(p: var Parser, parent: (TokenTuple, Node), scope: var seq[Sc
       let node = p.parsePrefix(excludeOnly, includeOnly, scope, returnType, isFunctionWrap)
       if node != nil and not p.hasErrors:
         case node.nt
-        of ntReturn:
+        of ntReturn: # checks return type
           if unlikely(node.returnStmt.nt != returnType):
             case node.returnStmt.nt:
             of ntCallStack:
@@ -492,6 +490,8 @@ proc parseStatement(p: var Parser, parent: (TokenTuple, Node), scope: var seq[Sc
             else:
               if likely(node.returnStmt.nt == ntCall):
                 let fnReturnType = node.returnStmt.getNodeType()
+                echo fnReturnType
+                echo node.returnStmt
                 if unlikely(fnReturnType != returnType):
                   errorWithArgs(fnReturnTypeMismatch, tk, [$(fnReturnType), $(returnType)])  
               else:
@@ -565,7 +565,8 @@ proc getPrefixFn(p: var Parser, excludeOnly, includeOnly: set[TokenKind] = {}): 
   of tkColor:   parseColor
   of tkString:  parseString
   of tkVarCall: parseCallCommand
-  of tkVarDef:  parseAssignment
+  of tkVarDef,
+    tkVarDefRef:  parseAssignment
   of tkReturn:  parseReturnCommand
   of tkEcho:    parseEchoCommand
   of tkBool:    parseBool
@@ -599,7 +600,8 @@ proc parseRoot(p: var Parser, scope: var seq[ScopeTable], excludeOnly, includeOn
   # Parse nodes at root-level
   result =
     case p.curr.kind:
-    of tkVarDef:  p.parseAssignment(scope)
+    of tkVarDef,
+      tkVarDefRef:  p.parseAssignment(scope)
     of tkVarCall: p.parseCallCommand(scope)
     of tkFnDef:   p.parseFn(scope)
     of tkDotExpr: p.parseDotExpr(scope, excludeOnly, includeOnly)
@@ -647,14 +649,14 @@ template startParseStylesheet(src: string, scope: var seq[ScopeTable]) =
     else: break
   p.lex.close()
 
-proc importModule(th: (string, Stylesheets)) {.thread.} =
+proc importModule(th: (string, Stylesheets, string)) {.thread.} =
   {.gcsafe.}:
-    proc newImporter(): Parser =
-      var p = Parser(ptype: Secondary, filePath: th[0])
+    proc newImportParser(): Parser =
+      var p = Parser(filePath: th[0], dirPath: th[2])
       var scope = newSeq[ScopeTable]()
       startParseStylesheet(th[0], scope)
       result = p
-    var subParser = newImporter()
+    var subParser = newImportParser()
     if subParser.hasErrors:
       for error in subParser.logger.errors:
         display(error)
@@ -662,8 +664,10 @@ proc importModule(th: (string, Stylesheets)) {.thread.} =
       return
     th[1].withValue(th[0]):
       value[] = subParser.getStylesheet
+    # if subParser.stylesheets.len > 0:
+    discard th[1].addAll(subParser.stylesheets, false)
 
-proc importModuleCSS(th: (string, Stylesheets)) {.thread.} =
+proc importModuleCSS(th: (string, Stylesheets, string)) {.thread.} =
   {.gcsafe.}:
     let cssParser = parseCSS(readFile(th[0]))
     if not cssParser.status:
@@ -674,10 +678,10 @@ proc importModuleCSS(th: (string, Stylesheets)) {.thread.} =
       value[] = cssParser.stylesheet
 
 proc parseStylesheet*(src: string, enableCache = false): Parser =
-  var p = Parser(ptype: Main)
+  var p = Parser()
   when not defined wasm:
     p.filePath = src 
-    p.directory = src.parentDir()
+    p.dirPath = src.parentDir()
     p.path = src.parentDir()
   when compileOption("app", "console"): 
     p.cacheEnabled = enableCache

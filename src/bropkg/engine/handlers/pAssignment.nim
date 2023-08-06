@@ -16,13 +16,16 @@ proc parseVarDef(p: var Parser, scope: seq[ScopeTable]): Node =
       let scopedVar = scope[^1][p.curr.value]
       if likely(scopedVar != nil):
         if unlikely(scopedVar.varImmutable):
-          error(reassignImmutableVar, p.curr)
+          errorWithArgs(immutableReassign, p.curr, [p.curr.value])
         else:
           scopedVar.varOverwrite = true
           walk p
         return scopedVar
-      else: error(reassignImmutableVar, p.curr)
-  result = newVariable(p.curr)
+      # else: error(immutableReassign, p.curr)
+  if p.curr.kind == tkVarDef:
+    result = newVariable(p.curr)
+  else:
+    result = newVariableRef(p.curr)
   walk p # $ident
 
 newPrefixProc "parseRegularAssignment":
@@ -38,8 +41,10 @@ newPrefixProc "parseRegularAssignment":
           varReassignType = varValue.getNodeType
         if unlikely(varInitType != varReassignType):
           errorWithArgs(fnMismatchParam, tk, [result.varName, $(varReassignType), $(varInitType)]) 
+        if likely(not result.varRef):
+          result = deepCopy(result)
       result.varValue = varValue
-      result.varType = varValue.nt
+      result.varType = varValue.getNodeType()
       return # result
   return nil
 
@@ -60,6 +65,7 @@ newPrefixProc "parseStreamAssignment":
       fpath = call.varValue.sVal
   else: return nil
   result.varValue = newStream(normalizedPath(p.filePath.parentDir / fpath))
+  result.varInitType = ntStream
 
 newPrefixProc "parseAnoArray":
   ## parse an anonymous array
@@ -127,6 +133,7 @@ newPrefixProc "parseArrayAssignment":
   if unlikely(result == nil): return nil
   result.varValue = p.parseAnoArray(scope)
   result.varType = ntArray
+  result.varInitType = ntArray
 
 newPrefixProc "parseObjectAssignment":
   ## parse object construction using `{}` and assign to a variable 

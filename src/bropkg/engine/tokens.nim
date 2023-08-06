@@ -54,11 +54,16 @@ handlers:
       lex.kind =
         if isCSSVar:  tkCssVarDef
         else:         tkVarDef
-      if lex.next("="):
+      if lex.next("="): # `==` as infixOp
         lex.kind = tkVarCall
       else: inc lex.bufpos
     elif lex.buf[lex.bufpos] == ':':
       lex.kind = tkVarTyped
+      if lex.next("="): 
+        lex.kind =
+          if isCSSVar:  tkCssVarDefRef
+          else:         tkVarDefRef
+        inc lex.bufpos, 2
     else:
       lex.kind = tkVarCall
 
@@ -221,7 +226,9 @@ registerTokens lexerSettings:
   varConcat = tokenize(handleCurlyVar, '{')
   varSymbol # $
   varDef = tokenize(handleVariable, '$')
-  cssVarDef # $$default-size 
+  varDefRef
+  cssVarDef       # $$default-size
+  cssVarDefRef
   varTyped
   varCall
   fnCall
