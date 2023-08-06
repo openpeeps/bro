@@ -4,9 +4,9 @@
 #          Made by Humans from OpenPeeps
 #          https://github.com/openpeeps/bro
 
-import pkg/jsony
+import pkg/[jsony, stashtable]
 import std/[tables, strutils, macros, sequtils, json,
-          algorithm, oids, hashes, terminal, enumutils]
+          algorithm, oids, hashes, terminal, threadpool, enumutils]
 import ./ast, ./sourcemap, ./logging
 
 type
@@ -18,17 +18,21 @@ type
     minify: bool
     stack: Table[int, Node]
     warnings*: seq[Warning]
+    strCL: string = "{"
+    strCR: string = "}"
+    strNL: string = "\n"
+    stylesheets: Stylesheets
     when compileOption("app", "console"):
       logger*: Logger
 
-var strNL, strCL, strCR: string
+# var strNL, strCL, strCR: string
 
 # forward declaration
-proc write(c: var Compiler, node: Node, scope: ScopeTable = nil, data: Node = nil)
-proc getSelectorGroup(c: var Compiler, node: Node, scope: ScopeTable = nil, parent: Node = nil): string
-proc handleInnerNode(c: var Compiler, node, parent: Node, scope: ScopeTable = nil, length: int, ix: var int)
-proc handleCallStack(c: var Compiler, node: Node, scope: ScopeTable): Node
-proc getValue(c: var Compiler, v: Node, scope: ScopeTable): Node
+proc write(c: Compiler, node: Node, scope: ScopeTable = nil, data: Node = nil)
+proc getSelectorGroup(c: Compiler, node: Node, scope: ScopeTable = nil, parent: Node = nil): string
+proc handleInnerNode(c: Compiler, node, parent: Node, scope: ScopeTable = nil, length: int)
+proc handleCallStack(c: Compiler, node: Node, scope: ScopeTable): Node
+proc getValue(c: Compiler, v: Node, scope: ScopeTable): Node
 
 
 # eval
@@ -122,38 +126,38 @@ template handleVariableValue(varNode: Node, scope: ScopeTable) {.dirty.} =
     return c.getValue(varNode.varValue, nil)
   result = c.getValue(scope[varNode.varName].varValue, nil)
 
-proc toString(c: var Compiler, v: Node, scope: ScopeTable = nil): string =
+proc toString(c: Compiler, v: Node, scope: ScopeTable = nil): string =
   # Return stringified version of `v`
-  result =
-    case v.nt
-    of ntString: v.sVal
-    of ntFloat:  $(v.fVal)
-    of ntInt:    $(v.iVal)
-    of ntBool:   $(v.bVal)
-    of ntColor:  $(v.cVal)
-    of ntArray:     jsony.toJson(v.arrayItems)
-    of ntObject:    jsony.toJson(v.pairsVal)
-    of ntAccQuoted:
-      var accValues: seq[(string, string)]
-      for accVar in v.accVars:
-        var accVal: (string, string)
-        accVal[0] = "$bro"
-        case accVar.nt
-        of ntCall:
-          add accVal[0], $(hash(accVar.callIdent[1..^1])) # variable name without `$`
-        of ntInt:
-          add accVal[0], $(hash($accVar.iVal))
-        of ntMathStmt, ntInfix:
-          add accVal[0], $(hash(accVar)) 
-        else: discard
-        accVal[1] = c.toString(c.getValue(accVar, scope))
-        add accValues, accVal
-      v.accVal.multiReplace(accValues)
-    of ntStream:
-      toString(v.streamContent)
-    else: ""
+    result =
+      case v.nt
+      of ntString: v.sVal
+      of ntFloat:  $(v.fVal)
+      of ntInt:    $(v.iVal)
+      of ntBool:   $(v.bVal)
+      of ntColor:  $(v.cVal)
+      of ntArray:     jsony.toJson(v.arrayItems)
+      of ntObject:    jsony.toJson(v.pairsVal)
+      of ntAccQuoted:
+        var accValues: seq[(string, string)]
+        for accVar in v.accVars:
+          var accVal: (string, string)
+          accVal[0] = "$bro"
+          case accVar.nt
+          of ntCall:
+            add accVal[0], $(hash(accVar.callIdent[1..^1])) # variable name without `$`
+          of ntInt:
+            add accVal[0], $(hash($accVar.iVal))
+          of ntMathStmt, ntInfix:
+            add accVal[0], $(hash(accVar)) 
+          else: discard
+          accVal[1] = c.toString(c.getValue(accVar, scope))
+          add accValues, accVal
+        v.accVal.multiReplace(accValues)
+      of ntStream:
+        toString(v.streamContent)
+      else: ""
 
-proc getValue(c: var Compiler, v: Node, scope: ScopeTable): Node =
+proc getValue(c: Compiler, v: Node, scope: ScopeTable): Node =
   case v.nt
   of ntCall:
     if v.callNode != nil:
@@ -188,14 +192,13 @@ proc getValue(c: var Compiler, v: Node, scope: ScopeTable): Node =
   else:
     result = v
 
-proc getValue(c: var Compiler, vals: seq[Node], scope: ScopeTable): string =
+proc getValue(c: Compiler, vals: seq[Node], scope: ScopeTable): string =
   var strVal: seq[string]
   for v in vals:
     add strVal, c.toString(c.getValue(v, scope))
   result = strVal.join(" ") # todo make it work with a valid separator (space, colon) 
 
-proc getProperty(c: var Compiler, n: Node, k: string, i: var int,
-                length: int, scope: ScopeTable): string =
+proc getProperty(c: Compiler, n: Node, k: string, length: int, scope: ScopeTable): string =
   # Get pairs of `key`:`value`;
   var
     ii = 1
@@ -210,12 +213,12 @@ proc getProperty(c: var Compiler, n: Node, k: string, i: var int,
   #     add result, spaces(1)
   #   inc ii
   add result, c.getValue(n.pVal, scope)
-  if i != length:
-    add result, ";"
-  add result, strNL # add \n if not minified
-  inc i
+  # if i != length:
+  add result, ";"
+  add result, c.strNL # add \n if not minified
+  # inc i
 
-proc handleExtendAOT(c: var Compiler, node: Node, scope: ScopeTable) =
+proc handleExtendAOT(c: Compiler, node: Node, scope: ScopeTable) =
   ## TODO collect scope data
   for child in node.extendFrom:
     for aot in c.program.selectors[child].aotStmts:
@@ -230,16 +233,15 @@ proc handleExtendAOT(c: var Compiler, node: Node, scope: ScopeTable) =
 # Writers
 include ./handlers/[wCond, wFor]
 
-proc getSelectorGroup(c: var Compiler, node: Node,
+proc getSelectorGroup(c: Compiler, node: Node,
                   scope: ScopeTable = nil, parent: Node = nil): string =
   # Write CSS selectors and properties
   # if node.extendFrom.len > 0:
     # when selector extends from
     # c.handleExtendAOT(node, scope)
-  var i = 1
   if likely(node.innerNodes.len > 0):
     for innerKey, innerNode in node.innerNodes:
-      c.handleInnerNode(innerNode, node, scope, node.innerNodes.len, i)
+      c.handleInnerNode(innerNode, node, scope, node.innerNodes.len)
   var
     skipped: bool
     length = node.properties.len
@@ -276,22 +278,23 @@ proc getSelectorGroup(c: var Compiler, node: Node,
       of ntString, ntInt, ntFloat, ntBool:
         add result, c.toString(c.getValue(idConcat, nil))
       else: discard
-    add result, strCL # {
-    i = 1
+    add result, c.strCL # {
     for propName, propNode in node.properties:
-      add result, c.getProperty(propNode, propName, i, length, scope)
-    add result, strCR # }
+      add result, c.getProperty(propNode, propName, length, scope)
+    add result, c.strCR # }
     add result, c.deferred
     setLen c.deferred, 0
     # add c.css, c.deferred
     # setLen(c.deferred, 0)
 
-proc handleImportStmt(c: var Compiler, node: Node, scope: ScopeTable) =
-  for imported in node.modules:
-    for node in imported.module[].nodes:
-      c.write(node, scope)
+proc handleImportStmt(c: Compiler, node: Node, scope: ScopeTable) =
+  if likely(c.stylesheets != nil):
+    for fpath in node.modules:
+      c.stylesheets.withValue(fpath):
+        for node in value[].nodes:
+          c.write(node, scope)
 
-proc handleCommand(c: var Compiler, node: Node, scope: ScopeTable = nil) =
+proc handleCommand(c: Compiler, node: Node, scope: ScopeTable = nil) =
   case node.cmdIdent
   of cmdEcho:
     let meta = " (" & $(node.cmdMeta.line) & ":" & $(node.cmdMeta.pos) & ") "
@@ -329,7 +332,7 @@ proc handleCommand(c: var Compiler, node: Node, scope: ScopeTable = nil) =
         stdout.styledWriteLine(fgGreen, "Debug", fgDefault, meta, fgMagenta,
                           getTypeInfo(node.cmdValue) & "\n", fgDefault, output)
 
-proc handleCallStack(c: var Compiler, node: Node, scope: ScopeTable): Node =
+proc handleCallStack(c: Compiler, node: Node, scope: ScopeTable): Node =
   var
     callable: Node
     stmtScope: ScopeTable
@@ -350,15 +353,15 @@ proc handleCallStack(c: var Compiler, node: Node, scope: ScopeTable): Node =
       case n.nt
       of ntReturn:
         return c.getValue(n.returnStmt, stmtScope)
-      else: c.handleInnerNode(n, callable, stmtScope, 0, i)
+      else: c.handleInnerNode(n, callable, stmtScope, 0)
   else: discard
 
-proc handleInnerNode(c: var Compiler, node, parent: Node,
-                    scope: ScopeTable = nil, length: int, ix: var int) =
+proc handleInnerNode(c: Compiler, node, parent: Node,
+                    scope: ScopeTable = nil, length: int) =
   case node.nt:
   of ntProperty:
     if parent == nil:
-      add c.deferredProps, c.getProperty(node, node.pName, ix, length, scope)
+      add c.deferredProps, c.getProperty(node, node.pName, length, scope)
     else:
       parent.properties[node.pName] = node
   of ntClassSelector, ntTagSelector, ntIDSelector, ntRoot:
@@ -377,8 +380,7 @@ proc handleInnerNode(c: var Compiler, node, parent: Node,
     c.handleCaseStmt(node, parent, scope)
   of ntExtend:
     for eKey, eProp in node.extendProps:
-      var ix = 0
-      add c.css, c.getProperty(eProp, eKey, ix, node.extendProps.len, scope)
+      add c.css, c.getProperty(eProp, eKey, node.extendProps.len, scope)
   of ntImport:
     c.handleImportStmt(node, scope)
   of ntCommand:
@@ -392,7 +394,7 @@ proc handleInnerNode(c: var Compiler, node, parent: Node,
     else: discard
   else: discard
 
-proc write(c: var Compiler, node: Node, scope: ScopeTable = nil, data: Node = nil) =
+proc write(c: Compiler, node: Node, scope: ScopeTable = nil, data: Node = nil) =
   case node.nt:
   of ntClassSelector, ntTagSelector, ntIDSelector, ntRoot:
     add c.css, c.getSelectorGroup(node, scope)
@@ -418,18 +420,16 @@ proc write(c: var Compiler, node: Node, scope: ScopeTable = nil, data: Node = ni
     else: discard
   else: discard
 
-proc len*(c: var Compiler): int = c.program.nodes.len
+proc len*(c: Compiler): int = c.program.nodes.len
 
-proc newCompiler*(p: Stylesheet, minify = false): Compiler =
-  var c = Compiler(program: p, minify: minify)
+proc newCompiler*(p: Stylesheet, minify = false, imports: Stylesheets): Compiler =
+  var c = Compiler(program: p, minify: minify, stylesheets: imports)
   when compileOption("app", "console"):
     c.logger = Logger(filePath: p.sourcePath)
-  strCL = "{"
-  strCR = "}"
-  if minify == false:
-    strNL = "\n"
-    strCL = spaces(1) & strCL & strNL
-    strCR = strCR & strNL
+  if not minify:
+    c.strNL = "\n"
+    c.strCL = spaces(1) & c.strCL & c.strNL
+    c.strCR = c.strCR & c.strNL
   # var info = SourceInfo()
   # info.newLine("test.sass", 11)
   # info.addSegment(0, 0)
@@ -439,14 +439,14 @@ proc newCompiler*(p: Stylesheet, minify = false): Compiler =
   # info.addSegment(0, 0)
   # echo toJson(info.toSourceMap("test.css"))
   # echo p.nodes
-  for i in 0.. c.program.nodes.high:
+  for i in 0..c.program.nodes.high:
     c.write(c.program.nodes[i])
   result = c
-  setLen strNL, 0
-  setLen strCL, 0
-  setLen strCR, 0
+  # setLen strNL, 0
+  # setLen strCL, 0
+  # setLen strCR, 0
   if unlikely(c.hasErrors):
     setLen(c.css, 0)
 
 proc toCSS*(p: Stylesheet, minify = false): string =
-  newCompiler(p, minify).getCSS
+  newCompiler(p, minify, nil).getCSS

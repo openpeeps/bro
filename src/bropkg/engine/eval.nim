@@ -6,8 +6,8 @@
 
 
 # fwd declaration
-proc evalMathInfix*(c: var Compiler, lht, rht: Node, infixOp: MathOp, scope: ScopeTable): Node
-proc evalInfix*(c: var Compiler, lht, rht: Node, infixOp: InfixOp, scope: ScopeTable): bool
+proc evalMathInfix*(c: Compiler, lht, rht: Node, infixOp: MathOp, scope: ScopeTable): Node
+proc evalInfix*(c: Compiler, lht, rht: Node, infixOp: InfixOp, scope: ScopeTable): bool
 
 proc plus(lht, rht: int): int {.inline.} = lht + rht
 proc plus(lht, rht: float): float {.inline.} = lht + rht
@@ -72,7 +72,7 @@ template calcInt(calcHandle): untyped {.dirty.} =
       else: nil
   else: nil
 
-proc evalMathInfix*(c: var Compiler, lht, rht: Node, infixOp: MathOp, scope: ScopeTable): Node =
+proc evalMathInfix*(c: Compiler, lht, rht: Node, infixOp: MathOp, scope: ScopeTable): Node =
   case infixOp
   of mPlus:   calc(plus)
   of mMinus:  calc(minus)
@@ -275,14 +275,15 @@ macro genInfixEval() =
         ident("bool"),
         newIdentDefs(
           ident("c"),
-          nnkVarTy.newTree(ident("Compiler")),
+          ident("Compiler"),
+          # nnkVarTy.newTree(ident("Compiler")),
           newEmptyNode()
         ),
         nnkIdentDefs.newTree(ident("lht"), ident("rht"), ident("Node"), newEmptyNode()),
         newIdentDefs(ident("infixOp"), ident("InfixOp"), newEmptyNode()),
         newIdentDefs(ident("scope"), ident("ScopeTable"), newEmptyNode()),
       ],
-      evalBody
+      evalBody,
     )
   )
   # echo result.repr # debug
