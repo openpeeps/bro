@@ -45,7 +45,7 @@ type
     missingAssignmentToken = "Missing assignment token"
     missingRB = "Missing closing bracket"
     missingRC = "Missing closing curly bracket"
-    reassignImmutableVar = "Cannot reassign value to an immutable variable"
+    immutableReassign = "Cannot assign twice to immutable variable $"
 
     invalidCallContext = "Invalid call in this context"
 
@@ -74,7 +74,7 @@ type
     ConfigLoadingError = "Could not open json config file"
     TypeMismatch = "Type mismatch"
     InvalidIdent = "Invalid identifier"
-    EndOfFileError = "EOF reached before end of $ statement"
+    EndOfFileError = "EOF reached before end of $"
     internalError = "$"
 
   Level* = enum
