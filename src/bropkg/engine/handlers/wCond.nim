@@ -4,10 +4,9 @@
 #          Made by Humans from OpenPeeps
 #          https://github.com/openpeeps/bro
 
-proc handleCondStmt(c: var Compiler, node, parent: Node, scope: ScopeTable) =
+proc handleCondStmt(c: Compiler, node, parent: Node, scope: ScopeTable) =
   # Compiler handler to evaluate conditional statements `if`, `elif`, `else`
   var
-    ix = 0
     tryElse: bool
     lht: Node = node.ifInfix.infixleft
     rht: Node = node.ifInfix.infixRight
@@ -22,7 +21,7 @@ proc handleCondStmt(c: var Compiler, node, parent: Node, scope: ScopeTable) =
   if c.evalInfix(lht, node.ifInfix.infixRight,
             node.ifInfix.infixOp, scope):
     for ifNode in node.ifStmt.stmtList:
-      c.handleInnerNode(ifNode, parent, scope, node.ifStmt.stmtList.len, ix)
+      c.handleInnerNode(ifNode, parent, scope, node.ifStmt.stmtList.len)
     return # condition is truthy
   if node.elifStmt.len > 0:
     for elifBranch in node.elifStmt: # walk through seq[Node] of `elif` statements
@@ -30,28 +29,24 @@ proc handleCondStmt(c: var Compiler, node, parent: Node, scope: ScopeTable) =
       of ntInfix:
         if c.evalInfix(elifBranch.comp.infixLeft, elifBranch.comp.infixRight,
                     elifBranch.comp.infixOp, scope):
-          ix = 0
           for elifNode in elifBranch.body.stmtList:
-            c.handleInnerNode(elifNode, parent, scope, elifBranch.body.stmtList.len, ix)
+            c.handleInnerNode(elifNode, parent, scope, elifBranch.body.stmtList.len)
           return # condition is truthy
       else:
         discard # handle variables or boolean literals
   if node.elseStmt != nil:
-    ix = 0
     for elseNode in node.elseStmt.stmtList:
-      c.handleInnerNode(elseNode, parent, scope, node.elseStmt.stmtList.len, ix)
+      c.handleInnerNode(elseNode, parent, scope, node.elseStmt.stmtList.len)
 
-proc handleCaseStmt(c: var Compiler, node, parent: Node, scope: ScopeTable) =
+proc handleCaseStmt(c: Compiler, node, parent: Node, scope: ScopeTable) =
   # Compiler handler to evaluate `case` `of` statements
-  var ix = 0
   for caseNode in node.caseCond:
     if c.evalInfix(node.caseIdent, caseNode.caseOf, EQ, scope):
       let len = caseNode.body.stmtList.len
       for caseBody in caseNode.body.stmtList:
-        c.handleInnerNode(caseBody, parent, scope, len, ix)
+        c.handleInnerNode(caseBody, parent, scope, len)
       return
   if node.caseElse != nil:
-    ix = 0
     let len = node.caseElse.stmtList.len
     for caseBody in node.caseElse.stmtList:
-      c.handleInnerNode(caseBody, parent, scope, len, ix)
+      c.handleInnerNode(caseBody, parent, scope, len)

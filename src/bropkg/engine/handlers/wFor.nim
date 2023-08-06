@@ -4,7 +4,7 @@
 #          Made by Humans from OpenPeeps
 #          https://github.com/openpeeps/bro
 
-proc handleForStmt(c: var Compiler, node, parent: Node, scope: ScopeTable) =
+proc handleForStmt(c: Compiler, node, parent: Node, scope: ScopeTable) =
   # Handle `for` statements
   var itemsNode = 
     if node.inItems.nt in {ntArray, ntObject}:
@@ -16,7 +16,6 @@ proc handleForStmt(c: var Compiler, node, parent: Node, scope: ScopeTable) =
       scope[node.inItems.callIdent]
   node.forStorage = ScopeTable()
   node.forStorage[node.forItem.varName] = node.forItem
-  var ix = 1
   case itemsNode.nt:
   of ntVariable:
     # Array or Object iterator via Variable call
@@ -25,21 +24,21 @@ proc handleForStmt(c: var Compiler, node, parent: Node, scope: ScopeTable) =
     for i in 0 .. items.high:
       node.forStorage[node.forItem.varName].varValue = items[i]
       for ii in 0 .. node.forBody.stmtList.high:
-        c.handleInnerNode(node.forBody.stmtList[ii], parent, node.forStorage, len, ix)
+        c.handleInnerNode(node.forBody.stmtList[ii], parent, node.forStorage, len)
   of ntArray:
     # Array iterator
     let len = node.forBody.stmtList.len
     for i in 0 .. itemsNode.arrayItems.high:
       node.forStorage[node.forItem.varName].varValue = itemsNode.arrayItems[i]
       for n in node.forBody.stmtList:
-        c.handleInnerNode(n, parent, node.forStorage, len, ix)
+        c.handleInnerNode(n, parent, node.forStorage, len)
   of ntStream:
     # Write JSON/YAML streams
     let len = node.forBody.stmtList.len
     for item in items(itemsNode.streamContent):
       node.forStorage[node.forItem.varName].varValue = newStream item
       for n in node.forBody.stmtList:
-        c.handleInnerNode(n, parent, node.forStorage, len, ix)
+        c.handleInnerNode(n, parent, node.forStorage, len)
   of ntAccessor:
     var x: Node 
     if itemsNode.accessorType == ntArray:
@@ -48,7 +47,7 @@ proc handleForStmt(c: var Compiler, node, parent: Node, scope: ScopeTable) =
       for i in 0 .. x.arrayItems.high:
         node.forStorage[node.forItem.varName].varValue = x.arrayItems[i]
         for nodeBody in node.forBody.stmtList:
-          c.handleInnerNode(nodeBody, parent, node.forStorage, len, ix)
+          c.handleInnerNode(nodeBody, parent, node.forStorage, len)
       return
     x = walkAccessorStorage(itemsNode.accessorStorage, itemsNode.accessorKey, scope)
     if x.nt == ntObject:
@@ -56,16 +55,16 @@ proc handleForStmt(c: var Compiler, node, parent: Node, scope: ScopeTable) =
       for i, y in x.pairsVal:
         node.forStorage[node.forItem.varName].varValue = y
         for nodeBody in node.forBody.stmtList:
-          c.handleInnerNode(nodeBody, parent, node.forStorage, len, ix)
+          c.handleInnerNode(nodeBody, parent, node.forStorage, len)
     elif x.nt == ntStream:
       # let len = node.forBody.stmtList.len
       # for i, y in x.streamContent:
       #   node.forStorage[node.forItem.varName].varValue = newStream y
       #   for nodeBody in node.forBody.stmtList:
-      #     c.handleInnerNode(nodeBody, parent, node.forStorage, len, ix) 
+      #     c.handleInnerNode(nodeBody, parent, node.forStorage, len) 
       let len = node.forBody.stmtList.len
       for item in items(x.streamContent):
         node.forStorage[node.forItem.varName].varValue = newStream item
         for n in node.forBody.stmtList:
-          c.handleInnerNode(n, parent, node.forStorage, len, ix)     
+          c.handleInnerNode(n, parent, node.forStorage, len)     
   else: discard
