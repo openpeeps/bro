@@ -30,7 +30,7 @@ type
 # forward declaration
 proc write(c: Compiler, node: Node, scope: ScopeTable = nil, data: Node = nil)
 proc getSelectorGroup(c: Compiler, node: Node, scope: ScopeTable = nil, parent: Node = nil): string
-proc handleInnerNode(c: Compiler, node, parent: Node, scope: ScopeTable = nil, length: int)
+proc handleInnerNode(c: Compiler, node, parent: Node, scope: ScopeTable = nil, len: int, ix: var int)
 proc handleCallStack(c: Compiler, node: Node, scope: ScopeTable): Node
 proc getValue(c: Compiler, v: Node, scope: ScopeTable): Node
 
@@ -198,7 +198,7 @@ proc getValue(c: Compiler, vals: seq[Node], scope: ScopeTable): string =
     add strVal, c.toString(c.getValue(v, scope))
   result = strVal.join(" ") # todo make it work with a valid separator (space, colon) 
 
-proc getProperty(c: Compiler, n: Node, k: string, length: int, scope: ScopeTable): string =
+proc getProperty(c: Compiler, n: Node, k: string, len: int, scope: ScopeTable, ix: var int): string =
   # Get pairs of `key`:`value`;
   var
     ii = 1
@@ -213,10 +213,10 @@ proc getProperty(c: Compiler, n: Node, k: string, length: int, scope: ScopeTable
   #     add result, spaces(1)
   #   inc ii
   add result, c.getValue(n.pVal, scope)
-  # if i != length:
-  add result, ";"
+  if ix < len:
+    add result, ";"
   add result, c.strNL # add \n if not minified
-  # inc i
+  inc ix
 
 proc handleExtendAOT(c: Compiler, node: Node, scope: ScopeTable) =
   ## TODO collect scope data
@@ -239,13 +239,14 @@ proc getSelectorGroup(c: Compiler, node: Node,
   # if node.extendFrom.len > 0:
     # when selector extends from
     # c.handleExtendAOT(node, scope)
+  var ix = 1
   if likely(node.innerNodes.len > 0):
     for innerKey, innerNode in node.innerNodes:
-      c.handleInnerNode(innerNode, node, scope, node.innerNodes.len)
+      c.handleInnerNode(innerNode, node, scope, node.innerNodes.len, ix)
   var
     skipped: bool
-    length = node.properties.len
-  if length > 0:
+    len = node.properties.len
+  if len > 0:
     if node.parents.len > 0:
       add result, node.parents.join(" ") & spaces(1) & node.ident
     else:
@@ -279,8 +280,8 @@ proc getSelectorGroup(c: Compiler, node: Node,
         add result, c.toString(c.getValue(idConcat, nil))
       else: discard
     add result, c.strCL # {
-    for propName, propNode in node.properties:
-      add result, c.getProperty(propNode, propName, length, scope)
+    for pName in node.properties.keys:
+      add result, c.getProperty(node.properties[pName], pName, len, scope, ix)
     add result, c.strCR # }
     add result, c.deferred
     setLen c.deferred, 0
@@ -344,24 +345,24 @@ proc handleCallStack(c: Compiler, node: Node, scope: ScopeTable): Node =
   stmtScope = callable.fnBody.stmtScope
   case callable.nt
   of ntFunction:
-    var i = 0
+    var ix = 0
     for pName in callable.fnParams.keys():
-      stmtScope[pName].varValue = node.stackArgs[i]
-      inc i
-    i = 0
+      stmtScope[pName].varValue = node.stackArgs[ix]
+      inc ix
+    ix = 1
     for n in callable.fnBody.stmtList:
       case n.nt
       of ntReturn:
         return c.getValue(n.returnStmt, stmtScope)
-      else: c.handleInnerNode(n, callable, stmtScope, 0)
+      else: c.handleInnerNode(n, callable, stmtScope, 0, ix)
   else: discard
 
 proc handleInnerNode(c: Compiler, node, parent: Node,
-                    scope: ScopeTable = nil, length: int) =
+                    scope: ScopeTable = nil, len: int, ix: var int) =
   case node.nt:
   of ntProperty:
     if parent == nil:
-      add c.deferredProps, c.getProperty(node, node.pName, length, scope)
+      add c.deferredProps, c.getProperty(node, node.pName, len, scope, ix)
     else:
       parent.properties[node.pName] = node
   of ntClassSelector, ntTagSelector, ntIDSelector, ntRoot:
@@ -380,7 +381,7 @@ proc handleInnerNode(c: Compiler, node, parent: Node,
     c.handleCaseStmt(node, parent, scope)
   of ntExtend:
     for eKey, eProp in node.extendProps:
-      add c.css, c.getProperty(eProp, eKey, node.extendProps.len, scope)
+      add c.css, c.getProperty(eProp, eKey, node.extendProps.len, scope, ix)
   of ntImport:
     c.handleImportStmt(node, scope)
   of ntCommand:
