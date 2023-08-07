@@ -18,6 +18,7 @@ proc parseVarDef(p: var Parser, scope: var seq[ScopeTable]): Node =
       errorWithArgs(immutableReassign, p.curr, [p.curr.value])
     else:
       scopedVar.varOverwrite = true
+      p.mVar.delete(hash(scopedVar.varName & $(currentScope.index)))
       walk p
     return scopedVar
   if p.curr.kind == tkVarDef:
@@ -27,24 +28,28 @@ proc parseVarDef(p: var Parser, scope: var seq[ScopeTable]): Node =
   walk p # $ident
 
 newPrefixProc "parseRegularAssignment":
-  result = p.parseVarDef(scope)
-  if likely(result != nil):
+  var varDef = p.parseVarDef(scope)
+  if likely(varDef != nil):
     let
       tk = p.curr
       varValue = p.getPrefixOrInfix(scope = scope)
     if likely(varValue != nil):
-      if likely(result.varOverwrite):
+      if unlikely(varDef.varOverwrite):
         let
-          varInitType = result.varValue.getNodeType()
+          varInitType = varDef.varValue.getNodeType()
           varReassignType = varValue.getNodeType
         if unlikely(varInitType != varReassignType):
-          errorWithArgs(fnMismatchParam, tk, [result.varName, $(varReassignType), $(varInitType)]) 
-        if likely(not result.varRef):
-          result = deepCopy(result)
+          errorWithArgs(fnMismatchParam, tk, [varDef.varName, $(varReassignType), $(varInitType)]) 
+        if likely(varDef.varRef == false):
+          result = deepCopy(varDef)
+        else:
+          result = varDef
+      else:
+        result = varDef
       result.varValue = varValue
       result.varType = varValue.getNodeType()
       return # result
-  return nil
+    return varDef
 
 newPrefixProc "parseStreamAssignment":
   # parse JSON/YAML from external sources

@@ -4,10 +4,10 @@
 #          Made by Humans from OpenPeeps
 #          https://github.com/openpeeps/bro
 
-import ./ast
-import std/[hashes]
-
+import std/hashes
 export hashes
+
+import ./ast
 
 type
   MCall* = CritBitTree[Node] # ntCall
@@ -31,7 +31,7 @@ proc memoize*(memo: var CritBitTree, ident: Hash, node: Node) =
     else: discard
   memo[$(ident)] = node
 
-proc delete*(memo: CritBitTree, ident: Hash) =
+proc delete*(memo: var CritBitTree, ident: Hash) =
   ## Delete hashed `ident` from `memo`.
   ## If the `ident` does not exists, nothing happens.
   memo.excl($(ident))
