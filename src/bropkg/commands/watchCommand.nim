@@ -4,21 +4,31 @@
 #          Made by Humans from OpenPeeps
 #          https://github.com/openpeeps/bro
 
-import pkg/[watchout, httpx, websocketx]
+import pkg/[watchout, httpx, websocketx, checksums/md5]
 import pkg/kapsis/[runtime, cli]
 import std/[times, os, strutils, net, osproc,
           options, asyncdispatch, htmlgen]
 
+from ../engine/parser import getCachePath
+
 var hasOutput: bool
 
-proc parseStylesheet(path, outpath: string) =
+proc parseStylesheet(path, outpath, mainPath: string, isMain: bool) =
   display("✨ Changes detected")
   display(path, indent = 2, br="after")
-  if path.getFileSize > 0:
-    let broCommand = execCmdEx("bro " & path & " " & outpath & " --cache")
-    display(broCommand.output)
+  if isMain:
+    if path.getFileSize > 0:
+      let broCommand = execCmdEx("bro " & path & " " & outpath & " --cache")
+      display(broCommand.output)
+    else:
+      display("Stylesheet is empty")
   else:
-    display("Stylesheet is empty")
+    let bast = execCmdEx("bro ast " & path & " " & getCachePath(path.parentDir, path))
+    if bast.exitCode != 0:
+      display(bast.output)
+    else:
+      let broCommand = execCmdEx("bro " & mainPath & " " & outpath & " --cache")
+      display(broCommand.output)
 
 proc runCommand*(v: Values) =
   var stylesheetPath: string
@@ -57,9 +67,11 @@ proc runCommand*(v: Values) =
     display("🪄 CSS Reload & Browser Sync: http://localhost:9009", br="after")
   else:
     display("✨ Watching for changes...", br="after")
-  var watchMain = @[stylesheetPath] # only main stylsheet
+
+  var watchMain = @[stylesheetPath.parentDir() / "*.bass"] # only main stylsheet
   proc watchoutCallback(file: watchout.File) {.closure.} =
-    parseStylesheet(file.getPath, cssPath)
+    parseStylesheet(file.getPath, cssPath, stylesheetPath, file.getPath == stylesheetPath)
+  
   let broCommand = execCmdEx("bro " & stylesheetPath & " " & cssPath & " --cache")
   display(broCommand.output)
   if broCommand.exitCode != 0: QuitFailure.quit
