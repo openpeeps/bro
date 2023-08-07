@@ -143,6 +143,41 @@ handlers:
     else:
       lex.kind = kind
 
+  proc customIntHandler(lex: var Lexer, kind: TokenKind) =
+    # Handle integers and float numbers
+    setLen(lex.token, 0)
+    lex.startPos = lex.getColNumber(lex.bufpos)
+    var toString, toFloat: bool
+    while true:
+      case lex.buf[lex.bufpos]
+      of '0'..'9':
+        add lex.token, lex.buf[lex.bufpos]
+        inc lex.bufpos
+      # of 'a'..'z', 'A'..'Z', '_', '-':
+      #   toString = true
+      #   add lex.token, lex.buf[lex.bufpos]
+      #   inc lex.bufpos
+      of '.':
+        if toFloat: break
+        try:
+          if lex.buf[lex.bufpos + 1] in {'0'..'9'}:
+            toFloat = true
+          else:
+            lex.kind = tkInteger
+            break
+        except IndexDefect:
+          toString = true
+        add lex.token, lex.buf[lex.bufpos]
+        inc lex.bufpos
+      else:
+        if toFloat:
+          lex.kind = tkFloat
+        elif toString:
+          lex.kind = tkString
+        else:
+          lex.kind = tkInteger
+        break
+
 const lexerSettings* =
   Settings(
     tkPrefix: "tk",
@@ -156,6 +191,7 @@ const lexerSettings* =
   )
 
 registerTokens lexerSettings:
+  ints = tokenize(customIntHandler, '0'..'9')
   `case` = "case"
   `of` = "of"
   andLit = "and"

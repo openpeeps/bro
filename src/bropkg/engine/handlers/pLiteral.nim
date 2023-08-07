@@ -12,8 +12,9 @@ newPrefixProc "parseString":
 newPrefixProc "parseInt":
   # parse integers
   if p.next.kind in tkUnits:
-    walk p
-    return newSize(parseInt(p.prev.value), toUnits(p.curr.kind))
+    let size = p.curr.value.parseInt
+    walk p, 2
+    return newSize(newInt(size), toUnits(p.prev.kind))
   result = newInt(p.curr.value)
   walk p
 

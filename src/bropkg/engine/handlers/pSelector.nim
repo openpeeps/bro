@@ -35,7 +35,8 @@ proc parseSelector(p: var Parser, node: Node, tk: TokenTuple, scope: var seq[Sco
   p.parseMultiSelector(node)
   p.parseSelectorStmt((tk, node), scope = scope, excludeOnly = {tkImport, tkFnDef})
   if unlikely(node.properties.len == 0 and node.innerNodes.len == 0):
-    warnWithArgs(declaredEmptySelector, tk, [node.ident])
+    if not node.extends:
+      warnWithArgs(declaredEmptySelector, tk, [node.ident])
   result = node
 
 newPrefixProc "parseUniversalSelector":
@@ -119,8 +120,9 @@ newPrefixProc "parseProperty":
           result.pVal.add(newString(p.curr.value))
           walk p
         of tkInteger:
-          result.pVal.add(newInt(p.curr.value))
-          walk p
+          add result.pVal, p.parseInt(scope)
+          # result.pVal.add(newInt(p.curr.value))
+          # walk p
         of tkFloat:
           result.pVal.add(newFloat(p.curr.value))
           walk p

@@ -133,6 +133,11 @@ proc toString(c: Compiler, v: Node, scope: ScopeTable = nil): string =
       of ntString: v.sVal
       of ntFloat:  $(v.fVal)
       of ntInt:    $(v.iVal)
+      of ntSize:
+        case v.sizeVal.nt
+        of ntInt:   $(v.sizeVal.iVal) & $(v.sizeUnit)
+        of ntFloat: $(v.sizeVal.fVal) & $(v.sizeUnit)
+        else: "" # todo support for callables
       of ntBool:   $(v.bVal)
       of ntColor:  $(v.cVal)
       of ntArray:     jsony.toJson(v.arrayItems)
