@@ -6,20 +6,25 @@
 
 const broCachePath = getCacheDir("bro-lang")
 
-proc hashast(path: string): string = getMD5(path) & ".ast"
 
 when compileOption("app", "console"):
-  proc cache(path: string, stylesheet: Stylesheet) =
+  proc hashast(path: string): string = getMD5(path) & ".ast"
+  proc getCachePath*(d, f: string): string =
+    broCachePath / getMD5(d) / hashast(f)
+  
+  proc cache(path, dirPath: string, stylesheet: Stylesheet) =
+    let projectDirPath = getMD5(dirPath)
     discard existsOrCreateDir(broCachePath)
-    writeFile(broCachePath / hashast(path), toFlatty(stylesheet).compress)
+    discard existsOrCreateDir(broCachePath / projectDirPath)
+    writeFile(getCachePath(dirPath, path), toFlatty(stylesheet).compress)
 
-  proc cached(path: string): Stylesheet =
-    let ast = readFile(broCachePath / hashast(path))
+  proc cached(path, dirPath: string): Stylesheet =
+    let ast = readFile(broCachePath / getMD5(dirPath) / hashast(path))
     ast.uncompress().fromFlatty(Stylesheet)
 
-  proc cacheRefresh*(p: var Parser, path: string): bool =
+  proc cacheRefresh*(p: var Parser, path, dirPath: string): bool =
     if not p.cacheEnabled: return true # returning true will ignore caching
-    let cachedPath = broCachePath / hashast(path)
+    let cachedPath = getCachePath(dirPath, path)
     if fileExists(cachedPath):
       return path.getLastModificationTime > cachedPath.getLastModificationTime
     result = true
@@ -29,9 +34,9 @@ when compileOption("app", "console"):
 
 newPrefixProc "parseImport":
   # Parse a new `@import x` statement.
-  template inThread(handle: proc(th: (string, Stylesheets)) {.thread, nimcall, gcsafe.}) =
-    var thr: Thread[(string, Stylesheets)]
-    createThread(thr, handle, (fpath, p.stylesheets))
+  template inThread(handle: proc(th: (string, Stylesheets, string)) {.thread, nimcall, gcsafe.}) =
+    var thr: Thread[(string, Stylesheets, string)]
+    createThread(thr, handle, (fpath, p.stylesheets, p.dirPath))
     joinThread(thr) # wait for it
 
   result = newImport()
@@ -49,7 +54,8 @@ newPrefixProc "parseImport":
       if module.endsWith(".css"):
         handler = importModuleCSS
       else:
-        add fpath, ".bass"
+        if not fpath.endsWith(".bass"):
+          add fpath, ".bass"
         handler = importModule
       if fileExists(fpath):
         if likely(p.imports.hasKey(fpath) == false):
@@ -57,33 +63,33 @@ newPrefixProc "parseImport":
           p.imports[fpath] = result
           # tokenize & parse imported module in a separate thread
           when compileOption("app", "console"):
-            if p.cacheRefresh(fpath):
+            if p.cacheRefresh(fpath, p.dirPath):
               inThread(handler)
               var hasErrors: bool
               p.stylesheets.withValue(fpath):
                 if value[] != nil:
                   let stylesheet: Stylesheet = value[]
-                  add result.modules, (fpath, stylesheet)
+                  # add result.modules, (fpath, stylesheet)
+                  add result.modules, fpath
                   if p.cacheEnabled:
-                    cache(fpath, stylesheet)
+                    cache(fpath, p.dirPath, stylesheet)
                 else: hasErrors = true
               if hasErrors: return nil
             else:
-              let stylesheet: Stylesheet = fpath.cached()
-              add result.modules, (fpath, stylesheet)
+              p.stylesheets[fpath] = fpath.cached(p.dirPath)
+              add result.modules, fpath
           else:
             inThread(handler)
             var hasErrors: bool
             p.stylesheets.withValue(fpath):
               if value[] != nil:
                 let stylesheet: Stylesheet = value[]
-                add result.modules, (fpath, stylesheet)
+                # add result.modules, (fpath, stylesheet)
+                add result.modules, fpath
               else: hasErrors = true
             if hasErrors: return nil
-        else:
-          errorWithArgs(importDuplicateModule, p.curr, [module])
-      else:
-        errorWithArgs(importModuleNotFound, p.curr, [module])
+        else: errorWithArgs(importDuplicateModule, p.curr, [module])
+      else: errorWithArgs(importModuleNotFound, p.curr, [module])
   walk p
 
 proc parseImportFrom(p: var Parser, scope: ScopeTable = nil, excludeOnly, includeOnly: set[TokenKind] = {}): Node =
