@@ -22,7 +22,7 @@ requires "nyml"
 requires "denim"
 requires "chroma#head"
 requires "pkginfo"
-requires "stashtable"
+requires "https://github.com/georgelemon/StashTable#fix-stash-error" # stashtable
 requires "httpx", "websocketx"
 requires "flatty", "supersnappy"
 
