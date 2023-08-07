@@ -24,6 +24,12 @@ proc runCommand*(v: Values) =
     display("Stylesheet is empty")
     QuitFailure.quit
 
+  var outputPath = 
+    if v.has("output"):
+      v.get("output").absolutePath()
+    else:
+      stylesheetPath.changeFileExt("ast")
+
   display("✨ Building AST...", br="after")
   let
     t = cpuTime()
@@ -44,6 +50,6 @@ proc runCommand*(v: Values) =
           span(stylesheetPath),
           span("($1:$2)\n" % [$warning.line, $warning.col]),
         )
-    writeFile(stylesheetPath.changeFileExt("ast"), toFlatty(p.getStylesheet).compress())
+    writeFile(outputPath, toFlatty(p.getStylesheet).compress())
     display "Done in " & $(cpuTime() - t)
     QuitSuccess.quit
