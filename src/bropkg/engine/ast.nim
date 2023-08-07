@@ -45,6 +45,7 @@ type
     ntAccQuoted
     ntCall
     ntCallStack
+    ntCallRec
     ntInfix
     ntImport
     ntPreview
@@ -180,7 +181,7 @@ type
       accVal*: string
       accVars*: seq[Node] # seq[ntVariable]
     of ntSize:
-      sizeVal*: int
+      sizeVal*: Node # Node of `ntInt` / `ntFloat`
       sizeUnit*: Units
       sizeType*: LengthType
     of ntStream:
@@ -196,6 +197,8 @@ type
       stackType*: NodeType
       stackReturnType*: NodeType
       stackArgs*: seq[Node]
+    of ntCallRec:
+      recursiveCall*: Node # ntCallStack
     of ntInfix:
       infixOp*: InfixOp
       infixLeft*, infixRight*: Node
@@ -520,11 +523,12 @@ proc newColor*(cVal: string): Node =
   ## Create a new ntColor node
   result = Node(nt: ntColor, cVal: cVal) 
 
-proc newSize*(size: int, unit: Units): Node =
+proc newSize*(size: Node, unit: Units): Node =
+  assert size.nt in {ntInt, ntFloat}
   let lt = case unit:
             of EM, EX, CH, REM, VW, VH, VMIN, VMAX, PSIZE: ltRelative
             else: ltAbsolute
-  result = Node(nt: ntSize, sizeVal: size, sizeType: lt)
+  result = Node(nt: ntSize, sizeVal: size, sizeType: lt, sizeUnit: unit)
 
 proc newInfo*(node: Node): Node = Node(nt: ntInfo, nodeType: node.getNodeType)
 
@@ -731,7 +735,6 @@ proc newTag*(name: string, properties = KeyValueTable(), concat: seq[Node] = @[]
 proc newPseudoClass*(name: string, properties = KeyValueTable(), concat: seq[Node] = @[]): Node =
   ## Create a new `ntPseudoSelector` node
   Node(nt: ntPseudoSelector, ident: name, properties: properties, identConcat: concat)
-
 
 proc newVariable*(style: Stylesheet, name: string, value: Node) =
   ## Create a new variable node
