@@ -365,7 +365,7 @@ proc handleInnerNode(c: Compiler, node, parent: Node,
       add c.deferredProps, c.getProperty(node, node.pName, len, scope, ix)
     else:
       parent.properties[node.pName] = node
-  of ntClassSelector, ntTagSelector, ntIDSelector, ntRoot:
+  of ntClassSelector, ntTagSelector, ntIDSelector, ntRoot, ntUniversalSelector:
     if parent == nil:
       add c.css, c.getSelectorGroup(node, scope)
     else:
@@ -397,7 +397,7 @@ proc handleInnerNode(c: Compiler, node, parent: Node,
 
 proc write(c: Compiler, node: Node, scope: ScopeTable = nil, data: Node = nil) =
   case node.nt:
-  of ntClassSelector, ntTagSelector, ntIDSelector, ntRoot:
+  of ntClassSelector, ntTagSelector, ntIDSelector, ntRoot, ntUniversalSelector:
     add c.css, c.getSelectorGroup(node, scope)
     if unlikely(node.pseudo.len > 0):
       for k, pseudoNode in node.pseudo:

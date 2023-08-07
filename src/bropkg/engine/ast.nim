@@ -22,7 +22,7 @@ type
     ntRoot
     ntProperty
     ntVariable = "variable"
-    ntUniversalSelector
+    ntUniversalSelector = "*"
     ntAttrSelector
     ntClassSelector = "class"
     ntPseudoSelector
@@ -228,7 +228,8 @@ type
       forItem*, inItems*: Node
       forBody*: Node # ntStmtList
       forStorage*: ScopeTable
-    of ntTagSelector, ntClassSelector, ntPseudoSelector, ntIDSelector:
+    of ntTagSelector, ntClassSelector, ntPseudoSelector,
+        ntIDSelector, ntUniversalSelector:
       ident*: string
       parents*: seq[string]
       multipleSelectors*: seq[string]
@@ -624,6 +625,8 @@ proc newTag*(tk: TokenTuple, properties = KeyValueTable(),
   ## Create a new ntTag node
   Node(nt: ntTagSelector, ident: tk.prefixed,
     properties: properties, identConcat: concat)
+
+proc newUniversalSelector*: Node = Node(nt: ntUniversalSelector, ident: $ntUniversalSelector)
 
 proc newClass*(tk: TokenTuple, properties = KeyValueTable(),
             concat: seq[Node] = @[]): Node =
