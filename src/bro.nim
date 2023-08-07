@@ -55,7 +55,7 @@ else:
         $ "map" `style`:
           ? "Generates a source map"
         
-        $ "ast" `style`:
+        $ "ast" `style` `output`:
           ? "Generates binary AST"
         
         $ "repr" `ast` ["min"]:

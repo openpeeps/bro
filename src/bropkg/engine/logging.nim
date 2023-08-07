@@ -69,6 +69,8 @@ type
     fnOverload = "Attempt to redefine function $"
     fnAnoExport = "Anonymous functions cannot be exported"
 
+    suggestLabel = "Did you mean?"
+
     InvalidContext = "Invalid $ in this context"
     InvalidSyntaxLoopStmt = "Invalid syntax for loop statement"
     ConfigLoadingError = "Could not open json config file"

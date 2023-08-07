@@ -6,8 +6,7 @@
 
 {.warning[ImplicitDefaultValue]:off.}
 
-import pkg/[stashtable, jsony, flatty, flatty/hexprint,
-           supersnappy, checksums/md5]
+import pkg/[stashtable, flatty, supersnappy, checksums/md5]
 import std/[os, strutils, sequtils, sequtils,
             tables, json, memfiles, times, oids,
             macros]
@@ -510,8 +509,17 @@ proc parseStatement(p: var Parser, parent: (TokenTuple, Node), scope: var seq[Sc
 proc parseSelectorStmt(p: var Parser, parent: (TokenTuple, Node),
         scope: var seq[ScopeTable], excludeOnly, includeOnly: set[TokenKind] = {},
         returnType = ntVoid, isFunctionWrap = false) =
+  var cssCodingStyle: bool
+  if unlikely(p.curr is tkLC):
+    cssCodingStyle = true
+    walk p
   if p.curr isnot tkEOF:
-    while p.curr.kind != tkEOF and (p.curr.line > parent[0].line and p.curr.pos > parent[0].pos):
+    template stmtStyle(): untyped = 
+      if likely(cssCodingStyle == false):
+        (p.curr.line > parent[0].line and p.curr.pos > parent[0].pos)
+      else:
+        (p.curr.kind != tkRC)
+    while p.curr.kind != tkEOF and stmtStyle:
       let curr = p.curr
       let node = p.parsePrefix(excludeOnly, includeOnly, scope, returnType, isFunctionWrap)
       if likely(node != nil):
@@ -543,6 +551,10 @@ proc parseSelectorStmt(p: var Parser, parent: (TokenTuple, Node),
         else: errorWithArgs(unexpectedToken, curr, [curr.value])
       else: return
     p.lastParent = nil
+  if unlikely(cssCodingStyle): # meh
+    if likely(p.curr is tkRC):
+      walk p
+    else: error(missingRC, parent[0]) # bruh
 
 #
 # Prefix Statements
@@ -616,6 +628,8 @@ proc parseRoot(p: var Parser, scope: var seq[ScopeTable], excludeOnly, includeOn
       if p.next.kind == tkLPAR and p.next.line == p.curr.line:
         p.parseCallFnCommand(scope, excludeOnly, includeOnly)
       else: p.parseSelectorTag(scope, excludeOnly, includeOnly)
+    of tkMultiply:
+      p.parseUniversalSelector(scope, excludeOnly, includeOnly)
     else: nil
   if result == nil and not p.hasErrors:
     let tk = if p.curr isnot tkEOF: p.curr else: p.prev

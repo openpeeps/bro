@@ -38,27 +38,32 @@ proc parseSelector(p: var Parser, node: Node, tk: TokenTuple, scope: var seq[Sco
     warnWithArgs(declaredEmptySelector, tk, [node.ident])
   result = node
 
+newPrefixProc "parseUniversalSelector":
+  let tk = p.curr
+  var node = newUniversalSelector()
+  p.currentSelector = node
+  result = p.parseSelector(node, tk, scope, true)
+
 template handleSelectorConcat(parseWithConcat, parseWithoutConcat: untyped) {.dirty.} =
-  if unlikely(p.next is tkVarConcat and p.next.line == tk.line):
-    # handle selector name declaration
-    # prefixed/suffixed by var concat
+  if p.next is tkLC and p.next.line == tk.line and p.next.wsno == 0:
     walk p
-    while p.curr.line == tk.line:
+    while p.curr.line == tk.line and p.curr.wsno == 0:
       case p.curr.kind
-      of tkVarConcat:
-        let concatVarCall = p.parseCallCommand(scope)
-        if concatVarCall != nil:
-          concatNodes.add(concatVarCall)
-        else: return # UndeclaredVariable
-      of tkIdentifier:
-        concatNodes.add(newString(p.curr.value))
+      of tkLC:
         walk p
+        while p.curr isnot tkRC:
+          if unlikely(p.curr is tkEOF): return nil # EOF error
+          let prefixInfixNode = p.getPrefixOrInfix(scope, includeOnly = {tkInteger, tkBool, tkString, tkVarCall})
+          if likely(prefixInfixNode != nil):
+            case prefixInfixNode.nt
+            of ntInt, ntBool, ntCall, ntInfix, ntMathStmt:
+              concatNodes.add(prefixInfixNode)
+            else: discard
+          else: return nil
       of tkRC:
         walk p
-      of tkMinus:
-        walk p # todo selector separators
-      else:
         break
+      else: break # should return error?
     parseWithConcat
   else:
     parseWithoutConcat
@@ -140,10 +145,12 @@ newPrefixProc "parseProperty":
             result.pVal.add(varCallNode)
             use(varCallNode)
         else: break
+    if unlikely(p.curr is tkSemiColon):
+      walk p
     return result
   let suggest = toSeq(p.propsTable.itemsWithPrefix(p.curr.value))
   if suggest.len > 0:
-    error(invalidProperty, p.curr, true, suggest,
-          "Did you mean?", p.curr.value)
+    error(invalidProperty, p.curr, true, suggest, $suggestLabel, p.curr.value)
   else:
-    errorWithArgs(invalidProperty, p.curr, [p.curr.value])
+    if unlikely(p.next is tkColon):
+      errorWithArgs(invalidProperty, p.curr, [p.curr.value])

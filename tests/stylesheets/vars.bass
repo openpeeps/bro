@@ -1,0 +1,12 @@
+$a = 5px
+$b = 10px
+$c = true
+$d = 10
+$e = 1.0
+
+echo $a > $b
+echo $a == 5px
+echo $b == 10px
+
+$MAX_WIDTH = 1240px // immutable
+echo $MAX_WIDTH

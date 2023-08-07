@@ -5,7 +5,7 @@
 #          https://github.com/openpeeps/bro
 
 import ./ast
-import std/[hashes, jsonutils, json]
+import std/[hashes]
 
 export hashes
 

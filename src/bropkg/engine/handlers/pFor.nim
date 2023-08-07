@@ -28,7 +28,7 @@ newPrefixProc "parseFor":
         let forScope = ScopeTable()
         forScope[itemNode.varName] = itemNode
         scope.add(forScope)
-        # parse for statement
+        # parse body
         result.forBody = p.parseStatement((tk, result), scope, excludeOnly, includeOnly, skipInitScope = true)
         if likely(result.forBody != nil):
           result.forBody.cleanup(itemNode.varName)

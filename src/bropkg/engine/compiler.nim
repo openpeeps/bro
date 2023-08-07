@@ -155,6 +155,12 @@ proc toString(c: Compiler, v: Node, scope: ScopeTable = nil): string =
         v.accVal.multiReplace(accValues)
       of ntStream:
         toString(v.streamContent)
+      of ntMathStmt:
+        let total = c.evalMathInfix(v.mathLeft, v.mathRight, v.mathInfixOp, scope)
+        if total.nt == ntInt:
+          $(v.iVal)
+        else: # a float number
+          $(v.fVal)
       else: ""
 
 proc getValue(c: Compiler, v: Node, scope: ScopeTable): Node =
@@ -218,27 +224,12 @@ proc getProperty(c: Compiler, n: Node, k: string, len: int, scope: ScopeTable, i
   add result, c.strNL # add \n if not minified
   inc ix
 
-proc handleExtendAOT(c: Compiler, node: Node, scope: ScopeTable) =
-  ## TODO collect scope data
-  for child in node.extendFrom:
-    for aot in c.program.selectors[child].aotStmts:
-      case aot.nt:
-      of ntInfix:
-        if not c.evalInfix(aot.infixLeft, aot.infixRight, aot.infixOp, scope):
-          node.extendFrom.delete(node.extendFrom.find(child))
-      of ntForStmt:
-        discard # todo
-      else: discard
-
 # Writers
 include ./handlers/[wCond, wFor]
 
 proc getSelectorGroup(c: Compiler, node: Node,
                   scope: ScopeTable = nil, parent: Node = nil): string =
   # Write CSS selectors and properties
-  # if node.extendFrom.len > 0:
-    # when selector extends from
-    # c.handleExtendAOT(node, scope)
   var ix = 1
   if likely(node.innerNodes.len > 0):
     for innerKey, innerNode in node.innerNodes:
@@ -276,6 +267,8 @@ proc getSelectorGroup(c: Compiler, node: Node,
           else:
             idConcat.callNode.varValue = varValue
             add result, c.toString(c.getValue(idConcat, nil))
+      of ntMathStmt:
+        add result, c.toString(c.getValue(idConcat, nil))
       of ntString, ntInt, ntFloat, ntBool:
         add result, c.toString(c.getValue(idConcat, nil))
       else: discard

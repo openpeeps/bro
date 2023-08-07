@@ -67,20 +67,6 @@ handlers:
     else:
       lex.kind = tkVarCall
 
-  proc handleCurlyVar(lex: var Lexer, kind: TokenKind) =
-    lexReady lex
-    inc lex
-    if current(lex) == '$':
-      lex.handleVariable(kind)
-      if current(lex) == '}':
-        inc lex
-        lex.kind = tkVarConcat
-      else:
-        lex.setError("Missing closing curly bracket")
-    else:
-      lex.kind = tkLC
-      lex.token = "{"
-
   proc handleExclamation(lex: var Lexer, kind: TokenKind) =
     lexReady lex
     inc lex
@@ -176,6 +162,7 @@ registerTokens lexerSettings:
   orLit = "or"
   `bool` = ["true", "false"]
   colon = ':'
+  semiColon = ';'
   comma = ','
   `and` = '&':
     andAnd = '&'
@@ -202,7 +189,7 @@ registerTokens lexerSettings:
   lb = '['
   rb = ']'
   # lc = '{'
-  lc
+  lc = '{'
   rc = '}'
   
   mm = "mm"
@@ -223,7 +210,6 @@ registerTokens lexerSettings:
 
   # excRule = tokenize(handleExclamation, '!')
   hash = tokenize(handleHash, '#')
-  varConcat = tokenize(handleCurlyVar, '{')
   varSymbol # $
   varDef = tokenize(handleVariable, '$')
   varDefRef

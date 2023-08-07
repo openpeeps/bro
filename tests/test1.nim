@@ -4,7 +4,13 @@ import bro
 proc getPath(append: string): string =
   result = getCurrentDir() / "tests/stylesheets" / append & ".bass"
 
-var paths = ["basic", "invalid", "for", "forjson", "case", "unused"]
+var paths = ["basic", "invalid", "for", "forjson", "case", "unused", "vars"]
+
+test "var declarations":
+  var p = parseStylesheet(paths[6].getPath)
+  check p.hasErrors == false
+  var c = newCompiler(p.getStylesheet)
+  echo c.getCSS
 
 test "can parse":
   var p = parseStylesheet(paths[0].getPath())
@@ -24,7 +30,7 @@ test "can compile":
   # minified
   c = newCompiler(p.getStylesheet, minify = true)
   check c.getCSS.count("\n") == 0
-  check c.getCSS == ".btn{border:2px #FFF solid;}"
+  check c.getCSS == ".btn{border:2px #FFF solid}"
 
 test "can catch errors":
   var p = parseStylesheet(paths[1].getPath)
