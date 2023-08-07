@@ -11,7 +11,7 @@ import std/[os, strutils, sequtils, sequtils,
             tables, json, memfiles, times, oids,
             macros]
 
-import ./tokens, ./ast, ./css, ./memoization,
+import ./tokens, ./ast, ./memoization,
        ./logging, ./stdlib, ./properties
 
 when compileOption("app", "console"):
@@ -161,7 +161,6 @@ proc parseCallFnCommand(p: var Parser, scope: var seq[ScopeTable],
 
 proc getPrefixOrInfix(p: var Parser, scope: var seq[ScopeTable], includeOnly, excludeOnly: set[TokenKind] = {}): Node
 proc importModule(th: (string, Stylesheets, string)) {.thread.}
-proc importModuleCSS(th: (string, Stylesheets, string)) {.thread.}
 proc parseVarCall(p: var Parser, tk: TokenTuple, varName: string, scope: var seq[ScopeTable]): Node
 
 #
@@ -680,16 +679,6 @@ proc importModule(th: (string, Stylesheets, string)) {.thread.} =
       value[] = subParser.getStylesheet
     # if subParser.stylesheets.len > 0:
     discard th[1].addAll(subParser.stylesheets, false)
-
-proc importModuleCSS(th: (string, Stylesheets, string)) {.thread.} =
-  {.gcsafe.}:
-    let cssParser = parseCSS(readFile(th[0]))
-    if not cssParser.status:
-      display(cssParser.msg)
-      display(" 👉 " & th[0])
-      return
-    th[1].withValue(th[0]):
-      value[] = cssParser.stylesheet
 
 proc parseStylesheet*(src: string, enableCache = false): Parser =
   var p = Parser()

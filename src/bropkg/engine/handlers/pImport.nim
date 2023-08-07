@@ -52,7 +52,7 @@ newPrefixProc "parseImport":
         handler: ImportHandler
         fpath = absolutePath(module)
       if module.endsWith(".css"):
-        handler = importModuleCSS
+        handler = importModule
       else:
         if not fpath.endsWith(".bass"):
           add fpath, ".bass"
