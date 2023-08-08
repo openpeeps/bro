@@ -1,6 +1,6 @@
 <p align="center">
   <img src="https://github.com/openpeeps/bro/blob/main/.github/bro.png" alt="Bro aka NimSass" width="170px"><br>
-  😋 Bro aka NimSass ⚡ A super fast stylesheet language for cool kids!<br>👑 Written in Nim language
+  😋 Bro ⚡ A super fast stylesheet language for cool kids!<br>👑 Written in Nim language
 </p>
 
 <p align="center">
@@ -31,6 +31,7 @@
 - 😋 **Made for Cool Kids**
 
 > __Warning__ Bro is still under development. Expect bugs and incomplete features.
+
 > __Notice__ Since Bro is written in native code, anti-virus software can sometimes incorrectly flag it as a virus
 
 ## Bro CLI
