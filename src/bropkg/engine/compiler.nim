@@ -25,6 +25,8 @@ type
     when compileOption("app", "console"):
       logger*: Logger
 
+  BroAssert* = object of CatchableError
+
 # var strNL, strCL, strCR: string
 
 # forward declaration
@@ -295,7 +297,7 @@ proc handleImportStmt(c: Compiler, node: Node, scope: ScopeTable) =
       c.stylesheets.withValue(fpath):
         for node in value[].nodes:
           c.write(node, scope)
-
+        
 proc handleCommand(c: Compiler, node: Node, scope: ScopeTable = nil) =
   case node.cmdIdent
   of cmdEcho:
@@ -316,7 +318,7 @@ proc handleCommand(c: Compiler, node: Node, scope: ScopeTable = nil) =
           of ntFloat: $(total.fVal)
           of ntSize:  sizeToString(total)
           else: ""
-      stdout.styledWriteLine(fgGreen, "Debug", fgDefault, meta, fgDefault, mNode.getTypeInfo & "\n" & $(output))
+      stdout.styledWriteLine(fgGreen, "Debug", fgDefault, meta, fgDefault, mNode.getTypeInfo & "\n" & $(output))    
     # of ntInfo:
       # stdout.styledWriteLine(fgGreen, "Debug", fgDefault, meta, fgMagenta,
                             # "[[" & $(node.cmdValue.nodeType) & "]]")
@@ -335,6 +337,13 @@ proc handleCommand(c: Compiler, node: Node, scope: ScopeTable = nil) =
           output = c.toString(varValue)
         stdout.styledWriteLine(fgGreen, "Debug", fgDefault, meta, fgMagenta,
                           getTypeInfo(node.cmdValue) & "\n", fgDefault, output)
+  of cmdAssert:
+    case node.cmdValue.nt:
+    of ntInfix:
+      let output = c.evalInfix(node.cmdValue.infixLeft, node.cmdValue.infixRight, node.cmdValue.infixOp, scope)
+      if not output:
+        raise newException(BroAssert, "($1:$2) Assertion failed" % [$(node.cmdMeta.line), $(node.cmdMeta.pos)])
+    else: discard
 
 proc handleCallStack(c: Compiler, node: Node, scope: ScopeTable): Node =
   var

@@ -18,6 +18,7 @@ newPrefixProc "parseReturnCommand":
       result = newReturn(node)
 
 proc parseAccessor(p: var Parser, varNode: Node, scope: var seq[ScopeTable], tk: TokenTuple): Node =
+  # Parse accessor storage. $[0][1]["x"][$y]
   while p.curr is tkLB and p.curr.line == tk.line:
     if result == nil:
       case p.next.kind
@@ -31,8 +32,8 @@ proc parseAccessor(p: var Parser, varNode: Node, scope: var seq[ScopeTable], tk:
         walk p
         if p.isFnCall():
           echo "todo"
-        else: return nil
-      else: return nil # error
+        else: return
+      else: return # error
     else:
       case p.next.kind
       of tkInteger:
@@ -49,7 +50,7 @@ proc parseAccessor(p: var Parser, varNode: Node, scope: var seq[ScopeTable], tk:
       else: return nil # error
 
 proc parseVarCall(p: var Parser, tk: TokenTuple, varName: string, scope: var seq[ScopeTable]): Node =
-  # Parse a variable call. This handler can parse basic calls 
+  # Parse a variable call 
   let
     varName = if likely(varName.len == 0): p.curr.value else: varName
     currentScope = p.getScope(varName, scope)
@@ -78,7 +79,7 @@ newPrefixProc "parseCallCommand":
   p.parseVarCall(p.curr, "", scope)
 
 newPrefixProc "parseEchoCommand":
-  # Parse an `echo` command. Echo can print literals, functions and infix operations
+  # Parse a new `echo` command
   let tk = p.curr
   walk p
   if p.curr.kind == tkIdentifier and p.next isnot tkLPAR:
@@ -96,3 +97,12 @@ newPrefixProc "parseEchoCommand":
         errorWithArgs(fnReturnVoid, tk, [node.stackIdentName])
     else: discard
     return newEcho(node, tk)
+
+newPrefixProc "parseAssert":
+  # Parse a new `assert` command
+  let tk = p.curr
+  walk p
+  let exp = p.getPrefixOrInfix(includeOnly = {tkInteger, tkFloat, tkBool,
+    tkString, tkVarCall, tkIdentifier, tkFnCall}, scope = scope)
+  if exp.nt == ntInfix:
+    return newAssert(exp, tk)

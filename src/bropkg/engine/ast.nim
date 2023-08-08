@@ -121,6 +121,7 @@ type
 
   CommandType* = enum
     cmdEcho
+    cmdAssert
 
   ScopeTable* = TableRef[string, Node]
 
@@ -687,6 +688,9 @@ proc newFunction*(tk: TokenTuple): Node =
 proc newEcho*(val: Node, tk: TokenTuple): Node =
   ## Create a new `echo` command (low-level API)
   result = Node(nt: ntCommand, cmdIdent: cmdEcho, cmdValue: val, cmdMeta: (tk.line, tk.pos))
+
+proc newAssert*(exp: Node, tk: TokenTuple): Node =
+  result = Node(nt: ntCommand, cmdIdent: cmdAssert, cmdValue: exp, cmdMeta: (tk.line, tk.pos))
 
 proc newReturn*(stmtNode: Node): Node =
   ## Create a new `return` statement
