@@ -186,12 +186,13 @@ const lexerSettings* =
     lexerTokenKind: "TokenKind",
     tkModifier: defaultTokenModifier,      
     useDefaultIdent: true,
+    useDefaultInt: false,
     keepUnknown: true,
     keepChar: true,
   )
 
 registerTokens lexerSettings:
-  ints = tokenize(customIntHandler, '0'..'9')
+  symInt = tokenize(customIntHandler, '0'..'9')
   `case` = "case"
   `of` = "of"
   andLit = "and"
