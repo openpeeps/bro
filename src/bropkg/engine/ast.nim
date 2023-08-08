@@ -255,7 +255,7 @@ type
     of ntInfo:
       nodeType*: NodeType
     else: discard
-    aotStmts*: seq[Node]
+    # aotStmts*: seq[Node]
 
   Stylesheet* = ref object
     # info*: tuple[version: string, createdAt: DateTime]
@@ -530,6 +530,14 @@ proc newSize*(size: Node, unit: Units): Node =
             else: ltAbsolute
   result = Node(nt: ntSize, sizeVal: size, sizeType: lt, sizeUnit: unit)
 
+proc newSize*(f: float, unit: Units): Node =
+  ## Create a new Size node of  type `ntFloat` followed by `unit`
+  newSize(newFloat(f), unit)
+
+proc newSize*(i: int, unit: Units): Node =
+  ## Create a new Size node of type `ntInt` followed by `unit`
+  newSize(newInt(i), unit)
+
 proc newInfo*(node: Node): Node = Node(nt: ntInfo, nodeType: node.getNodeType)
 
 proc newStream*(src: string): Node =
@@ -572,23 +580,29 @@ proc newFnCall*[N: Node](node: N, args: seq[N], ident, name: string): Node =
         stackIdent: ident, stackIdentName: name,
         stackReturnType: node.fnReturnType)
 
-const allowedInfixTokens = {ntColor, ntString, ntInt,
-                            ntBool, ntFloat, ntCall, ntCallStack}
+const allowedInfixTokens = {ntColor, ntString, ntInt, ntSize,
+                            ntBool, ntFloat, ntCall, ntCallStack,
+                            ntMathStmt, ntInfix}
 
-proc newInfix*(infixLeft, infixRight: Node, infixOp: InfixOp): Node =
+proc newInfix*(lht, rht: Node, infixOp: InfixOp): Node =
   ## Create a new ntInfix node
-  assert infixLeft.nt in allowedInfixTokens
-  assert infixRight.nt in allowedInfixTokens
-  result = Node(nt: ntInfix, infixLeft: infixLeft, infixRight: infixRight, infixOp: infixOp)
+  assert lht.nt in allowedInfixTokens
+  assert rht.nt in allowedInfixTokens
+  result = Node(nt: ntInfix, infixLeft: lht, infixRight: rht, infixOp: infixOp)
 
-proc newInfix*(infixLeft: Node): Node =
+proc newInfix*(lht: Node): Node =
   ## Create a new ntInfix node
-  assert infixLeft.nt in allowedInfixTokens
-  result = Node(nt: ntInfix, infixLeft: infixLeft)
+  assert lht.nt in allowedInfixTokens
+  result = Node(nt: ntInfix, infixLeft: lht)
 
-proc newInfixCalc*(infixLeft: Node): Node =
-  assert infixLeft.nt in {ntInt, ntFloat, ntCall, ntCallStack}
-  result = Node(nt: ntMathStmt, mathLeft: infixLeft)
+proc newInfixCalc*(lht: Node): Node =
+  assert lht.nt in {ntInt, ntFloat, ntSize, ntCall, ntCallStack, ntMathStmt}
+  result = Node(nt: ntMathStmt, mathLeft: lht)
+
+proc newInfixCalc*(lht, rht: Node, infixOp: MathOp): Node =
+  assert lht.nt in {ntInt, ntFloat, ntSize, ntCall, ntCallStack, ntInfix, ntMathStmt}
+  assert rht.nt in {ntInt, ntFloat, ntSize, ntCall, ntCallStack, ntInfix, ntMathStmt}
+  result = Node(nt: ntMathStmt, mathLeft: lht, mathRight: rht, mathInfixOp: infixOp)
 
 proc newIf*(infix: Node): Node =
   ## Create a new `ntCondStmt`

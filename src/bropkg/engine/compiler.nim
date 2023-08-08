@@ -6,7 +6,7 @@
 
 import pkg/[jsony, stashtable]
 import std/[tables, strutils, macros, sequtils, json,
-          algorithm, oids, hashes, terminal, threadpool, enumutils]
+          algorithm, math, oids, hashes, terminal, threadpool, enumutils]
 import ./ast, ./sourcemap, ./logging
 
 type
@@ -126,6 +126,13 @@ template handleVariableValue(varNode: Node, scope: ScopeTable) {.dirty.} =
     return c.getValue(varNode.varValue, nil)
   result = c.getValue(scope[varNode.varName].varValue, nil)
 
+proc sizeToString(v: Node): string =
+  case v.sizeVal.nt
+  of ntInt:   $(v.sizeVal.iVal) & $(v.sizeUnit)
+  of ntFloat: $(v.sizeVal.fVal) & $(v.sizeUnit)
+  else: "" # todo support for callables
+
+
 proc toString(c: Compiler, v: Node, scope: ScopeTable = nil): string =
   # Return stringified version of `v`
     result =
@@ -133,11 +140,7 @@ proc toString(c: Compiler, v: Node, scope: ScopeTable = nil): string =
       of ntString: v.sVal
       of ntFloat:  $(v.fVal)
       of ntInt:    $(v.iVal)
-      of ntSize:
-        case v.sizeVal.nt
-        of ntInt:   $(v.sizeVal.iVal) & $(v.sizeUnit)
-        of ntFloat: $(v.sizeVal.fVal) & $(v.sizeUnit)
-        else: "" # todo support for callables
+      of ntSize:   sizeToString(v)
       of ntBool:   $(v.bVal)
       of ntColor:  $(v.cVal)
       of ntArray:     jsony.toJson(v.arrayItems)
@@ -304,14 +307,16 @@ proc handleCommand(c: Compiler, node: Node, scope: ScopeTable = nil) =
                         getTypeInfo(node.cmdValue) & "\n" & $(output))
     of ntMathStmt:
       let
+        mNode = node.cmdValue
         total =
-          c.evalMathInfix(node.cmdValue.mathLeft, node.cmdValue.mathRight,
-            node.cmdValue.mathInfixOp, scope)
+          c.evalMathInfix(mNode.mathLeft, mNode.mathRight, mNode.mathInfixOp, scope)
         output =
-          if total.nt == ntInt: $(total.iVal)
-          else: $(total.fVal)
-      stdout.styledWriteLine(fgGreen, "Debug", fgDefault, meta, fgDefault,
-                        getTypeInfo(node.cmdValue) & "\n" & $(output))
+          case total.nt
+          of ntInt:   $(total.iVal)
+          of ntFloat: $(total.fVal)
+          of ntSize:  sizeToString(total)
+          else: ""
+      stdout.styledWriteLine(fgGreen, "Debug", fgDefault, meta, fgDefault, mNode.getTypeInfo & "\n" & $(output))
     # of ntInfo:
       # stdout.styledWriteLine(fgGreen, "Debug", fgDefault, meta, fgMagenta,
                             # "[[" & $(node.cmdValue.nodeType) & "]]")

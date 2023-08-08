@@ -91,12 +91,8 @@ template calc(calcHandle): untyped {.dirty.} =
         c.evalMathInfix(lht, rht, infixOp, scope)
       else: nil
   of ntMathStmt:
-    echo lht
-    # case rht.nt:
-    # of ntInfix:
-
-    # c.evalMathInfix()
-    nil
+    var lht = c.evalMathInfix(lht.mathLeft, lht.mathRight, lht.mathInfixOp, scope)
+    c.evalMathInfix(lht, rht, infixOp, scope)
   else:
     nil # todo handle function calls
 
@@ -111,6 +107,10 @@ proc evalMathInfix*(c: Compiler, lht, rht: Node, infixOp: MathOp, scope: ScopeTa
 
 template ofMath(): untyped {.dirty.} =
   var rht = evalMathInfix(c, rht.mathLeft, rht.mathRight, rht.mathInfixOp, scope)
+  evalInfix(c, lht, rht, infixOp, scope)
+
+template ofMathLeft(): untyped {.dirty.} =
+  var lht = evalMathInfix(c, lht.mathLeft, lht.mathRight, lht.mathInfixOp, scope)
   evalInfix(c, lht, rht, infixOp, scope)
 
 template ofCallStack(): untyped {.dirty.} =
@@ -195,6 +195,7 @@ proc evalInfix(c: Compiler; lht, rht: Node; infixOp: InfixOp; scope: ScopeTable)
       of ntMathStmt: ofMath
       else:
         false
+    of ntMathStmt: ofMathLeft
     else:
       false
   of NE:
@@ -273,6 +274,7 @@ proc evalInfix(c: Compiler; lht, rht: Node; infixOp: InfixOp; scope: ScopeTable)
       of ntMathStmt: ofMath
       else:
         false
+    of ntMathStmt: ofMathLeft
     else:
       false
   of LT:
@@ -325,6 +327,7 @@ proc evalInfix(c: Compiler; lht, rht: Node; infixOp: InfixOp; scope: ScopeTable)
       of ntMathStmt: ofMath
       else:
         false
+    of ntMathStmt: ofMathLeft
     else:
       false
   of LTE:
@@ -376,6 +379,7 @@ proc evalInfix(c: Compiler; lht, rht: Node; infixOp: InfixOp; scope: ScopeTable)
       of ntMathStmt: ofMath
       else:
         false
+    of ntMathStmt: ofMathLeft
     else:
       false
   of GT:
@@ -429,6 +433,7 @@ proc evalInfix(c: Compiler; lht, rht: Node; infixOp: InfixOp; scope: ScopeTable)
       of ntMathStmt: ofMath
       else:
         false
+    of ntMathStmt: ofMathLeft
     else:
       false
   of GTE:
@@ -481,6 +486,7 @@ proc evalInfix(c: Compiler; lht, rht: Node; infixOp: InfixOp; scope: ScopeTable)
       of ntMathStmt: ofMath
       else:
         false
+    of ntMathStmt: ofMathLeft
     else:
       false
   of AND:

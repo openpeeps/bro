@@ -25,6 +25,10 @@ newPrefixProc "parseBool":
 
 newPrefixProc "parseFloat":
   # parse float numbers
+  if p.next.kind in tkUnits:
+    let size = p.curr.value.parseFloat
+    walk p, 2
+    return newSize(newFloat(size), toUnits(p.prev.kind))
   result = newFloat(p.curr.value)
   walk p
 

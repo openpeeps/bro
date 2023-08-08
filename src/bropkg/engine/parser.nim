@@ -61,7 +61,7 @@ type
   PrefixFunction = proc(p: var Parser, scope: var seq[ScopeTable],
                         excludeOnly, includeOnly: set[TokenKind] = {},
                         returnType = ntVoid, isFunctionWrap = false): Node
-  InfixFunction = proc(p: var Parser, left: Node, scope: var seq[ScopeTable]): Node
+  InfixFunction = proc(p: var Parser, lht: Node, scope: var seq[ScopeTable]): Node
   ImportHandler = proc(th: (string, Stylesheets, string)) {.thread, nimcall, gcsafe.}
 
 const
@@ -141,7 +141,7 @@ proc parseRoot(p: var Parser, scope: var seq[ScopeTable], excludeOnly, includeOn
 proc parsePrefix(p: var Parser, excludeOnly, includeOnly: set[TokenKind] = {},
           scope: var seq[ScopeTable], returnType = ntVoid, isFunctionWrap = false): Node
 
-proc parseInfix(p: var Parser, left: Node, scope: var seq[ScopeTable]): Node
+proc parseInfix(p: var Parser, lht: Node, scope: var seq[ScopeTable]): Node
 
 proc parseStatement(p: var Parser, parent: (TokenTuple, Node), scope: var seq[ScopeTable],
           excludeOnly, includeOnly: set[TokenKind] = {},
@@ -159,7 +159,7 @@ proc parseCallFnCommand(p: var Parser, scope: var seq[ScopeTable],
           excludeOnly, includeOnly: set[TokenKind] = {},
           returnType = ntVoid, isFunctionWrap = false): Node
 
-proc getPrefixOrInfix(p: var Parser, scope: var seq[ScopeTable], includeOnly, excludeOnly: set[TokenKind] = {}): Node
+proc getPrefixOrInfix(p: var Parser, scope: var seq[ScopeTable], includeOnly, excludeOnly: set[TokenKind] = {}, infix: Node = nil): Node
 proc importModule(th: (string, Stylesheets, string)) {.thread.}
 proc parseVarCall(p: var Parser, tk: TokenTuple, varName: string, scope: var seq[ScopeTable]): Node
 
@@ -375,81 +375,64 @@ newPrefixProc "parseDotExpr":
   return p.parseClass(scope, excludeOnly, includeOnly)
 
 # Prefix or Infix
-proc getPrefixOrInfix(p: var Parser, scope: var seq[ScopeTable], includeOnly, excludeOnly: set[TokenKind] = {}): Node =
+proc getPrefixOrInfix(p: var Parser, scope: var seq[ScopeTable], includeOnly, excludeOnly: set[TokenKind] = {}, infix: Node = nil): Node =
   let lht = p.parsePrefix(excludeOnly, includeOnly, scope)
+  var infixNode: Node
   if p.curr.isInfix:
     if likely(lht != nil):
-      let infix = p.parseInfix(lht, scope)
-      if likely(infix != nil):
-        return infix
+      infixNode = p.parseInfix(lht, scope)
+      if likely(infixNode != nil):
+        return infixNode
     else: return
   result = lht
 
-#
-# Infix Comp
-#
-proc parseCompOp(p: var Parser, left: Node, scope: var seq[ScopeTable]): Node =
-  walk p # op
-  case p.curr.kind
-  of tkInteger:
-    result = p.parseInt(scope)
-  of tkFloat:
-    result = p.parseFloat(scope)
-  of tkString:
-    if p.prev.kind in {tkEQ, tkNE}:
-      return p.parseString(scope)
-    errorWithArgs(InvalidInfixOperator, p.curr, [p.prev.getOpStr, "String"])
-  of tkVarCall:
-    result = p.parseCallCommand(scope)
-  of tkVarTyped:
-    p.curr.kind = tkVarCall
-    result = p.parseCallCommand(scope)
-  of tkBool:
-    if p.prev.kind in {tkEQ, tkNE}:
-      return p.parseBool(scope)
-    errorWithArgs(InvalidInfixOperator, p.curr, [p.prev.getOpStr, "Bool"])
-  of tkIdentifier:
-    if p.isFnCall():
-      return p.parseCallFnCommand(scope)
-    errorWithArgs(InvalidInfixOperator, p.curr, [p.prev.getOpStr])
-  of tkColor, tkNamedColors:
-    result = p.parseColor(scope)
-  else: discard
+proc parseMathExp(p: var Parser, lht: Node, scope: var seq[ScopeTable]): Node
+proc parseCompExp(p: var Parser, lht: Node, scope: var seq[ScopeTable]): Node
 
-proc parseMathOp(p: var Parser, left: Node, scope: var seq[ScopeTable]): Node =
+proc parseCompExp(p: var Parser, lht: Node, scope: var seq[ScopeTable]): Node =
+  # parse logical expressions with symbols (==, !=, >, >=, <, <=)
+  let op = getInfixOp(p.curr.kind, false)
   walk p
-  result = p.getPrefixOrInfix(includeOnly = {tkInteger, tkFloat, tkVarCall, tkIdentifier, tkFnCall}, scope = scope)
+  let rht = p.parsePrefix(includeOnly= {tkInteger, tkFloat, tkVarCall, tkIdentifier, tkFnCall}, scope = scope)
+  if likely(rht != nil):
+    result = newInfix(lht)
+    result.infixOp = op
+    if p.curr.kind in tkMathOperators:
+      result.infixRight = p.parseMathExp(rht, scope)
+    else:
+      result.infixRight = rht
+
+proc parseMathExp(p: var Parser, lht: Node, scope: var seq[ScopeTable]): Node =
+  # parse math expressions with symbols (+, -, *, /)
+  let infixOp = getInfixCalcOp(p.curr.kind, false)
+  walk p
+  let rht = p.parsePrefix(includeOnly = {tkInteger, tkFloat, tkVarCall, tkIdentifier, tkFnCall}, scope = scope)
+  if likely(rht != nil):
+    result = newInfixCalc(lht)
+    result.mathInfixOp = infixOp
+    case p.curr.kind
+    of tkMultiply, tkDivide:
+      result.mathRight = p.parseMathExp(rht, scope)
+    of tkPlus, tkMinus:
+      result.mathRight = rht
+      result = p.parseMathExp(result, scope)
+    of tkCompOperators:
+      result.mathRight = rht
+      return p.parseCompExp(result, scope)
+    else:
+      result.mathRight = rht
 
 proc getInfixFn(p: var Parser): InfixFunction =
   case p.curr.kind
-  of tkCompOperators: parseCompOp
-  of tkMathOperators: parseMathOp
+  of tkCompOperators: parseCompExp
+  of tkMathOperators: parseMathExp
   else: nil
 
-proc parseInfix(p: var Parser, left: Node, scope: var seq[ScopeTable]): Node =
+proc parseInfix(p: var Parser, lht: Node, scope: var seq[ScopeTable]): Node =
   var infixNode: Node # ntInfix
   let infixFn = p.getInfixFn()
-  if infixFn != nil:
-    let op = getInfixOp(p.curr.kind, false)
-    if op != None:
-      infixNode = newInfix(left)
-      infixNode.infixOp = op
-      let node = p.infixFn(infixNode.infixLeft, scope)
-      if node != nil:
-        infixNode.infixRight = node
-      return infixNode
-    var opMath = getInfixCalcOp(p.curr.kind, false)
-    if likely(opMath != invalidCalcOp):
-      infixNode = newInfixCalc(left)
-      infixNode.mathInfixOp = opMath
-      var node = p.infixFn(infixNode.mathLeft, scope)
-      if likely(node != nil):
-        infixNode.mathRight = node
-        if infixNode.mathLeft.nt == ntInt and infixNode.mathRight.nt == ntInt:
-          infixNode.mathResultType = ntInt
-        else:
-          infixNode.mathResultType = ntFloat
-        return infixNode
+  if likely(infixFn != nil):
+    result = p.infixFn(lht, scope)
 
 #
 # Statement List
@@ -488,8 +471,6 @@ proc parseStatement(p: var Parser, parent: (TokenTuple, Node), scope: var seq[Sc
             else:
               if likely(node.returnStmt.nt == ntCall):
                 let fnReturnType = node.returnStmt.getNodeType()
-                echo fnReturnType
-                echo node.returnStmt
                 if unlikely(fnReturnType != returnType):
                   errorWithArgs(fnReturnTypeMismatch, tk, [$(fnReturnType), $(returnType)])  
               else:
@@ -573,6 +554,7 @@ proc getPrefixFn(p: var Parser, excludeOnly, includeOnly: set[TokenKind] = {}): 
       parseProperty
     else: nil
   of tkInteger: parseInt
+  of tkFloat:   parseFloat
   of tkColor:   parseColor
   of tkString:  parseString
   of tkVarCall: parseCallCommand
