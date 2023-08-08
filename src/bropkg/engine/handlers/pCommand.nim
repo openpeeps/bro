@@ -104,5 +104,11 @@ newPrefixProc "parseAssert":
   walk p
   let exp = p.getPrefixOrInfix(includeOnly = {tkInteger, tkFloat, tkBool,
     tkString, tkVarCall, tkIdentifier, tkFnCall}, scope = scope)
-  if exp.nt == ntInfix:
-    return newAssert(exp, tk)
+  if likely(exp != nil):
+    case exp.nt:
+    of ntInfix:
+      result = newAssert(exp, tk)
+    of ntCall:
+      if exp.getNodeType in {ntBool, ntInt, ntFloat, ntString}:
+        result = newAssert(exp, tk)
+    else: discard

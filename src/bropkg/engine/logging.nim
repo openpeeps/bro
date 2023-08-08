@@ -31,8 +31,8 @@ type
     UnknownPseudoClass = "Unknown pseudo-class"
     VariableRedefinition = "Compile-time variables are immutable"
     UndefinedPropertyAccessor = "Undefined property accessor $ for object $"
-    InvalidInfixMissingValue = "Invalid infix missing assignable token"
-    InvalidInfixOperator = "Invalid infix operator $ for $"
+    invalidInfixMissingValue = "Invalid infix missing assignable token"
+    invalidInfixOperator = "Invalid infix operator $ for $"
     declaredNotUsed = "Declared and not used $"
     TryingAccessNonObject = "Trying to get property $ on a non-object variable $"
 

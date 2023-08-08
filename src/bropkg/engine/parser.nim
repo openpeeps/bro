@@ -109,6 +109,7 @@ const
   # }
   tkAssignable = {tkString, tkInteger, tkBool, tkColor, tkAccQuoted} + tkVars + tkNamedColors
   tkComparable = tkAssignable
+  tkLogicalComp = {tkInteger, tkFloat, tkBool, tkString, tkVarCall, tkIdentifier, tkFnCall}
   tkAssignableFn = {tkJSON}
   tkTypedLiterals = {
     tkArrayLit, tkBoolLit, tkColorLit, tkFloatLit, tkFunctionLit,
@@ -393,7 +394,20 @@ proc parseCompExp(p: var Parser, lht: Node, scope: var seq[ScopeTable]): Node =
   # parse logical expressions with symbols (==, !=, >, >=, <, <=)
   let op = getInfixOp(p.curr.kind, false)
   walk p
-  let rht = p.parsePrefix(includeOnly= {tkInteger, tkFloat, tkVarCall, tkIdentifier, tkFnCall}, scope = scope)
+  let rhtToken = p.curr
+  let rht = p.parsePrefix(includeOnly=tkLogicalComp, scope = scope)
+  if likely(rht != nil):
+    case op
+    of LT, LTE, GT, GTE:
+      let
+        lhtNodeType = lht.getNodeType
+        rhtNodeType = rht.getNodeType
+      if lhtNodeType notin {ntInt, ntFloat}:
+        errorWithArgs(invalidInfixOperator, rhtToken, [$op, $lhtNodeType])
+      elif rhtNodeType notin {ntInt, ntFloat}:
+        errorWithArgs(invalidInfixOperator, rhtToken, [$op, $rhtNodeType])
+    else: discard
+
   if likely(rht != nil):
     result = newInfix(lht)
     result.infixOp = op
@@ -575,7 +589,7 @@ proc getPrefixFn(p: var Parser, excludeOnly, includeOnly: set[TokenKind] = {}): 
   of tkThis:    parseThis
   of tkAccQuoted:   parseAccQuoted
   of tkNamedColors: parseNamedColor
-  # of tkAssert:  parseAssert
+  of tkAssert:  parseAssert
   else:
     if p.next isnot tkColon:
       parseSelectorTag
@@ -603,6 +617,7 @@ proc parseRoot(p: var Parser, scope: var seq[ScopeTable], excludeOnly, includeOn
     of tkIf:      p.parseCond(scope, excludeOnly, includeOnly)
     of tkCase:    p.parseCase(scope, excludeOnly, includeOnly)
     of tkEcho:    p.parseEchoCommand(scope)
+    of tkAssert:  p.parseAssert(scope)
     of tkFor:     p.parseFor(scope, excludeOnly, includeOnly)
     of tkImport:  p.parseImport(scope, excludeOnly, includeOnly)
     of tkIdentifier:
