@@ -124,8 +124,7 @@ newPrefixProc "parseProperty":
           # result.pVal.add(newInt(p.curr.value))
           # walk p
         of tkFloat:
-          result.pVal.add(newFloat(p.curr.value))
-          walk p
+          add result.pVal, p.parseFloat(scope)
         of tkIdentifier:
           if unlikely(p.next.kind == tkLPAR and p.next.line == p.curr.line):
             let identToken = p.curr
