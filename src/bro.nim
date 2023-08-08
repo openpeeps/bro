@@ -5,6 +5,7 @@
 #          https://github.com/openpeeps/bro
 
 when defined napibuild:
+  # NAPI Build for Node.js and Bun.js
   import denim
   import bropkg/engine/[parser, compiler]
   from std/sequtils import toSeq
@@ -12,13 +13,14 @@ when defined napibuild:
   init proc(module: Module) =
     proc toCSS(src: string, minify: bool) {.export_napi.} =
       let sourcePath = args.get("src").getStr
-      var p = parseProgram(sourcePath)
+      var p = parseStylesheet(sourcePath)
       if not p.hasErrors:
-        return %* newCompiler(p.getProgram, args.get("minify").getBool).getCSS()
+        return %* newCompiler(p.getStylesheet, args.get("minify").getBool).getCSS()
       else:
         let errors = p.logger.errors.toSeq
         assert error($(errors[0]), "BroParsingError")
 else:
+  # CLI Application
   when isMainModule:
     import kapsis/commands
     import kapsis/db
@@ -58,13 +60,14 @@ else:
         $ "ast" `style` `output`:
           ? "Generates binary AST"
         
-        $ "repr" `ast` ["min"]:
+        $ "repr" `ast` `output` ["min"]:
           ? "Compiles from binary AST to CSS"
 
         --- "Documentation"
-        $ "doc" `style`:
+        $ "doc" `style` ["html", "md", "json"]:
           ? "Builds a documentation website"
 
   else:
+    # Bro as a Nimble library
     import bropkg/engine/[parser, compiler]
     export parser, compiler
