@@ -12,7 +12,7 @@
 ## 😍 Key Features
 - 🍃 Lightweight, tiny executable
 - 🐱 Dependency Free / **No Virtual Machine**
-- 💪 **Strong Typed** = Perfect **Cascading Style Sheets** 🤩
+- 💪 **Strongly Typed** = Perfect **Cascading Style Sheets** 🤩
 - 🌍 Works on **Linux**, **macOS**, **Windows**
 - 👉 `Warnings` => Unused **Variables**
 - 👉 `Warnings` => Unused **Mixins**, **Functions**, **Empty selectors**
@@ -22,79 +22,66 @@
 - 🗺 **CSS SourceMap Generator**
 - 🔄 **CSS Reload** & **Browser sync** [Setup info](https://github.com/openpeeps/bro/wiki/Index#css-reload--browser-syncing)
 - 🌴 **Abstract Syntax Tree** binary serialization via **MessagePack**
-- 🎉 Built-in `HTML` Documentation Generator
-- 🔥 Works with **NodeJS** & **BunJS** via `NAPI`
+- 🎉 Built-in `HTML`, `JSON` Documentation Generator
+- 🔥 Works with **Node.js** & **Bun.js** via `NAPI`
+- 🎆 Works in **Browser via WASM** (unstable)
+- 🌍 Dynamically Linked Library
 - 🎩 Open Source | [LGPLv3 license](https://github.com/openpeeps/bro/blob/main/LICENSE)
 - 👑 Written in **Nim language**
 - 😋 **Made for Cool Kids**
 
 > __Warning__ Bro is still under development. Expect bugs and incomplete features.
-
+> __Notice__ Since Bro is written in native code, anti-virus software can sometimes incorrectly flag it as a virus
 
 ## Bro CLI
-```
-😋 Bro aka NimSass - A super fast stylesheet language for cool kids!
-   https://github.com/openpeeps/bro
-
-   <style> --minify --map --gzip          Compiles a stylesheet to CSS
-
-Development:
-  watch <style> <delay>                   Watch for changes and compile
-  map <style>                             Generates a source map
-  ast <style> --gzip                      Generates a packed AST
-  repr <ast> --minify --gzip              Compiles packed AST to CSS
-
-Documentation:
-  doc <style>                             Builds a documentation website
-
-```
+Install Bro as a standalone CLI application. Get it from [Releases](#), or you might want to compile from source.
 
 ### Bro 💛 Nim
 Integrate Bro in your Nim application
 
-```bash
-nimble install bro
+```nim
+import bro
+
+let stylesheet = """
+$colors = [blue, yellow, orchid]
+for $color in $colors:
+  .bg-{$color}:
+    background: $color 
+"""
+
+var
+  p: Parser = parseStylesheet(stylesheet)
+  c: Compiler = newCompiler(p.getStylesheet, minify = true)
+echo c.getCSS # .bg-blue{background:blue}.bg-yellow{...
 ```
 
-### Bro 💖 BunJS & Node
-Use Bro as a native addon compiled via NAPI with Node or Bun. [Get it from releases](#) or compile by yourself from source.
-_Bun.js implements 90% of the APIs available in Node-API (napi). [Read more](https://github.com/oven-sh/bun#node-api-napi)_
+### Bro 💖 Bun & Node.js
+Integrate the most powerful CSS pre-processor with Node.js/Bun.sh!
 
 ```javascript
-const {compile} = require("./bro.node")
-compile("./awesome.sass")
+let stylesheet = `
+$colors = [blue, yellow, orchid]
+for $color in $colors:
+  .bg-{$color}:
+    background: $color
+`
+const bro = require("bro.node")
+bro.compile(stylesheet) // .bg-blue{background:blue}.bg-yellow{...
 ```
 
-## Friendly Warnings
-**This is part of "No need to run 1000 npm packages"** to write some CSS.
-
-1. **Perfect for beginners!**
-```
-Error (18:17) Invalid value font-style: bold 
-      Available values:
-            normal
-            italic
-            oblique
- 👉 /examples/dummies.sass
+### Bro in Browser via WASM
+```html
+<style type="text/bro" id="stylesheet">
+$colors = [blue, yellow, orchid]
+for $color in $colors:
+  .bg-{$color}:
+    background: $color
+</style>
+<script src="/bro.min.js"></script>
 ```
 
-2. Typos? No worries!
-```
-Error (21899:2): Unknown pseudo-class `focusa`
-👉 /examples/main.sass
-```
-
-3. Keep your stylesheets clean!
-```
-Warning (5:0): Declared and not used $primary-color
-👉 /examples/main.sass
-
-Warning (6:0): Declared and not used $file-border-color
-👉 /examples/form.sass
-
-Warning (11:0) CSS selector .btn has no properties
-👉 /examples/form.sass
-
+```js
+bro.compile('#stylesheet') // .bg-blue{background:blue}.bg-yellow{...
 ```
 
 ## Benchmarks
@@ -137,28 +124,18 @@ Summary
    15.01 times faster than 'bun sass.js'
    19.07 times faster than 'node sass.js'
 ```
-[Check Benchmarks page for more](https://github.com/openpeeps/bro/wiki/Benchmarks)
 
-### BRO vs BRO Binary AST
-
-Obviously, the `repr` command will run faster, since the entire AST is built 
-```
-Benchmark 1: bro big.sass
-  Time (abs ≡):         1.084 s               [User: 0.762 s, System: 0.317 s]
- 
-Benchmark 2: bro repr big.ast
-  Time (abs ≡):        793.0 ms               [User: 548.7 ms, System: 240.3 ms]
-
-```
+[Check Benchmarks page](https://github.com/openpeeps/bro/wiki/Benchmarks) for more numbers
 
 </details>
 
 Benchmarks made with [hyperfine](https://github.com/sharkdp/hyperfine) on<br>
 **Ubuntu 22.04 LTS** / Ryzen 5 5600g 3.9GHz × 12 / RAM 32 GB 3200MHz / SSD M.2
 
+
 ## TODO
-- [x] Tokenizier
-- [x] Selectors [ref](https://www.w3.org/TR/selectors-3/#selectors)
+- [x] The Interpreter (Tokens, Lexer, Parser, AST, Compiler)
+- [x] CSS Selectors [ref](https://www.w3.org/TR/selectors-3/#selectors)
   - [ ] Type Selectors [ref](https://www.w3.org/TR/selectors-3/#type-selectors)
   - [ ] Universal Selectors [ref](https://www.w3.org/TR/selectors-3/#universal-selector)
   - [ ] Attribute Selectors [ref](https://www.w3.org/TR/selectors-3/#attribute-selectors)
@@ -169,30 +146,42 @@ Benchmarks made with [hyperfine](https://github.com/sharkdp/hyperfine) on<br>
   - [ ] Groups of Selectors [ref](https://www.w3.org/TR/selectors-3/#grouping)
   - [ ] Combinators [ref](https://www.w3.org/TR/selectors-3/#combinators)
 - [x] Compile-time
-  - [x] Compile-time Variables `$myvar = 12px`
+  - [x] Compile-time Variables
   - [x] Arrays/Objects
-    - [ ] Anonymous arrays and objects
+    - [x] Anonymous arrays and objects
   - [ ] Compile-time Constants
   - [x] Functions
     - [x] Closures
-    - [x] Overloading 
+    - [x] Overloading
+    - [ ] Recursive calls
+  - [ ] Mixins
   - [x] Conditionals (`if`, `elif`, `else`, and `case`)
   - [x] For/Loop statements `for $x in $y`
   - [ ] Magically `@when` instead of `@media`
-  - [ ] Typed properties declaration
+  - [ ] Typed CSS properties/values
   - [x] Warnings unused `variables`, `functions`
   - [ ] CSS Variable Declaration using `var` instead of `--`
   - [ ] String/Variable concatenation using `&` and backticks
 - [ ] Handle single/multi line comments
-- [ ] `Preview` snippets (Building docs from Stylesheets)
+- [x] Memoization
+- [ ] CSS Parser to BRO AST
+- [ ] Import CSS/BASS files
+  - [ ] Implement AST caching system for imported files
+- [ ] `AST` Macro system (used internally to generate BASS code from CSS) 
 - [x] Command Line Interface 
   - [x] CLI `watch` for live changes
-  - [x] CLI `build` sass to css
+  - [x] CLI `build` BASS code to css
   - [ ] CLI generate source `map`
   - [x] CLI generate `ast` nodes to binary AST via `MessagePack`
-  - [ ] CLI build code documentation with `doc`
-  - [ ] CLI convert boring sass to Bro
-- [x] Compiled Node.js / Bun.js addon via NAPI [Check @openpeeps/denim](https://github.com/openpeeps/denim)
+- [x] Build
+  - [x] Cross-platform compilation
+  - [x] Node.js/Bun.js via NAPI 
+  - [ ] Browser with WASM via Emscripten
+
+#### 0.2.x
+- [ ] Convert boring SASS to BASS
+- [ ] CLI build code documentation with `doc`
+
 
 ### ❤ Contributions & Support
 - 🐛 Found a bug? [Create a new Issue](https://github.com/openpeeps/bro/issues)
@@ -202,5 +191,5 @@ Benchmarks made with [hyperfine](https://github.com/sharkdp/hyperfine) on<br>
 - 🥰 [Donate to OpenPeeps via PayPal address](https://www.paypal.com/donate/?hosted_button_id=RJK3ZTDWPL55C)
 
 ### 🎩 License
-BRO aka NimSass | [LGPLv3 license](https://github.com/openpeeps/bro/blob/main/LICENSE). Proudly made in 🇪🇺 Europe [by Humans from OpenPeeps](https://github.com/openpeeps).<br>
+Bro Language [LGPLv3 license](https://github.com/openpeeps/bro/blob/main/LICENSE). Proudly made in 🇪🇺 Europe [by Humans from OpenPeeps](https://github.com/openpeeps).<br>
 Copyright &copy; 2023 OpenPeeps & Contributors &mdash; All rights reserved.
