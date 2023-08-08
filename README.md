@@ -30,9 +30,12 @@
 - 👑 Written in **Nim language**
 - 😋 **Made for Cool Kids**
 
-> __Warning__ Bro is still under development. Expect bugs and incomplete features.
+> [!WARNING]  
+> Bro is still under development. Expect bugs and incomplete features.
 
-> __Notice__ Since Bro is written in native code, anti-virus software can sometimes incorrectly flag it as a virus
+
+> [!NOTE]
+> Since Bro is written in native code, anti-virus software can sometimes incorrectly flag it as a virus
 
 ## Bro CLI
 Install Bro as a standalone CLI application. Get it from [Releases](#), or you might want to compile from source.
