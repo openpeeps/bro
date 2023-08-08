@@ -402,9 +402,9 @@ proc parseCompExp(p: var Parser, lht: Node, scope: var seq[ScopeTable]): Node =
       let
         lhtNodeType = lht.getNodeType
         rhtNodeType = rht.getNodeType
-      if lhtNodeType notin {ntInt, ntFloat}:
+      if lhtNodeType notin {ntInt, ntFloat, ntSize}:
         errorWithArgs(invalidInfixOperator, rhtToken, [$op, $lhtNodeType])
-      elif rhtNodeType notin {ntInt, ntFloat}:
+      elif rhtNodeType notin {ntInt, ntFloat, ntSize}:
         errorWithArgs(invalidInfixOperator, rhtToken, [$op, $rhtNodeType])
     else: discard
 

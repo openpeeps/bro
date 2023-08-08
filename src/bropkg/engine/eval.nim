@@ -105,17 +105,20 @@ proc evalMathInfix*(c: Compiler, lht, rht: Node, infixOp: MathOp, scope: ScopeTa
   # of mMod:    calcFloat(modulo)
   else: nil
 
-template ofMath(): untyped {.dirty.} =
+template ofMath: untyped {.dirty.} =
   var rht = evalMathInfix(c, rht.mathLeft, rht.mathRight, rht.mathInfixOp, scope)
   evalInfix(c, lht, rht, infixOp, scope)
 
-template ofMathLeft(): untyped {.dirty.} =
+template ofMathLeft: untyped {.dirty.} =
   var lht = evalMathInfix(c, lht.mathLeft, lht.mathRight, lht.mathInfixOp, scope)
   evalInfix(c, lht, rht, infixOp, scope)
 
-template ofCallStack(): untyped {.dirty.} =
+template ofCallStack: untyped {.dirty.} =
   var rht = handleCallStack(c, rht, scope)
   evalInfix(c, lht, rht, infixOp, scope)
+
+template ofSize: untyped {.dirty.} =
+  evalinfix(c, lht.sizeVal, rht.sizeVal, infixOp, scope)
 
 proc evalInfix(c: Compiler; lht, rht: Node; infixOp: InfixOp; scope: ScopeTable): bool =
   return case infixOp
@@ -182,6 +185,7 @@ proc evalInfix(c: Compiler; lht, rht: Node; infixOp: InfixOp; scope: ScopeTable)
         evalInfix(c, lht, call(rht, scope), infixOp, scope)
       of ntCallStack: ofCallStack
       of ntMathStmt: ofMath
+      of ntSize: ofSize
       else:
         false
     of ntCallStack:
@@ -193,9 +197,11 @@ proc evalInfix(c: Compiler; lht, rht: Node; infixOp: InfixOp; scope: ScopeTable)
         evalInfix(c, lht, call(rht, scope), infixOp, scope)
       of ntCallStack: ofCallStack
       of ntMathStmt: ofMath
+      of ntSize: ofSize
       else:
         false
     of ntMathStmt: ofMathLeft
+    of ntSize: ofSize
     else:
       false
   of NE:
@@ -261,6 +267,7 @@ proc evalInfix(c: Compiler; lht, rht: Node; infixOp: InfixOp; scope: ScopeTable)
         evalInfix(c, lht, call(rht, scope), infixOp, scope)
       of ntCallStack: ofCallStack
       of ntMathStmt: ofMath
+      of ntSize: ofSize
       else:
         false
     of ntCallStack:
@@ -272,9 +279,11 @@ proc evalInfix(c: Compiler; lht, rht: Node; infixOp: InfixOp; scope: ScopeTable)
         evalInfix(c, lht, call(rht, scope), infixOp, scope)
       of ntCallStack: ofCallStack
       of ntMathStmt: ofMath
+      of ntSize: ofSize
       else:
         false
     of ntMathStmt: ofMathLeft
+    of ntSize: ofSize
     else:
       false
   of LT:
@@ -315,6 +324,7 @@ proc evalInfix(c: Compiler; lht, rht: Node; infixOp: InfixOp; scope: ScopeTable)
         evalInfix(c, lht, call(rht, scope), infixOp, scope)
       of ntCallStack: ofCallStack
       of ntMathStmt: ofMath
+      of ntSize: ofSize
       else:
         false
     of ntCallStack:
@@ -325,9 +335,11 @@ proc evalInfix(c: Compiler; lht, rht: Node; infixOp: InfixOp; scope: ScopeTable)
         evalInfix(c, lht, call(rht, scope), infixOp, scope)
       of ntCallStack: ofCallStack
       of ntMathStmt: ofMath
+      of ntSize: ofSize
       else:
         false
     of ntMathStmt: ofMathLeft
+    of ntSize: ofSize
     else:
       false
   of LTE:
@@ -367,6 +379,7 @@ proc evalInfix(c: Compiler; lht, rht: Node; infixOp: InfixOp; scope: ScopeTable)
         evalInfix(c, lht, call(rht, scope), infixOp, scope)
       of ntCallStack: ofCallStack
       of ntMathStmt: ofMath
+      of ntSize: ofSize
       else:
         false
     of ntCallStack:
@@ -377,9 +390,11 @@ proc evalInfix(c: Compiler; lht, rht: Node; infixOp: InfixOp; scope: ScopeTable)
         evalInfix(c, lht, call(rht, scope), infixOp, scope)
       of ntCallStack: ofCallStack
       of ntMathStmt: ofMath
+      of ntSize: ofSize
       else:
         false
     of ntMathStmt: ofMathLeft
+    of ntSize: ofSize
     else:
       false
   of GT:
@@ -421,6 +436,7 @@ proc evalInfix(c: Compiler; lht, rht: Node; infixOp: InfixOp; scope: ScopeTable)
       of ntCallStack:
         var rht = handleCallStack(c, rht, scope)
         evalInfix(c, lht, rht, infixOp, scope)
+      of ntSize: ofSize 
       else:
         false
     of ntCallStack:
@@ -431,9 +447,11 @@ proc evalInfix(c: Compiler; lht, rht: Node; infixOp: InfixOp; scope: ScopeTable)
         evalInfix(c, lht, call(rht, scope), infixOp, scope)
       of ntCallStack: ofCallStack
       of ntMathStmt: ofMath
+      of ntSize: ofSize
       else:
         false
     of ntMathStmt: ofMathLeft
+    of ntSize: ofSize
     else:
       false
   of GTE:
@@ -474,6 +492,7 @@ proc evalInfix(c: Compiler; lht, rht: Node; infixOp: InfixOp; scope: ScopeTable)
         evalInfix(c, lht, call(rht, scope), infixOp, scope)
       of ntCallStack: ofCallStack
       of ntMathStmt: ofMath
+      of ntSize: ofSize
       else:
         false
     of ntCallStack:
@@ -484,9 +503,11 @@ proc evalInfix(c: Compiler; lht, rht: Node; infixOp: InfixOp; scope: ScopeTable)
         evalInfix(c, lht, call(rht, scope), infixOp, scope)
       of ntCallStack: ofCallStack
       of ntMathStmt: ofMath
+      of ntSize: ofSize
       else:
         false
     of ntMathStmt: ofMathLeft
+    of ntSize: ofSize
     else:
       false
   of AND:
