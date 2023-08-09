@@ -5,41 +5,44 @@
 #          https://github.com/openpeeps/bro
 
 proc parseAnoArray(p: var Parser, scope: var seq[ScopeTable],
-      excludeOnly, includeOnly: set[TokenKind] = {}, returnType = ntVoid, isFunctionWrap = false): Node
+                        excludeOnly, includeOnly: set[TokenKind] = {},
+                        returnType = ntVoid, isFunctionWrap = false): Node
 
 proc parseAnoObject(p: var Parser, scope: var seq[ScopeTable],
-      excludeOnly, includeOnly: set[TokenKind] = {}, returnType = ntVoid, isFunctionWrap = false): Node
+                        excludeOnly, includeOnly: set[TokenKind] = {},
+                        returnType = ntVoid, isFunctionWrap = false): Node
 
-proc parseVarDef(p: var Parser, scope: var seq[ScopeTable]): Node =
-  let currentScope = p.getScope(p.curr.value, scope)
+proc parseVarDef(p: var Parser, scope: var seq[ScopeTable], ident: TokenTuple): Node =
+  # parse a variable definition
+  let currentScope = p.getScope(ident.value, scope)
   if currentScope.st != nil:
-    let scopedVar = currentScope.st[p.curr.value]
+    let scopedVar = currentScope.st[ident.value]
     if unlikely(scopedVar.varImmutable):
-      errorWithArgs(immutableReassign, p.curr, [p.curr.value])
+      errorWithArgs(immutableReassign, ident, [ident.value])
     else:
       scopedVar.varOverwrite = true
       p.mVar.delete(hash(scopedVar.varName & $(currentScope.index)))
-      walk p
     return scopedVar
-  if p.curr.kind == tkVarDef:
-    result = newVariable(p.curr)
-  else:
-    result = newVariableRef(p.curr)
-  walk p # $ident
+  result = newVariable(ident)
+  result.varImmutable = ident.kind == tkConst
+  # else:
+    # result = newVariableRef(ident)
 
-newPrefixProc "parseRegularAssignment":
-  var varDef = p.parseVarDef(scope)
+proc parseVarDefType(p: var Parser, scope: var seq[ScopeTable]): Node =
+  # parse a typed variable definition
+  discard # todo
+
+proc parseRegularAssignment(p: var Parser, scope: var seq[ScopeTable], ident: TokenTuple): Node =
+  var varDef = p.parseVarDef(scope, ident)
   if likely(varDef != nil):
-    let
-      tk = p.curr
-      varValue = p.getPrefixOrInfix(scope = scope)
+    let varValue = p.getPrefixOrInfix(scope = scope)
     if likely(varValue != nil):
       if unlikely(varDef.varOverwrite):
         let
           varInitType = varDef.varValue.getNodeType()
           varReassignType = varValue.getNodeType
         if unlikely(varInitType != varReassignType):
-          errorWithArgs(fnMismatchParam, tk, [varDef.varName, $(varReassignType), $(varInitType)]) 
+          errorWithArgs(fnMismatchParam, ident, [varDef.varName, $(varReassignType), $(varInitType)]) 
         if likely(varDef.varRef == false):
           result = deepCopy(varDef)
         else:
@@ -51,9 +54,9 @@ newPrefixProc "parseRegularAssignment":
       return # result
     return varDef
 
-newPrefixProc "parseStreamAssignment":
+proc parseStreamAssignment(p: var Parser, scope: var seq[ScopeTable], ident: TokenTuple): Node =
   # parse JSON/YAML from external sources
-  result = p.parseVarDef(scope)
+  result = p.parseVarDef(scope, ident)
   var fpath: string
   walk p # @json / @yaml
   case p.curr.kind
@@ -130,17 +133,17 @@ newPrefixProc "parseAnoObject":
     walk p
   return anno
 
-newPrefixProc "parseArrayAssignment":
+proc parseArrayAssignment(p: var Parser, scope: var seq[ScopeTable], ident: TokenTuple): Node =
   ## parse array construction using `[]` and assign to a variable  
-  result = p.parseVarDef(scope)
+  result = p.parseVarDef(scope, ident)
   if unlikely(result == nil): return nil
   result.varValue = p.parseAnoArray(scope)
   result.varType = ntArray
   result.varInitType = ntArray
 
-newPrefixProc "parseObjectAssignment":
+proc parseObjectAssignment(p: var Parser, scope: var seq[ScopeTable], ident: TokenTuple): Node =
   ## parse object construction using `{}` and assign to a variable 
-  result = p.parseVarDef(scope)
+  result = p.parseVarDef(scope, ident)
   if unlikely(result == nil): return nil
   result.varValue = p.parseAnoObject(scope)
 
@@ -188,12 +191,14 @@ proc parseCallAccessor(p: var Parser, accStorage: Node, scope: var seq[ScopeTabl
     walk p # tkRB
 
 newPrefixProc "parseAssignment":
+  let ident = p.curr
+  walk p, 2 # =
   result =
-    case p.next.kind:
-    of tkLB:              p.parseArrayAssignment(scope)
-    of tkLC:              p.parseObjectAssignment(scope)
-    of tkJSON:            p.parseStreamAssignment(scope)
-    of tkAssignableValue: p.parseRegularAssignment(scope)
+    case p.curr.kind:
+    of tkLB:              p.parseArrayAssignment(scope, ident)
+    of tkLC:              p.parseObjectAssignment(scope, ident)
+    of tkJSON:            p.parseStreamAssignment(scope, ident)
+    of tkAssignableValue: p.parseRegularAssignment(scope, ident)
     else: nil
   if likely(p.hasErrors == false and result != nil):
     p.stack(result, scope) # add in scope

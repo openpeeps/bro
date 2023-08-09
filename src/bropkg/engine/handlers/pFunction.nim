@@ -107,7 +107,7 @@ newPrefixProc "parseCallFnCommand":
     types: seq[NodeType]
   while p.curr isnot tkRPAR:
     if unlikely(p.curr is tkEOF): return
-    let arg = p.getPrefixOrInfix(scope, excludeOnly = {tkEcho, tkReturn, tkVarDef, tkFnDef})
+    let arg = p.getPrefixOrInfix(scope, excludeOnly = {tkEcho, tkReturn, tkVar, tkConst, tkFnDef})
     if likely(arg != nil):
       add args, arg
       case arg.nt:

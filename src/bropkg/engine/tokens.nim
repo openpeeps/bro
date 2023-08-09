@@ -53,10 +53,10 @@ handlers:
     if lex.buf[lex.bufpos] == '=':
       lex.kind =
         if isCSSVar:  tkCssVarDef
-        else:         tkVarDef
+        else:         tkVar
       if lex.next("="): # `==` as infixOp
         lex.kind = tkVarCall
-      else: inc lex.bufpos
+      # else: inc lex.bufpos
     elif lex.buf[lex.bufpos] == ':':
       lex.kind = tkVarTyped
       if lex.next("="): 
@@ -66,6 +66,22 @@ handlers:
         inc lex.bufpos, 2
     else:
       lex.kind = tkVarCall
+
+  proc handleVarDef(lex: var Lexer, kind: TokenKind) =
+    lexReady lex
+    # skip lex
+    add lex.token, '$'
+    inc lex.bufpos
+    if lex.buf[lex.bufpos] in IdentStartChars:
+      add lex
+      while true:
+        if lex.buf[lex.bufpos] in IdentChars:
+          add lex
+        else: break
+    else:
+      lex.setError("Invalid variable declaration")
+      return
+    lex.kind = kind
 
   proc handleExclamation(lex: var Lexer, kind: TokenKind) =
     lexReady lex
@@ -210,6 +226,9 @@ registerTokens lexerSettings:
   `mod` = '%'
   minus = '-'
   plus = '+'
+  # caret = '^'
+  `var` = tokenize(handleVarDef, "var")
+  `const` = tokenize(handleVarDef, "const")
   assign = '=':
     eq = '='
   `not` = '!':
@@ -225,17 +244,15 @@ registerTokens lexerSettings:
   rpar = ')'
   lb = '['
   rb = ']'
-  # lc = '{'
   lc = '{'
   rc = '}'
-  
+  # size units  
   mm = "mm"
   cm = "cm"
   `in` = "in"
   px = "px"
   pt = "pt"
   pc = "pc"
-  
   em = "em"
   ex = "ex"
   ch = "ch"
@@ -248,16 +265,15 @@ registerTokens lexerSettings:
   # excRule = tokenize(handleExclamation, '!')
   hash = tokenize(handleHash, '#')
   varSymbol # $
-  varDef = tokenize(handleVariable, '$')
+  varCall = tokenize(handleVariable, '$')
   varDefRef
   cssVarDef       # $$default-size
   cssVarDefRef
   varTyped
-  varCall
+  # varCall
   fnCall
   class
   dotExpr = '.'
-  # accQuoted = tokenize(handleAccQuoted, '`')
   accQuoted = '`'
   divide = '/':
     comment = '/' .. EOL

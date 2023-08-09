@@ -65,7 +65,7 @@ type
   ImportHandler = proc(th: (string, Stylesheets, string)) {.thread, nimcall, gcsafe.}
 
 const
-  tkVars = {tkVarCall, tkVarDef}
+  tkVars = {tkVarCall}
   tkUnits = {tkMM, tkCM, tkIN, tkPX, tkPT, tkPC, tkEM, tkEX, tkCH, tkREM, tkVW, tkVH, tkVMIN, tkVMAX} 
   tkNamedColors = {
     tkColorAliceblue, tkColorAntiquewhite, tkColorAqua, tkColorAquamarine, tkColorAzure,
@@ -92,21 +92,6 @@ const
     tkColorSlategray, tkColorSnow, tkColorSpringgreen, tkColorSteelblue, tkColorTan, tkColorTeal, tkColorThistle,
     tkColorTomato, tkColorTurquoise, tkColorViolet, tkColorWheat, tkColorWhite, tkColorWhitesmoke, tkColorYellow, tkColorYellowgreen
   }
-  # tkHtmlTags = {
-  #   tkA, tkAbbr, tkAcronym, tkAddress, tkApplet, tkArea, tkArticle, tkAside,
-  #   tkAudio, tkBold, tkBase, tkBasefont, tkBdi, tkBdo, tkBig, tkBlockquote, tkBody,
-  #   tkBr, tkButton, tkCanvas, tkCaption, tkCenter, tkCite, tkCode, tkCol, tkColgroup,
-  #   tkData, tkDatalist, tkDd, tkDel, tkDetails, tkDfn, tkDialog, tkDir, tkDiv,
-  #   tkDoctype, tkDl, tkDt, tkEm, tkEmbed, tkFieldset, tkFigcaption, tkFigure, tkFont,
-  #   tkFooter, tkForm, tkFrame, tkFrameset, tkH1, tkH2, tkH3, tkH4, tkH5, tkH6, tkHead,
-  #   tkHeader, tkHr, tkHtml, tkItalic, tkIframe, tkImg, tkInput, tkIns, tkKbd, tkLabel, tkLegend,
-  #   tkLi, tkLink, tkMain, tkMap, tkMark, tkMeta, tkMeter, tkNav, tkNoframes, tkNoscript,
-  #   tkObject, tkOl, tkOptgroup, tkOption, tkOutput, tkParagraph, tkParam, tkPre, tkProgress, tkQuotation,
-  #   tkRp, tkRt, tkRuby, tkStrike, tkSamp, tkScript, tkSection, tkSelect, tkSmall, tkSource, tkSpan,
-  #   tkStrikeLong, tkStrong, tkStyle, tkSub, tkSummary, tkSup, tkSvg, tkTable, tkTbody, tkTd,
-  #   tkTemplate, tkTextarea, tkTfoot, tkTh, tkThead, tkTime, tkTitle, tkTr, tkTrack, tkTt,
-  #   tkUnderline, tkUl, tkVideo, tkWbr, tkRoot
-  # }
   tkAssignable = {tkString, tkInteger, tkBool, tkColor, tkAccQuoted} + tkVars + tkNamedColors
   tkComparable = tkAssignable
   tkLogicalComp = {tkInteger, tkFloat, tkBool, tkString, tkVarCall, tkIdentifier, tkFnCall}
@@ -397,18 +382,29 @@ proc parseCompExp(p: var Parser, lht: Node, scope: var seq[ScopeTable]): Node =
   let rhtToken = p.curr
   let rht = p.parsePrefix(includeOnly=tkLogicalComp, scope = scope)
   if likely(rht != nil):
+    let
+      lhtnt = lht.getNodeType
+      rhtnt = rht.getNodeType
     case op
     of LT, LTE, GT, GTE:
-      let
-        lhtNodeType = lht.getNodeType
-        rhtNodeType = rht.getNodeType
-      if lhtNodeType notin {ntInt, ntFloat, ntSize}:
-        errorWithArgs(invalidInfixOperator, rhtToken, [$op, $lhtNodeType])
-      elif rhtNodeType notin {ntInt, ntFloat, ntSize}:
-        errorWithArgs(invalidInfixOperator, rhtToken, [$op, $rhtNodeType])
-    else: discard
-
-  if likely(rht != nil):
+      case lhtnt
+      of ntInt, ntFloat:
+        if unlikely(rhtnt notin {ntInt, ntFloat}):
+          errorWithArgs(invalidInfixOpExpect, rhtToken, [$op, $rhtnt, $lhtnt])
+      of ntSize:
+        if unlikely(rhtnt != ntSize):
+          errorWithArgs(invalidInfixOpExpect, rhtToken, [$op, $rhtnt, $lhtnt])
+      else:
+        errorWithArgs(invalidInfixOp, rhtToken, [$op, $lhtnt])
+    else:
+      case lhtnt
+      of ntInt, ntFloat:
+        if unlikely(rhtnt notin {ntInt, ntFloat}):
+          errorWithArgs(invalidInfixOpExpect, rhtToken, [$op, $rhtnt, $lhtnt])
+      of ntSize:
+        if unlikely(rhtnt != ntSize):
+          errorWithArgs(invalidInfixOpExpect, rhtToken, [$op, $rhtnt, $lhtnt])
+      else: discard # allowed
     result = newInfix(lht)
     result.infixOp = op
     if p.curr.kind in tkMathOperators:
@@ -556,10 +552,10 @@ proc parseSelectorStmt(p: var Parser, parent: (TokenTuple, Node),
 proc getPrefixFn(p: var Parser, excludeOnly, includeOnly: set[TokenKind] = {}): PrefixFunction =
   if excludeOnly.len > 0:
     if p.curr in excludeOnly:
-      errorWithArgs(InvalidContext, p.curr, [p.curr.value])
+      errorWithArgs(invalidContext, p.curr, [p.curr.value])
   if includeOnly.len > 0:
     if p.curr notin includeOnly:
-      errorWithArgs(InvalidContext, p.curr, [p.curr.value])
+      errorWithArgs(invalidContext, p.curr, [p.curr.value])
   case p.curr.kind
   of tkIdentifier:
     if p.isFnCall():
@@ -572,8 +568,7 @@ proc getPrefixFn(p: var Parser, excludeOnly, includeOnly: set[TokenKind] = {}): 
   of tkColor:   parseColor
   of tkString:  parseString
   of tkVarCall: parseCallCommand
-  of tkVarDef,
-    tkVarDefRef:  parseAssignment
+  of tkVar,tkConst: parseAssignment
   of tkReturn:  parseReturnCommand
   of tkEcho:    parseEchoCommand
   of tkBool:    parseBool
@@ -607,8 +602,9 @@ proc parseRoot(p: var Parser, scope: var seq[ScopeTable], excludeOnly, includeOn
   # Parse nodes at root-level
   result =
     case p.curr.kind:
-    of tkVarDef,
-      tkVarDefRef:  p.parseAssignment(scope)
+    # of tkVarDef,
+      # tkVarDefRef:  p.parseAssignment(scope)
+    of tkVar,tkConst: p.parseAssignment(scope)
     of tkVarCall: p.parseCallCommand(scope)
     of tkFnDef:   p.parseFn(scope)
     of tkDotExpr: p.parseDotExpr(scope, excludeOnly, includeOnly)
@@ -649,10 +645,8 @@ template startParseStylesheet(src: string, scope: var seq[ScopeTable]) =
   p.next = p.lex.getToken()
   while p.curr isnot tkEOF:
     if p.lex.hasError:
-      echo "Lexer errors:"
-      echo p.lex.getError # todo bring lexer errors to the current logger instance
-      break
-    elif p.hasErrors: break
+      p.logger.newError(internalError, p.curr.line, p.curr.col, false, [p.lex.getError])
+    if p.hasErrors: break
     let node = p.parseRoot(scope, excludeOnly = {tkExtend, tkPseudo, tkReturn})
     if likely(node != nil):
       add p.program.nodes, node

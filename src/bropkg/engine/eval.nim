@@ -328,6 +328,7 @@ proc evalInfix(c: Compiler; lht, rht: Node; infixOp: InfixOp; scope: ScopeTable)
       else:
         false
     of ntCallStack:
+      var lht = handleCallStack(c, lht, scope)
       case rht.nt
       of ntBool, ntFloat, ntInt, ntString, ntColor:
         evalInfix(c, lht, rht, infixOp, scope)
@@ -383,6 +384,7 @@ proc evalInfix(c: Compiler; lht, rht: Node; infixOp: InfixOp; scope: ScopeTable)
       else:
         false
     of ntCallStack:
+      var lht = handleCallStack(c, lht, scope)      
       case rht.nt
       of ntBool, ntFloat, ntInt, ntString, ntColor:
         evalInfix(c, lht, rht, infixOp, scope)
@@ -440,6 +442,7 @@ proc evalInfix(c: Compiler; lht, rht: Node; infixOp: InfixOp; scope: ScopeTable)
       else:
         false
     of ntCallStack:
+      var lht = handleCallStack(c, lht, scope)
       case rht.nt
       of ntBool, ntFloat, ntInt, ntString, ntColor:
         evalInfix(c, lht, rht, infixOp, scope)
@@ -496,6 +499,7 @@ proc evalInfix(c: Compiler; lht, rht: Node; infixOp: InfixOp; scope: ScopeTable)
       else:
         false
     of ntCallStack:
+      var lht = handleCallStack(c, lht, scope)
       case rht.nt
       of ntBool, ntFloat, ntInt, ntString, ntColor:
         evalInfix(c, lht, rht, infixOp, scope)
