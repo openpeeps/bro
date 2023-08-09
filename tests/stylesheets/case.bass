@@ -1,4 +1,4 @@
-$colors = [yellow, blue, pink]
+var colors = [yellow, blue, pink]
 
 for $color in $colors:
   case $color

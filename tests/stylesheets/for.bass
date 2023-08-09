@@ -1,4 +1,4 @@
-$colors = [blue, yellow, pink, green]
+var colors = [blue, yellow, pink, green]
 
 for $color in $colors:
   .btn-{$color}

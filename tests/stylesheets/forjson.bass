@@ -1,4 +1,4 @@
-$config = @json "sample.json"
+const config = @json "sample.json"
 
 for $color in $config["colors"]:
   .btn-{$color}

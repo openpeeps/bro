@@ -6,12 +6,6 @@ proc getPath(append: string): string =
 
 var paths = ["basic", "invalid", "for", "forjson", "case", "unused", "vars"]
 
-test "var declarations":
-  var p = parseStylesheet(paths[6].getPath)
-  check p.hasErrors == false
-  var c = newCompiler(p.getStylesheet)
-  echo c.getCSS
-
 test "can parse":
   var p = parseStylesheet(paths[0].getPath())
   check p.hasErrors == false
@@ -42,21 +36,29 @@ test "can catch warnings":
   check p.hasErrors == false
   check p.hasWarnings == true
 
-test "can compile `for` blocks":
+test "var declarations":
+  var p = parseStylesheet(paths[6].getPath)
+  check p.hasErrors == false
+  var c = newCompiler(p.getStylesheet)
+  echo c.getCSS
+
+test "`for` blocks":
   let path = paths[2].getPath()
   var p = parseStylesheet(path)
   check p.hasErrors == false
   check p.hasWarnings == false
   let c = newCompiler(p.getStylesheet)
+  echo c.getCSS
 
-test "can compile `for` blocks w/ @json":
+test "`for` blocks w/ @json":
   let path = paths[3].getPath()
   var p = parseStylesheet(path)
   check p.hasErrors == false
   check p.hasWarnings == false
   let c = newCompiler(p.getStylesheet)
+  echo c.getCSS
 
-test "can compile `case` blocks":
+test "`case` blocks":
   let path = paths[4].getPath()
   var p = parseStylesheet(path)
   check p.hasErrors == false

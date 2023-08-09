@@ -1,1 +1,1 @@
-$config = @json "sample.json"
+const config = @json "sample.json"

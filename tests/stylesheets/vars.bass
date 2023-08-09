@@ -1,12 +1,11 @@
-$a = 5px
-$b = 10px
-$c = true
-$d = 10
-$e = 1.0
+var a = 5px
+var b = 10px
+var c = true
+var d = 10
+var e = 1.0
 
-echo $a > $b
-echo $a == 5px
-echo $b == 10px
-
-$MAX_WIDTH = 1240px // immutable
-echo $MAX_WIDTH
+assert $a == 5px
+assert "abc" == "abc"
+assert 1 == 1
+assert true == true
+assert 10 + 10 == 21
