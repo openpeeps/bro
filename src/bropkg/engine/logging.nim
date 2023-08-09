@@ -12,52 +12,34 @@ when compileOption("app", "console"):
 
 type
   Message* = enum
-    InvalidIndentation = "Invalid indentation"
-    UnrecognizedToken = "Unrecognized token"
-    UndeclaredVariable = "Undeclared variable $"
-    AssignUndeclaredVar = "Assigning an undeclared variable"
+    invalidIndentation = "Invalid indentation"
+    undeclaredVariable = "Undeclared variable $"
     undeclaredCSSSelector = "Undeclared CSS selector"
     extendRedundancyError = "Selector $ extends $ multiple times"
     invalidProperty = "Invalid CSS property $"
-    DuplicateVarDeclaration = "Duplicate variable declaration"
-    DuplicateSelector = "Duplicated CSS declaration"
+    duplicateSelector = "Duplicated CSS declaration"
     unexpectedToken = "Unexpected token $"
-    UndefinedValueVariable = "Undefined value for variable"
     declaredEmptySelector = "Declared selector $ has no properties"
     badIndentation = "Nestable statement requires indentation"
-    UnstablePropertyStatus = "Use of $ is marked as $"
-    DuplicateExtendStatement = "Cannot be extended more than once"
-    InvalidNestSelector = "Invalid nest for given selector"
-    UnknownPseudoClass = "Unknown pseudo-class"
-    VariableRedefinition = "Compile-time variables are immutable"
-    UndefinedPropertyAccessor = "Undefined property accessor $ for object $"
     invalidInfixMissingValue = "Invalid infix missing assignable token"
-    invalidInfixOperator = "Invalid infix operator $ for $"
+    invalidInfixOp = "Invalid infix operator $ for $"
+    invalidInfixOpExpect = "Invalid infix operator $ | Got $ expected $"
     declaredNotUsed = "Declared and not used $"
-    TryingAccessNonObject = "Trying to get property $ on a non-object variable $"
-
     # accessor storage
     invalidAccessorStorage = "Invalid accessor storage"
-
     duplicateObjectKey = "Duplicate key in object"
     duplicateCaseLabel = "Duplicate case label"
-
     missingAssignmentToken = "Missing assignment token"
     missingRB = "Missing closing bracket"
     missingRC = "Missing closing curly bracket"
     immutableReassign = "Cannot assign twice to immutable variable $"
-
     invalidCallContext = "Invalid call in this context"
-
     # Use/Imports
     importDuplicateModule = "Module $ already in use"
     importModuleNotFound = "Module $ not found"
-
     # Condition - Case statements
     caseInvalidValue = "Invalid case statement"
     caseInvalidValueType = "Invalid case statement. Got $, expected $"
-    # Condition - If statements
-
     # Functions
     fnUndeclared = "Undeclared function $"
     fnMismatchParam = "Type mismatch for $ | Got $ expected $"
@@ -68,15 +50,8 @@ type
     fnAttemptRedefineIdent = "Attempt to redefine parameter $"
     fnOverload = "Attempt to redefine function $"
     fnAnoExport = "Anonymous functions cannot be exported"
-
     suggestLabel = "Did you mean?"
-
-    InvalidContext = "Invalid $ in this context"
-    InvalidSyntaxLoopStmt = "Invalid syntax for loop statement"
-    ConfigLoadingError = "Could not open json config file"
-    TypeMismatch = "Type mismatch"
-    InvalidIdent = "Invalid identifier"
-    EndOfFileError = "EOF reached before end of $"
+    invalidContext = "Invalid $ in this context"
     internalError = "$"
 
   Level* = enum
@@ -257,7 +232,6 @@ elif compileOption("app", "console"):
       add result, span($i.msg)
       for a in i.args:
         add result, span(a, fgBlue)
-
 
   iterator warnings*(logger: Logger): Row =
     for i in logger.warnLogs:
