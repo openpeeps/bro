@@ -150,10 +150,10 @@ Benchmarks made with [hyperfine](https://github.com/sharkdp/hyperfine) on<br>
   - [ ] Groups of Selectors [ref](https://www.w3.org/TR/selectors-3/#grouping)
   - [ ] Combinators [ref](https://www.w3.org/TR/selectors-3/#combinators)
 - [x] Compile-time
-  - [x] Compile-time Variables
+  - [x] Variables
   - [x] Arrays/Objects
     - [x] Anonymous arrays and objects
-  - [ ] Compile-time Constants
+  - [x] Constants
   - [x] Functions
     - [x] Closures
     - [x] Overloading
@@ -168,15 +168,13 @@ Benchmarks made with [hyperfine](https://github.com/sharkdp/hyperfine) on<br>
   - [ ] String/Variable concatenation using `&` and backticks
 - [ ] Handle single/multi line comments
 - [x] Memoization
-- [ ] CSS Parser to BRO AST
-- [ ] Import CSS/BASS files
-  - [ ] Implement AST caching system for imported files
-- [ ] `AST` Macro system (used internally to generate BASS code from CSS) 
+- [x] Import CSS/BASS files
+  - [ ] Implement AST caching system
 - [x] Command Line Interface 
   - [x] CLI `watch` for live changes
   - [x] CLI `build` BASS code to css
   - [ ] CLI generate source `map`
-  - [x] CLI generate `ast` nodes to binary AST via `MessagePack`
+  - [x] CLI generate `ast` nodes to binary AST
 - [x] Build
   - [x] Cross-platform compilation
   - [x] Node.js/Bun.js via NAPI 
