@@ -8,4 +8,4 @@ assert $a == 5px
 assert "abc" == "abc"
 assert 1 == 1
 assert true == true
-assert 10 + 10 == 21
+assert 10 + 10 == 20
