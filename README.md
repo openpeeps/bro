@@ -47,7 +47,7 @@ Integrate Bro in your Nim application
 import bro
 
 let stylesheet = """
-$colors = [blue, yellow, orchid]
+var colors = [blue, yellow, orchid]
 for $color in $colors:
   .bg-{$color}:
     background: $color 
@@ -64,7 +64,7 @@ Integrate the most powerful CSS pre-processor with Node.js/Bun.sh!
 
 ```javascript
 let stylesheet = `
-$colors = [blue, yellow, orchid]
+var colors = [blue, yellow, orchid]
 for $color in $colors:
   .bg-{$color}:
     background: $color
@@ -76,7 +76,7 @@ bro.compile(stylesheet) // .bg-blue{background:blue}.bg-yellow{...
 ### Bro in Browser via WASM
 ```html
 <style type="text/bro" id="stylesheet">
-$colors = [blue, yellow, orchid]
+var colors = [blue, yellow, orchid]
 for $color in $colors:
   .bg-{$color}:
     background: $color
