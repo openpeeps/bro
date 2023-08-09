@@ -55,6 +55,7 @@ proc parseVarCall(p: var Parser, tk: TokenTuple, varName: string, scope: var seq
     varName = if likely(varName.len == 0): p.curr.value else: varName
     currentScope = p.getScope(varName, scope)
     hashedVarName = hash(varName & $(currentScope.index))
+  let tk = tk
   walk p # tkVariable
   if currentScope.st != nil:
     var callNode = memoized(p.mVar, hashedVarName)
@@ -72,7 +73,7 @@ proc parseVarCall(p: var Parser, tk: TokenTuple, varName: string, scope: var seq
         p.mVar.memoize(hashedVarName, callNode)
       use(varNode)
     return callNode
-  errorWithArgs(UndeclaredVariable, tk, [varName])
+  errorWithArgs(undeclaredVariable, tk, [varName])
 
 newPrefixProc "parseCallCommand":
   # Parse variable calls
@@ -89,7 +90,7 @@ newPrefixProc "parseEchoCommand":
     if p.program.stack.hasKey(p.curr.value):
       walk p
       return newEcho(newInfo(p.program.stack[p.prev.value]), tk)
-  let node = p.getPrefixOrInfix(excludeOnly = {tkEcho, tkReturn, tkVarDef, tkFnDef}, scope = scope)
+  let node = p.getPrefixOrInfix(excludeOnly = {tkEcho, tkReturn, tkVar, tkConst, tkFnDef}, scope = scope)
   if node != nil:
     case node.nt
     of ntCallStack:
