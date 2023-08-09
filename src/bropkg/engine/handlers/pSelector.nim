@@ -18,7 +18,7 @@ proc parseMultiSelector(p: var Parser, node: Node) =
         add selectors, selectorIdent
         walk p
       else:
-        errorWithArgs(DuplicateSelector, p.curr, [selectorIdent])
+        errorWithArgs(duplicateSelector, p.curr, [selectorIdent])
   node.multipleSelectors = selectors
   setLen(selectors, 0)
   if p.lastParent != nil:
