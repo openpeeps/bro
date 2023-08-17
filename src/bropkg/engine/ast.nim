@@ -4,9 +4,9 @@
 #          Made by Humans from OpenPeeps
 #          https://github.com/openpeeps/bro
 
-import pkg/stashtable
-import std/[tables, strutils, json, sequtils, oids]
-import ./stdlib, ./critbits
+# import pkg/stashtable
+import std/[tables, strutils, json, sequtils]
+import ./critbits
 
 from ./tokens import TokenKind, TokenTuple
 export critbits
@@ -19,18 +19,20 @@ else:
 type
   NodeType* = enum
     ntVoid = "void"
-    ntRoot
-    ntProperty
+    ntRoot = "RootSelector"
+    ntProperty = "CSSProperty"
     ntVariable = "variable"
     ntUniversalSelector = "*"
-    ntAttrSelector
-    ntClassSelector = "class"
-    ntPseudoSelector
-    ntPseudoElements
-    ntIDSelector
+    ntAttrSelector = "AttributeSelector"
+    ntClassSelector = "ClassSelector"
+    ntPseudoSelector = "PseudoSelector"
+    ntPseudoElements = "PseudoElement"
+    ntIDSelector = "IDSelector"
     ntAtRule
     ntFunction = "function"
-    ntComment
+    ntMixin = "mix"
+    ntComment = "Comment"
+    ntDocBlock = "BlockComment"
     ntTagSelector
     ntString = "string"
     ntInt = "int"
@@ -42,22 +44,24 @@ type
     ntColor = "color"
     ntSize = "size"
     ntStream = "stream"
-    ntAccQuoted
-    ntCall
-    ntCallStack
+    ntDotExpr
+    ntAccQuoted = "QuotedString"
+    ntCall = "Call"
+    ntCallStack = "FunctionCall"
     ntCallRec
-    ntInfix
-    ntImport
+    ntInfix = "InfixExpression"
+    ntImport  = "MagicImport"
     ntPreview
-    ntExtend
-    ntForStmt
-    ntCondStmt
-    ntMathStmt
-    ntCaseStmt
-    ntCommand
-    ntStmtList
+    ntExtend  = "MagicExtend"
+    ntForStmt = "LoopStatement"
+    ntCondStmt = "CondStatement"
+    ntCaseStmt = "CaseStatement"
+    ntMathStmt = "MathExpression"
+    ntCommand = "Command"
+    ntStmtList = "StatementList"
     ntInfo
-    ntReturn
+    ntReturn = "ReturnCommand"
+    ntAssign = "AssignCommand"
 
   PropertyRule* = enum
     propRuleNone
@@ -134,20 +138,26 @@ type
     stmtScope*: ScopeTable
     stmtTraces*: seq[string]
 
+  Value* = object
+    node*: Node
+
+  # Instruction* = enum
+
   Node* {.acyclic.} = ref object
     case nt*: NodeType
     of ntProperty:
       pName*: string
       pVal*: seq[Node] # a seq of CSS values
       pRule*: PropertyRule
-    of ntFunction:
+    of ntFunction, ntMixin:
       fnIdent*, fnName*: string
-      fnParams*: CritBitTree[ParamDef]
+      fnParams*: Table[string, ParamDef]
       fnBody*: Node          # ntStmtList
       fnReturnType*: NodeType
-      fnUsed*, fnClosure*, fnExport*: bool
+      fnUsed*, fnClosure*, fnFwdDecl*, fnExport*: bool
+      fnSource*: string 
       fnMeta*: Meta
-    of ntComment:
+    of ntComment, ntDocBlock:
       comment*: string
     of ntVariable:
       varName*: string
@@ -188,12 +198,14 @@ type
     of ntStream:
       streamContent*: JsonNode
       usedStream*: bool
+    of ntDotExpr:
+      dotLeft, dotRight*: Node
     of ntCall:
-      callOid*: Oid
+      # callOid*: string
       callIdent*: string
       callNode*: Node
     of ntCallStack:
-      stackOid*: Oid
+      # stackOid*: Oid
       stackIdent*, stackIdentName*: string
       stackType*: NodeType
       stackReturnType*: NodeType
@@ -209,27 +221,28 @@ type
       mathResultType*: NodeType # either ntInt or ntFloat
       mathResult*: Node
     of ntCondStmt:
-      condOid*: Oid
+      # condOid*: Oid
       ifInfix*: Node
       ifStmt*: Node # ntStmtList
       elifStmt*: seq[tuple[comp: Node, body: Node]]
       elseStmt*: Node # ntStmtList
     of ntCaseStmt:
-      caseOid*: Oid
+      # caseOid*: Oid
       caseIdent*: Node # ntCall
       caseCond*: seq[CaseCondTuple]
       caseElse*: Node # ntStmtList
     of ntImport:
       # modules*: seq[tuple[path: string, module: Stylesheet]]
       modules*: seq[string] # absolute path of imported stylesheets (one or more for comma separated imports)
-    of ntPreview:
-      previewContent: string
+    # of ntPreview:
+    #   previewContent: string
     of ntExtend:
       extendIdent*: string
       extendProps*: KeyValueTable
     of ntForStmt:
-      forOid*: Oid
-      forItem*, inItems*: Node
+      # forOid*: Oid
+      forItem*: (Node, Node) # key/value (objects) or key/nil (arrays)
+      inItems*: Node
       forBody*: Node # ntStmtList
       forStorage*: ScopeTable
     of ntTagSelector, ntClassSelector, ntPseudoSelector,
@@ -246,57 +259,83 @@ type
     of ntCommand:
       cmdIdent*: CommandType 
       cmdValue*: Node
-      cmdMeta*: Meta
     of ntStmtList:
       stmtList*: seq[Node]
       stmtScope*: ScopeTable
       stmtTraces*: seq[string]
     of ntReturn:
       returnStmt*: Node
+    of ntAssign:
+      asgnVarIdent*: string
+      asgnVal*: Node
     of ntInfo:
       nodeType*: NodeType
     else: discard
-    # aotStmts*: seq[Node]
+    meta*: Meta
 
   Stylesheet* = ref object
     # info*: tuple[version: string, createdAt: DateTime]
     nodes*: seq[Node]
     selectors*: CritBitTree[Node]
-    stack*: ScopeTable
+    stack: ScopeTable
     sourcePath*: string
     meta*: Meta
       ## Count lines and columns when using Macros
 
-  Stylesheets* = StashTable[string, Stylesheet, 1000]
+  # Stylesheets* = StashTable[string, Stylesheet, 1000]
+  Stylesheets* = Table[string, Stylesheet]
+
+const
+  cssSelectors* = {ntClassSelector, ntTagSelector, ntIDSelector,
+                      ntRoot, ntUniversalSelector}
+
+proc getStack*(stylesheet: Stylesheet): ScopeTable = stylesheet.stack
+proc setGlobalScope*(stylesheet: Stylesheet, scope: ScopeTable) = stylesheet.stack = scope
 
 # fwd declarations
 proc newStream*(node: JsonNode): Node
 proc newString*(sVal: string): Node
 
-proc newInt*(iVal: string): Node
+# proc newInt*(iVal: string): Node
 proc newInt*(iVal: int): Node
 
-proc newFloat*(fVal: string): Node
+# proc newFloat*(fVal: string): Node
 proc newFloat*(fVal: float): Node
 
-proc newBool*(bVal: string): Node
+# proc newBool*(bVal: string): Node
 proc newBool*(bVal: bool): Node
 
 proc call*(node: Node, scope: ScopeTable): Node
 proc walkAccessorStorage*(node: Node, index: Node, scope: ScopeTable): Node
 
 proc `$`*(node: Node): string =
-  when not defined release:
-    pretty(toJson(node), 2)
-  else:
-    toJson(node)
+  {.gcsafe.}:
+    when not defined release:
+      pretty(toJson(node), 2)
+    else:
+      toJson(node)
+
+proc `$`*(nodes: seq[Node]): string =
+  {.gcsafe.}:
+    when not defined release:
+      pretty(toJson(nodes), 2)
+    else:
+      toJson(nodes)
+
+proc `$`*(stylesheet: Stylesheet): string =
+  {.gcsafe.}:
+    when not defined release:
+      pretty(toJson(stylesheet), 2)
+    else:
+      toJson(stylesheet)
 
 proc prefixed*(tk: TokenTuple): string =
-  result = case tk.kind
-            of tkClass: "."
-            of tkID: "#"
-            of tkPseudo: ":"
-            else: ""
+  result =
+    case tk.kind
+    of tkClass: "."
+    of tkID: "#"
+    of tkPseudo: ":"
+    else: ""
   add result, tk.value
 
 proc prefixSelector(node: Node): string =
@@ -318,8 +357,8 @@ proc getInfixOp*(kind: TokenKind, isInfixInfix: bool): InfixOp =
     else:
       if isInfixInfix:
         case kind
-        of tkANDAND, tkAndLit: AND
-        of tkOR, tkOrLit: OR
+        of tkANDAND, tkLitAnd: AND
+        of tkOR, tkLitOr: OR
         else: None
       else: None
 
@@ -385,7 +424,8 @@ proc walkAccessorStorage*(node: Node, index: Node, scope: ScopeTable): Node {.ra
       return node.arrayItems[call(index, scope).iVal]
     result = node.arrayItems[index.iVal]
   of ntVariable:
-    return walkAccessorStorage(node.varValue, index, scope)
+    # echo scope.hasKey(node.varName)
+    return walkAccessorStorage(scope[node.varName].varValue, index, scope)
   of ntStream:
     case node.streamContent.kind:
     of JObject:
@@ -443,15 +483,27 @@ proc getNodeType*(node: Node, getVarInitType = false): NodeType =
   result =
     case node.nt
     of ntCall:
-      if not getVarInitType:
-        node.callNode.varType
+      case node.callNode.nt
+      of ntVariable:
+        if not getVarInitType:
+          node.callNode.varType
+        else:
+          node.callNode.varInitType
+      of ntAccessor:
+        node.callNode.accessorType
       else:
-        node.callNode.varInitType
+        node.nt
     of ntInfix: ntBool
-    of ntMathStmt: ntInt # todo ntInt or ntFloat
+    of ntMathStmt:
+      case node.mathLeft.nt
+      of ntSize: ntSize
+      of ntInt: ntInt
+      of ntFloat: ntFloat
+      else: ntInt
     of ntArray, ntObject, ntBool, ntString, ntInt, ntFloat: node.nt
     of ntFunction: ntFunction
     of ntCallStack: node.stackReturnType
+    of ntAccQuoted: ntString
     else: node.nt
 
 proc getTypedValue*(node: Node): NodeType =
@@ -466,19 +518,23 @@ proc getTypedValue*(node: Node): NodeType =
         getTypedValue(node.varValue)
       else:
         node.varType
-    of ntString, ntInt, ntFloat, ntBool: node.nt
+    of ntString, ntInt, ntFloat,
+       ntBool, ntSize, ntColor: node.nt
     else: ntVoid
 
-proc `$`(types: openarray[NodeType]): string =
+proc `$`(types: seq[NodeType]): string =
   let t = types.map(proc(x: NodeType): string = $(x))
   add result, "|" & t.join("|")
 
-proc identify*(ident: string, types: openarray[NodeType]): string =
+proc identify*(ident: string, types: seq[NodeType]): string =
   result = ident
-  if types.len > 0:
-    add result, $(types)
+  add result, "|" & $(types.len)
+  # if types.len > 0:
+    # add result, $(types)
 
 # API
+
+proc trace(tk: TokenTuple): Meta = (tk.line, tk.col)
 
 proc newNode*(nt: NodeType): Node =
   ## Create a new `Node` of `nt`
@@ -492,6 +548,10 @@ proc newString*(sVal: string): Node =
   ## Create a new ntString node
   result = Node(nt: ntString, sVal: sVal)
 
+proc newString*(tk: TokenTuple): Node =
+  ## Create a new ntString node
+  result = Node(nt: ntString, sVal: tk.value, meta: tk.trace)
+
 proc newAccQuoted*(str: string): Node =
   result = Node(nt: ntAccQuoted, accVal: str)
 
@@ -503,6 +563,10 @@ proc newInt*(iVal: int): Node =
   ## Create a new ntInt node
   result = Node(nt: ntInt, iVal: iVal)
 
+proc newInt*(tk: TokenTuple): Node =
+  ## Create a new `int` node
+  Node(nt: ntInt, iVal: parseInt(tk.value), meta: tk.trace)
+
 proc newFloat*(fVal: string): Node =
   ## Create a new ntFloat node
   result = Node(nt: ntFloat, fVal: parseFloat fVal)
@@ -511,14 +575,17 @@ proc newFloat*(fVal: float): Node =
   ## Create a new ntFloat node
   result = Node(nt: ntFloat, fVal: fVal)
 
-proc newBool*(bVal: string): Node =
-  ## Create a new ntbool node
-  assert bVal in ["true", "false"]
-  result = Node(nt: ntBool, bVal: parseBool bVal)
+proc newFloat*(tk: TokenTuple): Node =
+  ## Create a new `float` node
+  Node(nt: ntFloat, fVal: parseFloat(tk.value), meta: tk.trace)
 
 proc newBool*(bVal: bool): Node =
   ## Create a new ntbool node
   result = Node(nt: ntBool, bVal: bVal)
+
+proc newBool*(tk: TokenTuple): Node =
+  ## Create a new `bool` node
+  Node(nt: ntBool, bVal: parseBool(tk.value), meta: tk.trace)
 
 proc newColor*(cVal: string): Node =
   ## Create a new ntColor node
@@ -545,7 +612,10 @@ proc newStream*(src: string): Node =
   ## Create a new Stream node from YAML or JSON
   try:
     let str = readFile(src)
-    result = Node(nt: ntStream, streamContent: parseJSON(str))
+    when defined release:
+      result = Node(nt: ntStream, streamContent: fromJson(str, JsonNode))
+    else:
+      result = Node(nt: ntStream, streamContent: parseJson(str))
   except IOError:
     echo "nope"
   except JsonParsingError:
@@ -559,11 +629,11 @@ proc newObject*(): Node = Node(nt: ntObject) ## Create a new ntObject node
 proc newArray*(): Node = Node(nt: ntArray) ## Create a new ntArray node
 
 proc newAccessor*(accType: NodeType, accStorage: Node): Node =
-  ## Create a new `ntAccessor` Node
+  ## Create a new accessor node
   assert accType in {ntArray, ntObject}
   assert accStorage.nt in {ntVariable, ntStream, ntAccessor, ntArray, ntObject} # a var type of array or anonymous arrays/objects
-  if accStorage.nt == ntVariable:
-    assert accStorage.varValue.nt in {ntArray, ntObject, ntStream}
+  # if accStorage.nt == ntVariable:
+    # assert accStorage.varValue.nt in {ntArray, ntObject, ntStream}
   case accType:
   of ntArray:
     result = Node(nt: ntAccessor, accessorType: ntArray, accessorStorage: accStorage)
@@ -571,27 +641,37 @@ proc newAccessor*(accType: NodeType, accStorage: Node): Node =
     result = Node(nt: ntAccessor, accessorType: ntObject, accessorStorage: accStorage)
   else: discard
 
-proc newCall*(id: string, node: Node): Node =
-  ## Create a new ntCall node
-  # assert node.nt in {ntVariable, ntJsonValue}
-  Node(nt: ntCall, callIdent: id, callOid: genOid(), callNode: node)
+proc newDotExpr*(lht, rht: Node): Node =
+  ## Create a new dot expression
+  Node(nt: ntDotExpr, dotLeft: lht, dotRight: rht)
 
-proc newFnCall*[N: Node](node: N, args: seq[N], ident, name: string): Node =
-  Node(nt: ntCallStack, stackArgs: args, stackOid: genOid(),
-        stackIdent: ident, stackIdentName: name,
-        stackReturnType: node.fnReturnType)
+proc newAssignment*(tk: TokenTuple, varValue: Node): Node =
+  ## Create a new assignment node
+  Node(nt: ntAssign, asgnVarIdent: tk.value, asgnVal: varValue, meta: tk.trace)
+
+proc newCall*(tk: TokenTuple): Node =
+  ## Create a new call node
+  Node(nt: ntCall, callIdent: tk.value, meta: tk.trace)
+
+proc newCall*(id: string, args: seq[Node], types: seq[NodeType]): Node =
+  ## Create a new call node
+  Node(nt: ntCallStack, stackArgs: args, stackIdentName: id, stackIdent: identify(id, types))
+
+proc newFnCall*[N: Node](returnType: NodeType, args: seq[N], ident, name: string): Node =
+  Node(nt: ntCallStack, stackArgs: args, stackIdent: ident,
+        stackIdentName: name, stackReturnType: returnType)
 
 const allowedInfixTokens = {ntColor, ntString, ntInt, ntSize,
                             ntBool, ntFloat, ntCall, ntCallStack,
                             ntMathStmt, ntInfix}
 
-proc newInfix*(lht, rht: Node, infixOp: InfixOp): Node =
-  ## Create a new ntInfix node
+proc newInfix*(lht, rht: Node, infixOp: InfixOp, tk: TokenTuple): Node =
+  ## Create a new infix node
   assert lht.nt in allowedInfixTokens
   assert rht.nt in allowedInfixTokens
-  result = Node(nt: ntInfix, infixLeft: lht, infixRight: rht, infixOp: infixOp)
+  result = Node(nt: ntInfix, infixLeft: lht, infixRight: rht, infixOp: infixOp, meta: tk.trace)
 
-proc newInfix*(lht: Node): Node =
+proc newInfix*(lht: Node, tk: TokenTuple): Node =
   ## Create a new ntInfix node
   assert lht.nt in allowedInfixTokens
   result = Node(nt: ntInfix, infixLeft: lht)
@@ -606,38 +686,45 @@ proc newInfixCalc*(lht, rht: Node, infixOp: MathOp): Node =
   result = Node(nt: ntMathStmt, mathLeft: lht, mathRight: rht, mathInfixOp: infixOp)
 
 proc newIf*(infix: Node): Node =
-  ## Create a new `ntCondStmt`
-  assert infix.nt in {ntInfix}
-  result = Node(nt: ntCondStmt, condOid: genOid(), ifInfix: infix)
+  ## Create a new `ntCondStmt` node
+  # assert infix.nt in {ntInfix, ntCallStack, ntCall}
+  case infix.nt:
+  of ntCallStack, ntCall:
+    assert infix.getNodeType == ntBool
+  of ntInfix: discard
+  else: doAssert false
+  result = Node(nt: ntCondStmt, ifInfix: infix)
 
 proc newImport*: Node =
   ## Create a new `ntImport` node
   result = Node(nt: ntImport)
 
-proc isImmutable(varName: string): bool =
-  for ch in varName[1..^1]:
-    if ch in {'-', '_', '0'..'9'}: continue
-    if not ch.isUpperAscii:
-      return false
-  result = true
+# proc isImmutable(varName: string): bool =
+#   for ch in varName[1..^1]:
+#     if ch in {'-', '_', '0'..'9'}: continue
+#     if not ch.isUpperAscii:
+#       return false
+#   result = true
 
 proc newVariable*(varName: string, varValue: Node, tk: TokenTuple, isArg = false): Node =
   ## Create a new `ntVariable` (declaration) node
-  result = Node(nt: ntVariable, varName: varName, varValue: varValue,
-                varImmutable: isImmutable(varName), varArg: isArg, varMeta: (tk.line, tk.pos))
+  result = Node(nt: ntVariable, varName: varName, varValue: varValue, varArg: isArg, varMeta: (tk.line, tk.pos))
 
 proc newVariable*(tk: TokenTuple): Node =
   ## Create a new `ntVariable` (declaration) node
-  result = Node(nt: ntVariable, varImmutable: isImmutable(tk.value), varName: tk.value, varMeta: (tk.line, tk.pos))
+  result = Node(nt: ntVariable, varName: tk.value, meta: (tk.line, tk.pos))
+
+proc newVariable*(id: string, varValue: Node): Node =
+  ## Create a new variable
+  Node(nt: ntVariable, varName: id, varValue: varValue)
 
 proc newVariableRef*(tk: TokenTuple): Node =
   ## Create a new `ntVariable` reference
   result = Node(nt: ntVariable, varName: tk.value,
         varMeta: (tk.line, tk.pos), varRef: true)
 
-proc newComment*(str: string): Node =
-  ## Create a new ntComment node
-  result = Node(nt: ntComment, comment: str)
+proc newComment*(str: string): Node = Node(nt: ntComment, comment: str)
+proc newDocBlock*(str: string): Node = Node(nt: ntDocBlock, comment: str)
 
 proc newTag*(tk: TokenTuple, properties = KeyValueTable(),
             concat: seq[Node] = @[]): Node =
@@ -665,32 +752,39 @@ proc newID*(tk: TokenTuple, properties = KeyValueTable(),
   Node(nt: ntIDSelector, ident: tk.prefixed,
     properties: properties,  identConcat: concat)
 
-proc newPreview*(tk: TokenTuple): Node =
-  ## Create a new ntPreview
-  result = Node(nt: ntPreview, previewContent: tk.value)
-
 proc newExtend*(tk: TokenTuple, keyValueTable: KeyValueTable): Node =
   ## Create a new ntExtend
   result = Node(nt: ntExtend, extendIdent: tk.value, extendProps: keyValueTable)
 
-proc newForStmt*(item, items: Node): Node =
+proc newForStmt*(item: (Node, Node), items: Node): Node =
   ## Create a new ntForStmt
-  result = Node(nt: ntForStmt, forOid: genOid(), forItem: item, inItems: items)
+  assert item[0].nt == ntVariable
+  if item[1] != nil:
+    assert item[1].nt == ntVariable
+  result = Node(nt: ntForStmt, forItem: item, inItems: items)
 
 proc newCaseStmt*(caseIdent: Node): Node =
   ## Create a new ntCaseStmt
-  result = Node(nt: ntCaseStmt, caseIdent: caseIdent)
+  Node(nt: ntCaseStmt, caseIdent: caseIdent)
 
 proc newFunction*(tk: TokenTuple): Node =
   ## Create a new function (low-level API)
-  result = Node(nt: ntFunction, fnName: tk.value, fnMeta: (tk.line, tk.pos))
+  Node(nt: ntFunction, fnName: tk.value, fnMeta: (tk.line, tk.pos))
+
+proc newMixin*(tk: TokenTuple): Node =
+  ## Create a new mixin (low-level API)
+  Node(nt: ntMixin, fnName: tk.value, fnMeta: (tk.line, tk.pos))
+
+proc newFunction*(fnName: string): Node =
+  ## Create a new function (low-level API)
+  Node(nt: ntFunction, fnName: fnName)
 
 proc newEcho*(val: Node, tk: TokenTuple): Node =
   ## Create a new `echo` command (low-level API)
-  result = Node(nt: ntCommand, cmdIdent: cmdEcho, cmdValue: val, cmdMeta: (tk.line, tk.pos))
+  Node(nt: ntCommand, cmdIdent: cmdEcho, cmdValue: val, meta: tk.trace)
 
 proc newAssert*(exp: Node, tk: TokenTuple): Node =
-  result = Node(nt: ntCommand, cmdIdent: cmdAssert, cmdValue: exp, cmdMeta: (tk.line, tk.pos))
+  Node(nt: ntCommand, cmdIdent: cmdAssert, cmdValue: exp, meta: tk.trace)
 
 proc newReturn*(stmtNode: Node): Node =
   ## Create a new `return` statement
@@ -701,63 +795,3 @@ proc newStmt*(stmtScope: ScopeTable = nil): Node =
   if stmtScope != nil:
     result.stmtScope = stmtScope
   else: new(result.stmtScope)
-
-#
-# High Level API
-#
-proc newStylesheet*: Stylesheet = 
-  new(result)
-  result.meta = (0, 1)
-
-proc add*(p: Stylesheet, node: Node) =
-  ## Add a new `node` to `Stylesheet`
-  assert node != nil
-  case node.nt
-  of ntCommand:
-    node.cmdMeta.line = p.meta.line 
-  of ntVariable:
-    node.varMeta.line = p.meta.line
-  of ntReturn:
-    raiseAssert("Cannot call `return` command at root level")
-  else: discard
-  p.nodes.add(node)
-  inc p.meta.line
-
-proc newBool*(style: Stylesheet, bVal: bool) =
-  ## Create a new ntbool node
-  style.add Node(nt: ntBool, bVal: bVal) 
-
-proc newClass*(name: string, properties = KeyValueTable(), multipleSelectors = @[""], concat: seq[Node] = @[]): Node =
-  ## Create a new ntClassSelector node
-  Node(nt: ntClassSelector, ident: name, properties: properties, multipleSelectors: multipleSelectors, identConcat: concat)
-
-proc newProperty*(selector: Node, pName: string, pVal: seq[Node]) =
-  ## Create a new ntProperty node
-  selector.properties[pName] =
-    Node(nt: ntProperty, pName: pName, pVal: pVal)
-
-proc newEcho*(style: Stylesheet, val: Node) =
-  ## Create a new `echo` (high-level API)
-  assert val != nil, "Expect a node value. Got nil"
-  assert val.nt in {ntString, ntInt}, "Got " & $(val.nt)
-  style.add Node(nt: ntCommand, cmdIdent: cmdEcho, cmdValue: val)
-
-proc newFunction*(style: Stylesheet, name: string) =
-  ## Create a new function (high-level API)
-  style.add Node(nt: ntFunction, fnName: name)
-
-proc newTag*(name: string, properties = KeyValueTable(), concat: seq[Node] = @[]): Node =
-  ## Create a new `ntTag` node
-  Node(nt: ntTagSelector, ident: name, properties: properties, identConcat: concat)
-
-proc newPseudoClass*(name: string, properties = KeyValueTable(), concat: seq[Node] = @[]): Node =
-  ## Create a new `ntPseudoSelector` node
-  Node(nt: ntPseudoSelector, ident: name, properties: properties, identConcat: concat)
-
-proc newVariable*(style: Stylesheet, name: string, value: Node) =
-  ## Create a new variable node
-  style.add Node(nt: ntVariable, varName: name, varValue: value)
-
-proc newVariable*(style: Stylesheet, name: string, value: string) =
-  ## Create a new variable node
-  style.add Node(nt: ntVariable, varName: name, varValue: newString(value))
