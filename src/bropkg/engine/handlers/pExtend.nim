@@ -40,13 +40,13 @@ newPrefixProc "parseExtend":
     return Node(nt: ntExtend)
 
   # otherwise, look into imported stylesheets
-  for (key, index) in p.stylesheets.keys:
-    p.stylesheets.withFound(key, index):
-      if value[].selectors.hasKey(ident.value):
-        let pNode = value[].selectors[ident.value]
-        p.resolveExtended(pNode, value[])
-        if not p.hasErrors:
-          walk p
-        else: return # error
-        return Node(nt: ntExtend)
+  # for (key, index) in p.stylesheets.keys:
+  #   p.stylesheets.withFound(key, index):
+  #     if value[].selectors.hasKey(ident.value):
+  #       let pNode = value[].selectors[ident.value]
+  #       p.resolveExtended(pNode, value[])
+  #       if not p.hasErrors:
+  #         walk p
+  #       else: return # error
+  #       return Node(nt: ntExtend)
   errorWithArgs(undeclaredCSSSelector, p.curr, [ident.value])

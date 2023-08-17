@@ -13,50 +13,54 @@ newPrefixProc "parseCond":
     # where `tkFnCall` is a simple token used to determine what kind of identifier
     # is expected via the `includeOnly` set  
     compTokens = {tkVarCall, tkInteger, tkString, tkBool, tkColor, tkIdentifier, tkFnCall} + tkNamedColors 
-    compNode = p.getPrefixOrInfix(includeOnly = compTokens, scope = scope)
+    compNode = p.getPrefixOrInfix(includeOnly = compTokens)
   var ifNode: Node
   if likely(compNode != nil):
     if p.curr.kind == tkColon:
       walk p # tkColon
-      ifNode = newIf(compNode)
-      
+      case compNode.nt
+      of ntInfix:
+        ifNode = newIf(compNode)
+      of ntCallStack:
+        ifNode = newIf(newInfix(compNode, newBool(true), EQ, tk))
+      else: discard # error?
       # parse `if` branch
-      let ifStmt = p.parseStatement((tk, ifNode), scope, excludeOnly,
+      let ifStmt = p.parseStatement((tk, ifNode), excludeOnly,
                       includeOnly, returnType, isFunctionWrap)
       if likely(ifStmt != nil):
         ifNode.ifStmt = ifStmt
       else: error(badIndentation, p.curr)
-      ifStmt.cleanup # out of scope
+      # ifStmt.cleanup # out of scope
 
       # parse `elif` branches
       while p.curr is tkElif:
         walk p # tkElif
-        let elifCompNode = p.getPrefixOrInfix(includeOnly = compTokens, scope = scope)
+        let elifCompNode = p.getPrefixOrInfix(includeOnly = compTokens)
         if likely(elifCompNode != nil and p.curr is tkColon):
           walk p # tkColon
-          let elifNode = p.parseStatement((tk, ifNode), scope, excludeOnly,
+          let elifNode = p.parseStatement((tk, ifNode), excludeOnly,
                           includeOnly, returnType, isFunctionWrap)
           if likely(elifNode != nil):
             add ifNode.elifStmt, (elifCompNode, elifNode)
           else:
             error(badIndentation, p.curr)
-          elifNode.cleanup # out of scope
+          # elifNode.cleanup # out of scope
         else: return nil
 
       # parse `else` branch
       if p.curr is tkElse:
         if p.next is tkColon:
           walk p, 2 # tkElse, tkColon
-          let elseNode = p.parseStatement((tk, ifNode), scope, excludeOnly,
+          let elseNode = p.parseStatement((tk, ifNode), excludeOnly,
                             includeOnly, returnType, isFunctionWrap)
           if likely(elseNode != nil):
             ifNode.elseStmt = elseNode
           else:
             error(badIndentation, p.curr)
-          elseNode.cleanup # out of scope
+          # elseNode.cleanup # out of scope
         else:
           error(badIndentation, p.curr)
-      scope.delete(scope.high)
+      # scope.delete(scope.high)
       return ifNode
     error(badIndentation, p.curr)
 
@@ -65,7 +69,7 @@ newPrefixProc "parseCase":
   walk p # tkCase
   if p.curr is tkVarCall: # todo support function calls
     let
-      caseVar = p.parseCallCommand(scope)
+      caseVar = p.parseCallCommand()
       caseVarType = caseVar.getTypedValue
       caseNode = newCaseStmt(caseVar)
     if likely(caseVarType in {ntColor, ntInt, ntFloat}):
@@ -75,16 +79,16 @@ newPrefixProc "parseCase":
         while p.curr is tkOf and p.curr.pos == tkOfTuple.pos:
           walk p # tkOf
           let tkOfIdent = p.curr # literal or variable
-          let caseOf = p.parsePrefix(excludeOnly = {tkEcho, tkReturn, tkFnDef}, scope = scope, returnType = returnType)
+          let caseOf = p.parsePrefix(excludeOnly = {tkEcho, tkReturn, tkFnDef}, returnType = returnType)
           if caseOf != nil:
             checkColon
             if likely(caseOf.getNodeType == caseVarType):
-              let caseBody = p.parseStatement((tkOfTuple, caseNode), scope, excludeOnly,
+              let caseBody = p.parseStatement((tkOfTuple, caseNode), excludeOnly,
                             includeOnly, returnType, isFunctionWrap)
               if likely(caseBody != nil):
                 add caseNode.caseCond, (caseOf, caseBody)
                 # caseBody.cleanup # out of scope
-                scope.delete(scope.high)
+                # scope.delete(scope.high)
               else: error(badIndentation, p.curr)
             else: errorWithArgs(caseInvalidValueType, tkOfIdent, [$(caseOf.getNodeType), $(caseVarType)])
           else: error(caseInvalidValue, p.curr)
@@ -96,13 +100,13 @@ newPrefixProc "parseCase":
         if p.curr is tkElse:
           walk p
           checkColon
-          let elseBody = p.parseStatement((tkOfTuple, caseNode), scope, excludeOnly,
+          let elseBody = p.parseStatement((tkOfTuple, caseNode), excludeOnly,
                           includeOnly, returnType, isFunctionWrap) 
           if likely(elseBody != nil):
             caseNode.caseElse = elseBody
           else: error(caseInvalidValue, p.curr)
           # elseBody.cleanup # out of scope
-          scope.delete(scope.high)
+          # scope.delete(scope.high)
         return caseNode
       error(badIndentation, p.curr)
     else: error(caseInvalidValue, p.curr)

@@ -11,27 +11,18 @@ proc handleCondStmt(c: Compiler, node, parent: Node, scope: ScopeTable) =
     tryElse: bool
     lht: Node = node.ifInfix.infixleft
     rht: Node = node.ifInfix.infixRight
-  case lht.nt
-  of ntCallStack:
-    lht = c.handleCallStack(lht, scope)
-  else: discard
-  case rht.nt
-  of ntCallStack:
-    rht = c.handleCallStack(rht, scope)
-  else: discard
-  if c.evalInfix(lht, node.ifInfix.infixRight,
-            node.ifInfix.infixOp, scope):
+  if c.evalInfix(lht, rht, node.ifInfix.infixOp, scope):
     for ifNode in node.ifStmt.stmtList:
       c.handleInnerNode(ifNode, parent, scope, node.ifStmt.stmtList.len, ix)
     return # condition is truthy
   ix = 1
-  # handle elfi branches
+  # handle elif branches
   if node.elifStmt.len > 0:
     for elifBranch in node.elifStmt: # walk through seq[Node] of `elif` statements
       case elifBranch.comp.nt
       of ntInfix:
-        if c.evalInfix(elifBranch.comp.infixLeft, elifBranch.comp.infixRight,
-                    elifBranch.comp.infixOp, scope):
+        if c.evalInfix(elifBranch.comp.infixLeft,
+            elifBranch.comp.infixRight, elifBranch.comp.infixOp, scope):
           for elifNode in elifBranch.body.stmtList:
             c.handleInnerNode(elifNode, parent, scope, elifBranch.body.stmtList.len, ix)
           return # condition is truthy

@@ -6,7 +6,7 @@
 
 newPrefixProc "parseString":
   # parse strings
-  result = newString(p.curr.value)
+  result = newString(p.curr)
   walk p
 
 newPrefixProc "parseInt":
@@ -15,12 +15,12 @@ newPrefixProc "parseInt":
     let size = p.curr.value.parseInt
     walk p, 2
     return newSize(newInt(size), toUnits(p.prev.kind))
-  result = newInt(p.curr.value)
+  result = newInt(p.curr)
   walk p
 
 newPrefixProc "parseBool":
   # parse boolean values
-  result = newBool(p.curr.value)
+  result = newBool(p.curr)
   walk p
 
 newPrefixProc "parseFloat":
@@ -29,7 +29,7 @@ newPrefixProc "parseFloat":
     let size = p.curr.value.parseFloat
     walk p, 2
     return newSize(newFloat(size), toUnits(p.prev.kind))
-  result = newFloat(p.curr.value)
+  result = newFloat(p.curr)
   walk p
 
 newPrefixProc "parseColor":
@@ -74,21 +74,23 @@ newPrefixProc "parseAccQuoted":
         walk p, 2
         while p.curr isnot tkRC:
           if unlikely(p.curr is tkEOF): return nil
-          if p.curr is tkIdentifier:
+          if p.curr in tkTypedLiterals + {tkIdentifier}:
+            p.curr.kind = tkIdentifier # dirty fix
             add result.accVal, indent("$bro" & $(hash(p.curr.value)), tkSymbol.wsno)
-            let varNode = p.parseVarCall(tk, "$" & p.curr.value, scope)
+            # let varNode = p.parseVarCall(tk, "$" & p.curr.value)
+            let varNode = p.parseCallCommand()
             if likely(varNode != nil):
               add result.accVars, varNode
             else: return nil
           else:
-            let prefixInfixNode = p.getPrefixOrInfix(scope, includeOnly = {tkInteger})
-            case prefixInfixNode.nt
-            of ntInt, ntBool:
-              add result.accVal, indent("$bro" & $(hash(p.curr.value)), tkSymbol.wsno)
-            of ntMathStmt, ntInfix:
-              add result.accVal, indent("$bro" & $(hash(prefixInfixNode)), tkSymbol.wsno)
-            else: discard
+            let prefixInfixNode = p.getPrefixOrInfix(includeOnly = {tkInteger, tkFloat, tkVarCall, tkFnCall, tkIdentifier})
             if likely(prefixInfixNode != nil):
+              case prefixInfixNode.nt
+              of ntInt, ntBool:
+                add result.accVal, indent("$bro" & $(hash(p.curr.value)), tkSymbol.wsno)
+              of ntMathStmt, ntInfix:
+                add result.accVal, indent("$bro" & $(hash(prefixInfixNode)), tkSymbol.wsno)
+              else: discard
               add result.accVars, prefixInfixNode
             else: return nil
         walk p # tkRC
