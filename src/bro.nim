@@ -11,9 +11,8 @@ when defined napibuild:
   from std/sequtils import toSeq
 
   init proc(module: Module) =
-    proc toCSS(src: string, minify: bool) {.export_napi.} =
-      let sourcePath = args.get("src").getStr
-      var p = parseStylesheet(sourcePath)
+    proc toCSS(code: string, path: string, minify: bool) {.export_napi.} =
+      var p = parseStylesheet(args.get("code").getStr, args.get("path").getStr)
       if not p.hasErrors:
         return %* newCompiler(p.getStylesheet, args.get("minify").getBool).getCSS()
       else:
@@ -46,7 +45,7 @@ else:
           ? cache   "Enables binary AST Caching"
         
         --- "Development"
-        $ "watch" `style` `output` `delay` ["sync", "map"]:
+        $ "watch" `style` `output` `delay` ["sync", "min", "map"]:
           ? "Watch for changes and compile"
           ? style    "Your main .bass file"
           ? output   "Where to save the final CSS output"
@@ -57,7 +56,7 @@ else:
         $ "map" `style`:
           ? "Generates a source map"
         
-        $ "ast" `style` `output`:
+        $ "ast" `style` `output` ["plain"]:
           ? "Generates binary AST"
         
         $ "repr" `ast` `output` ["min"]:
