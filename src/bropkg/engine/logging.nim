@@ -5,6 +5,8 @@
 #          https://github.com/openpeeps/bro
 
 from ./tokens import TokenTuple
+from ./ast import Meta
+
 import std/[sequtils, strutils]
 
 when compileOption("app", "console"):
@@ -14,6 +16,7 @@ type
   Message* = enum
     invalidIndentation = "Invalid indentation"
     undeclaredVariable = "Undeclared variable $"
+    varRedefine = "Attempt to redefine variable $"
     undeclaredCSSSelector = "Undeclared CSS selector"
     extendRedundancyError = "Selector $ extends $ multiple times"
     invalidProperty = "Invalid CSS property $"
@@ -27,7 +30,7 @@ type
     declaredNotUsed = "Declared and not used $"
     # accessor storage
     invalidAccessorStorage = "Invalid accessor storage"
-    duplicateObjectKey = "Duplicate key in object"
+    duplicateObjectKey = "Duplicate object field $"
     duplicateCaseLabel = "Duplicate case label"
     missingAssignmentToken = "Missing assignment token"
     missingRB = "Missing closing bracket"
@@ -50,6 +53,7 @@ type
     fnAttemptRedefineIdent = "Attempt to redefine parameter $"
     fnOverload = "Attempt to redefine function $"
     fnAnoExport = "Anonymous functions cannot be exported"
+    assertionInvalid = "Cannot assert $"
     suggestLabel = "Did you mean?"
     invalidContext = "Invalid $ in this context"
     internalError = "$"
@@ -172,6 +176,10 @@ template errorWithArgs*(msg: Message, tk: TokenTuple, args: openarray[string]) =
     p.logger.newError(msg, tk.line, tk.pos, true, args)
     p.hasErrors = true
   return # block code execution
+
+template compileErrorWithArgs*(msg: Message, args: openarray[string], meta: Meta = (0,0)) =
+  c.logger.newError(msg, meta.line, meta.pos, true, args)
+  return
 
 proc error*(logger: Logger, msg: Message, line, col: int, args: varargs[string]) =
   logger.add(lvlError, msg, line, col, false, args)
