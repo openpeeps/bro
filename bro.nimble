@@ -1,3 +1,9 @@
+# A super fast stylesheet language for cool kids
+#
+# (c) 2023 George Lemon | LGPL License
+#          Made by Humans from OpenPeeps
+#          https://github.com/openpeeps/bro
+
 # Package
 
 version       = "0.1.2"
@@ -14,15 +20,15 @@ skipDirs      = @["bro/utils"]
 
 requires "nim >= 2.0.0"
 requires "checksums"
-requires "toktok#head"
+requires "toktok >= 0.1.2"
 requires "kapsis"
+requires "malebolgia"
 requires "watchout#head"
 requires "https://github.com/georgelemon/jsony#add-critbits-support" # jsony
 requires "nyml"
-requires "denim"
+requires "denim >= 0.1.7"
 requires "chroma#head"
-requires "pkginfo"
-requires "https://github.com/georgelemon/StashTable#fix-stash-error" # stashtable
+requires "stashtable >= 1.2.2"
 requires "httpx", "websocketx"
 requires "flatty", "supersnappy"
 
