@@ -4,7 +4,7 @@
 #          Made by Humans from OpenPeeps
 #          https://github.com/openpeeps/bro
 
-import pkg/[watchout, httpx, websocketx, checksums/md5]
+import pkg/[watchout, httpx, websocketx]
 import pkg/kapsis/[runtime, cli]
 import std/[times, os, strutils, net, osproc,
           options, asyncdispatch, htmlgen]
@@ -13,7 +13,7 @@ from ../engine/parser import getCachePath
 
 var hasOutput: bool
 
-proc parseStylesheet(path, outpath, mainPath: string, isMain: bool) =
+proc parseStylesheet(path, outpath, mainPath: string, isMain: bool, cflags: seq[string]) =
   display("✨ Changes detected")
   display(path, indent = 2, br="after")
   if isMain:
@@ -27,7 +27,7 @@ proc parseStylesheet(path, outpath, mainPath: string, isMain: bool) =
     if bast.exitCode != 0:
       display(bast.output)
     else:
-      let broCommand = execCmdEx("bro " & mainPath & " " & outpath & " --cache")
+      let broCommand = execCmdEx("bro " & mainPath & " " & outpath & " "  & cflags.join(" "))
       display(broCommand.output)
 
 proc runCommand*(v: Values) =
@@ -69,10 +69,13 @@ proc runCommand*(v: Values) =
     display("✨ Watching for changes...", br="after")
 
   var watchMain = @[stylesheetPath.parentDir() / "*.bass"] # only main stylsheet
+  var cflags = @["cache"]
+  if v.flag("min"):
+    cflags.add("min")
   proc watchoutCallback(file: watchout.File) {.closure.} =
-    parseStylesheet(file.getPath, cssPath, stylesheetPath, file.getPath == stylesheetPath)
+    parseStylesheet(file.getPath, cssPath, stylesheetPath, file.getPath == stylesheetPath, cflags)
   
-  let broCommand = execCmdEx("bro " & stylesheetPath & " " & cssPath & " --cache")
+  let broCommand = execCmdEx("bro " & stylesheetPath & " " & cssPath & " " & cflags.join(" "))
   display(broCommand.output)
   if broCommand.exitCode != 0: QuitFailure.quit
   startThread(watchoutCallback, watchMain, delay, shouldJoinThread = v.flag("sync") == false)

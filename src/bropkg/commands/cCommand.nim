@@ -26,7 +26,6 @@ proc runCommand*(v: Values) =
   if stylesheetPath.getFileSize == 0:
     display("Stylesheet is empty")
     QuitFailure.quit
-  
   if hasOutput:
     cssPath = v.get("output")
     if cssPath.splitFile.ext != ".css":
@@ -36,10 +35,10 @@ proc runCommand*(v: Values) =
       cssPath.normalizePath
       cssPath = cssPath.absolutePath()
     display("✨ Building...", br="after")
-  
+
   let
     t = getMonotime()
-    p = parser.parseStylesheet(stylesheetPath, enableCache = v.flag("cache"))
+    p = parser.parseStylesheet(readFile(stylesheetPath), stylesheetPath, enableCache = v.flag("cache"))
 
   if unlikely(p.logger.warnLogs.len > 0):
     for warning in p.logger.warnings:
@@ -54,7 +53,7 @@ proc runCommand*(v: Values) =
     display(" 👉 " & p.logger.filePath)
     QuitFailure.quit
 
-  let c = newCompiler(p.getStylesheet, minify = v.flag("min"))
+  let c = newCompiler(p.getStylesheet, minify = v.flag("min"), p.getStylesheets)
   if unlikely(c.hasErrors):
     # check for errors at compile time
     display("Build failed with errors")
