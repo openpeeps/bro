@@ -1,0 +1,10 @@
+import std/os
+
+var x = getCurrentDir()
+var somePath = join($x, "test_strings.bass")
+
+assert dirExists($x) == true
+assert isAbsolute($x) == true
+assert fileExists($somePath) == true
+assert getFilename($somePath) == "test_strings.bass"
+assert parentDir($somePath) == $x

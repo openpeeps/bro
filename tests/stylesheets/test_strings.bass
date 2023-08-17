@@ -1,0 +1,35 @@
+// testing `std/strings` library
+import std/strings
+
+var a = "Hello, World!"
+var b = "Bro is AWESOME!"
+var c = "A super fast style sheet language for cool kids"
+var fox = "The quick brown fox jumps over the lazy dog"
+
+
+// checks if a string starts/ends with `x`
+assert startsWith($fox, "The quick brown fox") == true
+assert endsWith($fox, "lazy dog") == true
+assert startsWith(toLower($fox), "the quick") == true
+assert endsWith(toLower($fox), "lazy dog") == true
+
+// transforms strings to lowercase / uppercase
+assert toLower($b) == "bro is awesome!"
+assert toLower("Some") == "some"
+assert capitalize($b) == $b
+
+// replace patterns in strings
+assert replace($b, "AWESOME", "Cool") == "Bro is Cool!"
+assert replace($a, "Hello", "Yellow") == "Yellow, World!"
+assert replace(toLower($c), " ", "-") == "a-super-fast-style-sheet-language-for-cool-kids"
+
+assert contains($c, toLower("SUPER FAST")) == true
+
+assert format("The $1 eats $2", ["cat", "fish"]) == "The cat eats fish"
+
+assert format("The $animal eats $food",
+      ["animal", "cat", "food", "fish"]) == "The cat eats fish"
+
+// parse strings to bool, int, or float
+assert toBool("true") == true
+assert toInt("100") == 100
