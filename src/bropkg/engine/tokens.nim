@@ -52,26 +52,23 @@ handlers:
       inc lex.bufpos
     if lex.buf[lex.bufpos] == '=':
       lex.kind =
-        if isCSSVar:  tkCssVarDef
-        else:         tkVar
+        if isCSSVar:  tkVarAssgn
+        else:         tkVarAssgn
       if lex.next("="): # `==` as infixOp
         lex.kind = tkVarCall
-      # else: inc lex.bufpos
-    elif lex.buf[lex.bufpos] == ':':
-      lex.kind = tkVarTyped
-      if lex.next("="): 
-        lex.kind =
-          if isCSSVar:  tkCssVarDefRef
-          else:         tkVarDefRef
-        inc lex.bufpos, 2
+    # elif lex.buf[lex.bufpos] == ':':
+    #   lex.kind = tkVarTyped
+    #   if lex.next("="): 
+    #     lex.kind =
+    #       if isCSSVar:  tkCssVarDefRef
+    #       else:         tkVarDefRef
+    #     inc lex.bufpos, 2
     else:
       lex.kind = tkVarCall
 
   proc handleVarDef(lex: var Lexer, kind: TokenKind) =
-    lexReady lex
-    # skip lex
-    add lex.token, '$'
-    inc lex.bufpos
+    skip lex
+    lex.token = "$"
     if lex.buf[lex.bufpos] in IdentStartChars:
       add lex
       while true:
@@ -130,7 +127,7 @@ handlers:
 
   proc handleImport(lex: var Lexer, kind: TokenKind) =
     lexReady lex
-    inc lex.bufpos, len("@import")
+    # inc lex.bufpos, len("import")
     skip lex
     reset(lex.wsno) # dont count left wsno
     var fName: string
@@ -158,6 +155,19 @@ handlers:
       lex.kind = tkIdentifier
     else:
       lex.kind = kind
+
+  proc handleDocBlock(lex: var Lexer, kind: TokenKind) =
+    # lexReady lex
+    while true:
+      case lex.buf[lex.bufpos]
+      of '*':
+        add lex
+        if lex.current == '/':
+          add lex
+          break
+      of EndOfFile: break
+      else: add lex
+    lex.kind = kind
 
   proc customIntHandler(lex: var Lexer, kind: TokenKind) =
     # Handle integers and float numbers
@@ -211,10 +221,9 @@ registerTokens lexerSettings:
   symInt = tokenize(customIntHandler, '0'..'9')
   `case` = "case"
   `of` = "of"
-  andLit = "and"
-  orLit = "or"
   `bool` = ["true", "false"]
-  colon = ':'
+  colon = ':':
+    varDefRef = '='
   semiColon = ';'
   comma = ','
   `and` = '&':
@@ -240,8 +249,8 @@ registerTokens lexerSettings:
   lt ='<':
     lte = '='
   quest = '?'
-  lpar = '('
-  rpar = ')'
+  lp = '('
+  rp = ')'
   lb = '['
   rb = ']'
   lc = '{'
@@ -266,33 +275,39 @@ registerTokens lexerSettings:
   hash = tokenize(handleHash, '#')
   varSymbol # $
   varCall = tokenize(handleVariable, '$')
-  varDefRef
-  cssVarDef       # $$default-size
-  cssVarDefRef
+  # cssVarDef       # $$default-size
+  # cssVarDefRef
   varTyped
-  # varCall
+  varAssgn
   fnCall
   class
   dotExpr = '.'
   accQuoted = '`'
   divide = '/':
+    doc = tokenize(handleDocBlock, '*')
     comment = '/' .. EOL
+  `import` = tokenize(handleImport, "import")
+  `include` = "include"
+  # json = "json"
   at = '@':
-    `import` = tokenize(handleImport, "import")
     extend = "extend"
-    use = "use"
-    mix = "mixin"
-    json = "json"
+    mixCall = "mixin"
+    importRule = "import"
 
-  arrayLit = "array"
-  boolLit = "bool"
-  colorLit = tokenize(handleColorLit, "color")
-  floatLit = "float"
-  functionLit = "function"
-  intLit = "int"
-  objectLit = "object"
-  sizeLit = "size"
-  stringLit = "string"
+  litAnd = "and"
+  litArray = "array"
+  litBool = "bool"
+  litColor = tokenize(handleColorLit, "color")
+  litFloat = "float"
+  litFunction = "function"
+  litInt = "int"
+  litObject = "object"
+  litOr = "or"
+  litSize = "size"
+  litString = "string"
+  litCSS = "css"
+  litMixin = "mixin"
+
   id
   color
   fnDef = "fn"
