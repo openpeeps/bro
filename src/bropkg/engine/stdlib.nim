@@ -7,7 +7,9 @@
 import std/[macros, enumutils]
 import ./critbits, ./ast
 
-import std/[os, strutils, sequtils, unicode]
+# std lib dependencies
+import pkg/[jsony, nyml]
+import std/[os, math, fenv, strutils, sequtils, random, unicode, json]
 
 type
   Arg* = tuple[name: string, value: Node]
@@ -18,9 +20,14 @@ type
 
   Stdlib* = CritBitTree[(Module, SourceCode)]
 
+  StringsModule* = object of CatchableError
+  OSModule* = object of CatchableError
+  SystemModule* = object of CatchableError
+
 var stdlib* {.threadvar.}: Stdlib
 var strutilsModule, sequtilsModule,
-    osModule, critbitsModule {.threadvar.}: Module
+    osModule, critbitsModule, systemModule,
+    mathModule {.threadvar.}: Module
 
 proc toNimSeq*[T](node: Node): seq[T] =
   for item in node.arrayItems:
@@ -49,6 +56,7 @@ macro initStdlib() =
       wrapper: NimNode
         # wraps nim function
       hasWrapper: bool
+      loadFrom: string
 
   proc addFunction(id: string, args: openarray[(NodeType, string)], nt: NodeType): string =
     var p = args.map do:
@@ -56,13 +64,11 @@ macro initStdlib() =
                 "$1: $2" % [x[1], $(x[0])]          
     result = "fn $1*($2): $3\n" % [id, p.join(", "), $nt]
 
-  proc fwd(id: string, returns: NodeType,
-      args: openarray[(NodeType, string)] = [], alias = ""): Forward =
-    Forward(id: id, returns: returns, args: args.toSeq, alias: alias)
-
-  proc fwd(id: string, returns: NodeType,
-      args: openarray[(NodeType, string)] = [], wrapper: NimNode, alias = ""): Forward {.compileTime.} =
-    Forward(id: id, returns: returns, args: args.toSeq, alias: alias, wrapper: wrapper, hasWrapper: true)
+  proc fwd(id: string, returns: NodeType, args: openarray[(NodeType, string)] = [],
+      alias = "", wrapper: NimNode = nil, loadFrom = ""): Forward {.compileTime.} =
+    Forward(id: id, returns: returns, args: args.toSeq,
+        alias: alias, wrapper: wrapper, hasWrapper: wrapper != nil,
+        loadFrom: loadFrom)
 
   proc `*`(nt: NodeType, count: int): seq[NodeType] =
     for i in countup(1, count):
@@ -72,12 +78,67 @@ macro initStdlib() =
     toNimSeq[string](arg.value)
 
   template formatWrapper: untyped =
-    newString(format(args[0].value.sVal, argToSeq[seq[string]](args[1])))
+    try:
+      ast.newString(format(args[0].value.sVal, argToSeq[seq[string]](args[1])))
+    except ValueError as e:
+      raise newException(StringsModule, e.msg)
 
   template seqStrContains: untyped =
-    newBool(contains(args[0].value.sVal, args[0].value.sVal))
+    ast.newBool(contains(args[0].value.sVal, args[0].value.sVal))
+
+  template systemStreamFunction: untyped =
+    try:
+      let filepath =
+        if not isAbsolute(args[0].value.sVal):
+          absolutePath(args[0].value.sVal)
+        else: args[0].value.sVal
+      let str = readFile(args[0].value.sVal)
+      let ext = filepath.splitFile.ext
+      if ext == ".json":
+        return ast.newStream(str.fromJson(JsonNode))
+      elif ext in [".yml", ".yaml"]:
+        return ast.newStream(yaml(str).toJson.get)
+      else:
+        echo "error"
+    except IOError as e:
+      raise newException(SystemModule, e.msg)
+    except JsonParsingError as e:
+      raise newException(SystemModule, e.msg)
+
+  template systemRandomize: untyped =
+    randomize()
+    ast.newInt(rand(args[0].value.iVal))
 
   let
+    fnSystem = @[
+      fwd("json", ntStream, [(ntString, "path")], wrapper = getAst(systemStreamFunction())),
+      fwd("yaml", ntStream, [(ntString, "path")], wrapper = getAst(systemStreamFunction())),
+      fwd("rand", ntInt, [(ntInt, "max")], "random", wrapper = getAst(systemRandomize())),
+      fwd("len", ntInt, [(ntString, "x")]),
+      # fwd("inc", ntInt, [(ntMutInt, "x"), (ntInt, "y")], wrapper = getAst(systemInc()))
+    ]
+    fnMath = @[
+      fwd("ceil", ntFloat, [(ntFloat, "x")]),
+      # fwd("clamp") need to add support for ranges
+      fwd("floor", ntFloat, [(ntFloat, "x")]),
+      fwd("max", ntInt, [(ntInt, "x"), (ntInt, "y")], loadFrom = "system"),
+      fwd("min", ntInt, [(ntInt, "x"), (ntInt, "y")], loadFrom = "system"),
+      fwd("round", ntFloat, [(ntFloat, "x")]),
+      # fwd("abs", ntInt, [(ntInt, "x")]),
+      fwd("hypot", ntFloat, [(ntFloat, "x"), (ntFloat, "y")]),
+      fwd("log", ntFloat, [(ntFloat, "x"), (ntFloat, "base")]),
+      fwd("pow", ntFloat, [(ntFloat, "x"), (ntFloat, "y")]),
+      fwd("sqrt", ntFloat, [(ntFloat, "x")]),
+      fwd("cos", ntFloat, [(ntFloat, "x")]),
+      fwd("sin", ntFloat, [(ntFloat, "x")]),
+      fwd("tan", ntFloat, [(ntFloat, "x")]),
+      fwd("arccos", ntFloat, [(ntFloat, "x")], "acos"),
+      fwd("arcsin", ntFloat, [(ntFloat, "x")], "asin"),
+      fwd("radToDeg", ntFloat, [(ntFloat, "d")], "rad2deg"),
+      fwd("degToRad", ntFloat, [(ntFloat, "d")], "deg2rad"),
+      fwd("arctan", ntFloat, [(ntFloat, "x")], "atan"),
+      fwd("arctan2", ntFloat, [(ntFloat, "x"), (ntFloat, "y")], "atan2"),
+    ]
     # std/strings
     # implements common functions for working with strings
     # https://nim-lang.github.io/Nim/strutils.html
@@ -91,7 +152,7 @@ macro initStdlib() =
       fwd("parseBool", ntBool, [(ntString, "s")], "toBool"),
       fwd("parseInt", ntInt, [(ntString, "s")], "toInt"),
       fwd("parseFloat", ntFloat, [(ntString, "s")], "toFloat"),
-      fwd("format", ntString, [(ntString, "s"), (ntArray, "a")], getAst(formatWrapper()))
+      fwd("format", ntString, [(ntString, "s"), (ntArray, "a")], wrapper = getAst(formatWrapper()))
     ]
     # std/arrays
     # implements common functions for working with arrays (sequences)
@@ -114,13 +175,15 @@ macro initStdlib() =
       # fwd("splitFile", ntTuple, [ntString]),
       fwd("extractFilename", ntString, [(ntString, "path")], "getFilename"),
       fwd("isAbsolute", ntBool, [(ntString, "path")]),
-      fwd("isRelativeTo", ntBool, [(ntString, "path"), (ntString, "path")], "isRelative"),
+      fwd("isRelativeTo", ntBool, [(ntString, "path"), (ntString, "base")], "isRelative"),
       fwd("getCurrentDir", ntString),
-      fwd("joinPath", ntString, [(ntString, "path"), (ntString, "path")], "join"),
+      fwd("joinPath", ntString, [(ntString, "head"), (ntString, "tail")], "join"),
       fwd("parentDir", ntString, [(ntString, "path")]),
     ]
   result = newStmtList()
   let libs = [
+    ("system", fnSystem, "system"),
+    ("math", fnMath, "math"),
     ("strutils", fnStrings, "strings"),
     # ("sequtils", fnArrays, "arrays"),
     # ("critbits", fnObjects, "objects"),
@@ -166,12 +229,13 @@ macro initStdlib() =
       var callNode: NimNode
       if not fn.hasWrapper:
         var callableNode =
-          newCall(
-            newDotExpr(
-              ident(lib[0]),
-              ident(fn.id)
-            )
-          )
+          if lib[0] != "system":
+            if fn.loadFrom.len == 0:
+              newCall(newDotExpr(ident(lib[0]), ident(fn.id)))
+            else:
+              newCall(newDotExpr(ident(fn.loadFrom), ident(fn.id)))
+          else:
+            newCall(ident(fn.id))
         for arg in fn.args:
           let fieldName =
             case arg[0]
@@ -218,8 +282,8 @@ macro initStdlib() =
           newCall(ident("SourceCode"), newLit(sourceCode))
         )
       )
-    # echo sourceCode
-  # echo result.repr
+    echo sourceCode
+  echo result.repr
 
 initStdlib()
 
