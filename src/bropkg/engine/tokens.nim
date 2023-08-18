@@ -307,6 +307,7 @@ registerTokens lexerSettings:
   litString = "string"
   litCSS = "css"
   litMixin = "mixin"
+  litStream = "stream"
 
   id
   color

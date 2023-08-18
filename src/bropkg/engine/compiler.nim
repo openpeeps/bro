@@ -485,6 +485,10 @@ proc infixEvaluator(c: Compiler, lht, rht: Node, op: InfixOp, scope: var seq[Sco
       if rht.nt == ntCallStack:
         rht = c.nodeEvaluator(rht, scope)
       return c.infixEvaluator(lht, rht, op, scope)
+    of ntStream:
+      case rht.nt
+      of ntStream:    lht.toString == rht.toString
+      else:           printTypeMismatch
     else:
       var lht = c.mathEvaluator(lht.mathLeft, lht.mathRight, lht.mathInfixOp, scope)
       if likely(lht != nil):
@@ -650,7 +654,7 @@ newHandler "moduleInclude":
   #[ 
     Includes the contents of a file .css/.bass.
     The include statement is useful to split up a large
-    module/style sheet into several files.
+    module/style sheet into several files (partials)
   ]#
   discard
 
@@ -735,7 +739,7 @@ proc getSelectorGroup(c: Compiler, node: Node,
     if node.multipleSelectors.len > 0:
       add result, "," & node.multipleSelectors.join(",")
     if node.extendBy.len > 0:
-      # other selectors that extends it will get listed by comma
+      # .my, .second, .selector
       add result, "," & node.extendBy.join(", ")
     # for selectorConcat in node.identConcat:
     #   case selectorConcat.nt
