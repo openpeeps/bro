@@ -1,0 +1,10 @@
+var jsonStream = json("sample.json")
+var yamlStream = yaml("sample.yaml") 
+
+echo $jsonStream
+echo $yamlStream
+
+assert len("abc") == 3
+assert len("Hello, World") == 12
+
+echo random(1000 * 999)

@@ -1,0 +1,36 @@
+import std/math
+
+// basic system math
+assert 1 + 1 == 2
+assert 1 - 1 == 0 + 0 + 1 - 1
+assert 1 * 2 == 2 * 1
+
+assert floor(2.1) == 2.0
+assert floor(2.9) == 2.0
+//assert floor(-3.5) == -4.0 to do
+
+assert max(10, 30) == 30
+assert min(10, 30) == 10
+assert round(4.2) == 4.0
+// abs
+assert hypot(3.0, 4.0) == 5.0
+assert log(9.0, 3.0) == 2.0
+
+assert pow(100.0, 1.5) == 1000.0
+assert sqrt(4.0) == 2.0
+assert sqrt(1.44) == 1.2
+
+echo cos(deg2rad(60.0))
+assert sin(1.0) == 0.8414709848078965
+
+// echo tan(1.0)
+// assert tan(1.0) == 1.557407724654902
+// bug assertion fails, while `tan(1.0)` call works. must be a conflict between `tan` color and function name
+
+assert rad2deg(acos(0.0)) == 90.0
+echo rad2deg(asin(0.5)) // 30.0 bug, assertion fails
+
+assert atan(1.0) == 0.7853981633974483
+assert rad2deg(atan(1.0)) == 45.0
+assert rad2deg(atan2(1.0, 0.0)) == 90.0
+echo random(1000 * 100)
