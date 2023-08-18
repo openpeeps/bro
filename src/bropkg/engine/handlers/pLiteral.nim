@@ -40,25 +40,12 @@ newPrefixProc "parseColor":
 
 newPrefixProc "parseNamedColor":
   # parse named colors
+  if unlikely(p.isFnCall):
+    p.curr.kind = tkIdentifier
+    return p.parseCallFnCommand(excludeOnly, includeOnly)
   result = newColor(p.curr.value)
   result.colorType = ColorType.cNamed
   walk p
-
-newPrefixProc "parseRGBColor":
-  # parse RGB colors
-  discard
-
-newPrefixProc "parseRGBAColor":
-  # parse RGBA colors
-  discard
-
-newPrefixProc "parseHSLColor":
-  # parse HSL colors
-  discard
-
-newPrefixProc "parseHSLAColor":
-  # parse HSLA colors
-  discard
 
 newPrefixProc "parseAccQuoted":
   # parse string/var concat using backticks
