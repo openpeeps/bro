@@ -90,13 +90,13 @@ const
     tkColorSlategray, tkColorSnow, tkColorSpringgreen, tkColorSteelblue, tkColorTan, tkColorTeal, tkColorThistle,
     tkColorTomato, tkColorTurquoise, tkColorViolet, tkColorWheat, tkColorWhite, tkColorWhitesmoke, tkColorYellow, tkColorYellowgreen
   }
-  tkAssignable = {tkString, tkInteger, tkBool, tkColor, tkAccQuoted} + tkVars + tkNamedColors + {tkFnCall, tkIdentifier, tkLB, tkLC}
+  tkAssignable = {tkString, tkInteger, tkFloat, tkBool, tkColor, tkAccQuoted} + tkVars + tkNamedColors + {tkFnCall, tkIdentifier, tkLB, tkLC}
   tkSizeUnits = {tkPX, tkEM, tkPT, tkVW, tkVH, tkMM, tkCM, tkIN, tkPC, tkEX, tkCH, tkREM, tkVMIN}
   tkComparable = tkAssignable + {tkIdentifier, tkFnCall, tkLB, tkLC, tkRC} + tkSizeUnits
   # tkAssignableFn = {tkJson}
   tkTypedLiterals = {
     tkLitArray, tkLitBool, tkLitColor, tkLitFloat, tkLitFunction,
-    tkLitInt, tkLitObject, tkLitSize, tkLitString
+    tkLitInt, tkLitObject, tkLitSize, tkLitString, tkLitStream
   }
   tkAssignableValue = {
     tkString, tkBool, tkFloat, tkInteger,
@@ -245,7 +245,7 @@ proc use(node: Node) =
   of ntVariable:
     node.varUsed = true
   of ntFunction, ntMixin:
-    node.fnUsed = true 
+    node.fnUsed = true
   # of ntCall:
     # if node.callNode.nt == ntVariable:
       # node.callNode.varUsed = true
@@ -264,6 +264,7 @@ proc getLiteralType(p: var Parser): NodeType =
     of tkLitSize: ntSize
     of tkLitString: ntString
     of tkLitMixin: ntMixin
+    of tkLitStream: ntStream
     else: ntVoid
 
 proc getOpStr(tk: TokenTuple): string =
@@ -637,7 +638,7 @@ template startParseStylesheet(src, path: string) =
   p.program = Stylesheet()
   p.program.sourcePath = path
   p.program.setGlobalScope(ScopeTable())
-
+  p.importSystemModule()
   p.curr = p.lex.getToken()
   p.next = p.lex.getToken()
   while p.curr isnot tkEOF:

@@ -66,13 +66,18 @@ proc importer(fpath, dirPath: string, results: ptr Table[string, Stylesheet],
         display(msg)
     display(" 👉 " & p.logger.filePath)
 
+proc importSystemModule(p: var Parser) =
+  ## Make `std/system` available by default
+  let sysid = "std/system"
+  var sysImport = newImport()
+  sysImport.modules.add(sysid)
+  p.program.nodes.add(sysImport)
+  var L = initTicketLock()
+  importer(sysid, p.dirPath, addr(p.imports), addr L, true, std(sysid)[1])
+  p.stylesheets[sysid] = p.imports[sysid]
+
 newPrefixProc "parseImport":
   # Parse a new `@import x` statement.
-  # template inThread(handle: proc(th: ModuleThreadArgs) {.thread, nimcall, gcsafe.}, isStdlib = false, code = newStringOfCap(0)) =
-  #   var thr: Thread[ModuleThreadArgs]
-  #   createThread(thr, handle, (code, fpath, p.dirPath, p.stylesheets, isStdlib))
-  #   joinThread(thr) # wait for it
-
   result = newImport()
   var m = createMaster()
   var importsOrder: seq[string]
