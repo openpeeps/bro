@@ -1,0 +1,15 @@
+import std/colors
+
+var strColors = json("sample.json")
+echo $strColors
+
+assert parseColor($strColors["colors"][1]) == blue
+assert toHex(white) == #FFFFFF
+assert rgb(255,255,255) == white
+
+var bluez = blue
+echo lighten($bluez, 20%)
+echo darken($bluez, 20%) 
+
+echo saturate($bluez, 100%)
+echo desaturate($bluez, 100%)
