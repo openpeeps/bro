@@ -64,7 +64,8 @@ type
 
 const
   tkVars = {tkVarCall}
-  tkUnits = {tkMM, tkCM, tkIN, tkPX, tkPT, tkPC, tkEM, tkEX, tkCH, tkREM, tkVW, tkVH, tkVMIN, tkVMAX} 
+  tkUnits = {tkMM, tkCM, tkIN, tkPX, tkPT, tkPC, tkEM, tkEX,
+            tkCH, tkREM, tkVW, tkVH, tkVMIN, tkVMAX, tkMod} 
   tkNamedColors = {
     tkColorAliceblue, tkColorAntiquewhite, tkColorAqua, tkColorAquamarine, tkColorAzure,
     tkColorBeige, tkColorBisque, tkColorBlack, tkColorBlanchedalmond, tkColorBlue, tkColorBlueviolet,
@@ -90,11 +91,9 @@ const
     tkColorSlategray, tkColorSnow, tkColorSpringgreen, tkColorSteelblue, tkColorTan, tkColorTeal, tkColorThistle,
     tkColorTomato, tkColorTurquoise, tkColorViolet, tkColorWheat, tkColorWhite, tkColorWhitesmoke, tkColorYellow, tkColorYellowgreen
   }
-  tkSizeUnits = {tkPX, tkEM, tkPT, tkVW, tkVH, tkMM, tkCM, tkIN,
-    tkPC, tkEX, tkCH, tkREM, tkVMIN, tkPerc}
   tkAssignable = {tkString, tkInteger, tkFloat, tkBool,
     tkColor, tkAccQuoted} + tkVars + tkNamedColors + {tkFnCall, tkIdentifier, tkLB, tkLC}
-  tkComparable = tkAssignable + {tkIdentifier, tkFnCall, tkLB, tkLC, tkRC} + tkSizeUnits
+  tkComparable = tkAssignable + {tkIdentifier, tkFnCall, tkLB, tkLC, tkRC} + tkUnits
   tkTypedLiterals = {
     tkLitArray, tkLitBool, tkLitColor, tkLitFloat, tkLitFunction,
     tkLitInt, tkLitObject, tkLitSize, tkLitString, tkLitStream
@@ -324,7 +323,7 @@ proc toUnits(kind: TokenKind): Units =
   of tkCH: CH
   of tkREM: REM
   of tkVMIN: VMIN
-  of tkPerc: PSIZE
+  of tkMod: PSIZE
   else: VMAX
 
 template checkColon() =
