@@ -8,7 +8,7 @@ import std/[macros, enumutils]
 import ./critbits, ./ast
 
 # std lib dependencies
-import pkg/[jsony, nyml]
+import pkg/[jsony, nyml, chroma]
 import std/[os, math, fenv, strutils, sequtils, random, unicode, json]
 
 type
@@ -22,12 +22,13 @@ type
 
   StringsModule* = object of CatchableError
   OSModule* = object of CatchableError
+  ColorsModule* = object of CatchableError
   SystemModule* = object of CatchableError
 
 var stdlib* {.threadvar.}: Stdlib
 var strutilsModule, sequtilsModule,
     osModule, critbitsModule, systemModule,
-    mathModule {.threadvar.}: Module
+    mathModule, chromaModule {.threadvar.}: Module
 
 proc toNimSeq*[T](node: Node): seq[T] =
   for item in node.arrayItems:
@@ -65,7 +66,7 @@ macro initStdlib() =
     result = "fn $1*($2): $3\n" % [id, p.join(", "), $nt]
 
   proc fwd(id: string, returns: NodeType, args: openarray[(NodeType, string)] = [],
-      alias = "", wrapper: NimNode = nil, loadFrom = ""): Forward {.compileTime.} =
+      alias = "", wrapper: NimNode = nil, loadFrom = ""): Forward =
     Forward(id: id, returns: returns, args: args.toSeq,
         alias: alias, wrapper: wrapper, hasWrapper: wrapper != nil,
         loadFrom: loadFrom)
@@ -117,6 +118,8 @@ macro initStdlib() =
       fwd("len", ntInt, [(ntString, "x")]),
       # fwd("inc", ntInt, [(ntMutInt, "x"), (ntInt, "y")], wrapper = getAst(systemInc()))
     ]
+
+  let
     fnMath = @[
       fwd("ceil", ntFloat, [(ntFloat, "x")]),
       # fwd("clamp") need to add support for ranges
@@ -142,6 +145,7 @@ macro initStdlib() =
     # std/strings
     # implements common functions for working with strings
     # https://nim-lang.github.io/Nim/strutils.html
+  let
     fnStrings = @[
       fwd("endsWith", ntBool, [(ntString, "s"), (ntString, "suffix")]),
       fwd("startsWith", ntBool, [(ntString, "s"), (ntString, "prefix")]),
@@ -153,6 +157,63 @@ macro initStdlib() =
       fwd("parseInt", ntInt, [(ntString, "s")], "toInt"),
       fwd("parseFloat", ntFloat, [(ntString, "s")], "toFloat"),
       fwd("format", ntString, [(ntString, "s"), (ntArray, "a")], wrapper = getAst(formatWrapper()))
+    ]
+
+  # template colorsDesaturate: untyped =
+  #   ast.newColor(chroma.desaturate(args[0].value.cNode.colorColor, args[1].value.fVal))
+  
+  proc size2Float(n: Node): float =
+    if n.sizeVal.nt == ntInt:
+      return toFloat(n.sizeVal.iVal) / 100
+    return n.sizeVal.fVal / 100
+
+  template colorLighten: untyped =
+    let lightenColor = chroma.lighten(args[0].value.cValue, size2Float(args[1].value))
+    ast.newColor(lightenColor)
+
+  template colorDarken: untyped =
+    let darkenColor = chroma.darken(args[0].value.cValue, size2Float(args[1].value))
+    ast.newColor(darkenColor)
+
+  template colorDesaturate: untyped =
+    let desatColor = chroma.desaturate(args[0].value.cValue, size2Float(args[1].value))
+    ast.newColor(desatColor)
+
+  template colorSaturate: untyped =
+    let satColor = chroma.saturate(args[0].value.cValue, size2Float(args[1].value))
+    ast.newColor(satColor)
+
+  template colorParse: untyped = 
+    ast.newColor(chroma.parseHtmlColor(args[0].value.sVal))
+
+  template color2Rgb: untyped =
+    let rgbColor = rgb(uint8(args[0].value.iVal), uint8(args[1].value.iVal), uint8(args[2].value.iVal))
+    ast.newColor(rgbColor, ColorType(cRGB))
+  
+  template color2Rgba: untyped =
+    let rgbaColor = rgba(uint8(args[0].value.iVal), uint8(args[1].value.iVal), uint8(args[2].value.iVal), uint8(args[3].value.iVal))
+    ast.newColor(rgbaColor, ColorType(cRGBA))
+
+  template color2Hex: untyped =
+    let hexColor = toHex(args[0].value.cValue)
+    ast.newColor(hexColor.parseHex, ColorType(cHex))
+  
+  # template color2Rgb: untyped =
+  #   let rgbColor = toHtmlRgb(args[0].value.cValue)
+  #   ast.newColor(rgbColor.parseHex, ColorType(cHex))
+  
+  let
+    fnColors = @[
+      fwd("lighten", ntColor, [(ntColor, "x"), (ntSize, "amount")], wrapper = getAst colorLighten()),
+      fwd("darken", ntColor, [(ntColor, "x"), (ntSize, "amount")], wrapper = getAst colorDarken()),
+      fwd("saturate", ntColor, [(ntColor, "x"), (ntSize, "amount")], wrapper = getAst colorSaturate()),
+      fwd("desaturate", ntColor, [(ntColor, "x"), (ntSize, "amount")], wrapper = getAst colorDesaturate()),
+      # fwd("mix", ntColor, [(ntColor, "x"), (ntColor, "y")], wrapper = getAst(colorsLighten())),
+      fwd("rgb", ntColor, [(ntInt, "red"), (ntInt, "green"), (ntInt, "blue")], wrapper = getAst(color2Rgb())),
+      fwd("rgba", ntColor, [(ntInt, "red"), (ntInt, "green"), (ntInt, "blue"), (ntInt, "alpha")], wrapper = getAst(color2Rgba())),
+      fwd("parseColor", ntColor, [(ntString, "x")], wrapper = getAst colorParse()),
+      fwd("toHex", ntColor, [(ntColor, "x")], wrapper = getAst color2Hex()),
+      # fwd("toRGB", ntColor, [(ntColor, "c")], wrapper = getAst color2Rgb()),
     ]
     # std/arrays
     # implements common functions for working with arrays (sequences)
@@ -185,6 +246,7 @@ macro initStdlib() =
     ("system", fnSystem, "system"),
     ("math", fnMath, "math"),
     ("strutils", fnStrings, "strings"),
+    ("chroma", fnColors, "colors"),
     # ("sequtils", fnArrays, "arrays"),
     # ("critbits", fnObjects, "objects"),
     ("os", fnOs, "os")
@@ -222,6 +284,7 @@ macro initStdlib() =
         of ntFloat: "newFloat"
         of ntArray: "newArray" # todo implement toArray
         of ntObject: "newObject" # todo implement toObject
+        of ntColor: "newColor"
         else: "None"
       var i = 0
       var fnIdent = if fn.alias.len != 0: fn.alias else: fn.id
@@ -245,6 +308,7 @@ macro initStdlib() =
             of ntFloat: "fVal"
             of ntArray: "arrayItems"
             of ntObject: "pairsVal"
+            of ntColor: "cValue"
             else: "None"
           callableNode.add(
             newDotExpr(
@@ -282,8 +346,8 @@ macro initStdlib() =
           newCall(ident("SourceCode"), newLit(sourceCode))
         )
       )
-    echo sourceCode
-  echo result.repr
+    # echo sourceCode
+  # echo result.repr
 
 initStdlib()
 
