@@ -14,8 +14,12 @@ newPrefixProc "parseInt":
   if p.next.kind in tkUnits:
     let size = p.curr.value.parseInt
     walk p, 2
-    return newSize(newInt(size), toUnits(p.prev.kind))
-  result = newInt(p.curr)
+    return newSize(ast.newInt(size), toUnits(p.prev.kind))
+  elif p.next.kind == tkMod and p.next.wsno == 0:
+    let size = p.curr.value.parseInt
+    walk p, 2
+    return newSize(ast.newInt(size), PSIZE)
+  result = ast.newInt(p.curr)
   walk p
 
 newPrefixProc "parseBool":
@@ -29,22 +33,28 @@ newPrefixProc "parseFloat":
     let size = p.curr.value.parseFloat
     walk p, 2
     return newSize(newFloat(size), toUnits(p.prev.kind))
+  elif p.next.kind == tkMod and p.next.wsno == 0:
+    let size = p.curr.value.parseFloat
+    walk p, 2
+    return newSize(ast.newFloat(size), PSIZE)
   result = newFloat(p.curr)
   walk p
 
 newPrefixProc "parseColor":
   # parse colors
-  result = newColor(p.curr.value)
-  result.colorType = ColorType.cHex
-  walk p
+  try:
+    result = newColor(parseHtmlColor(p.curr.value))
+    walk p
+  except InvalidColor:
+    error(colorsInvalidInput, p.curr, [p.curr.value])
 
 newPrefixProc "parseNamedColor":
   # parse named colors
   if unlikely(p.isFnCall):
     p.curr.kind = tkIdentifier
     return p.parseCallFnCommand(excludeOnly, includeOnly)
-  result = newColor(p.curr.value)
-  result.colorType = ColorType.cNamed
+  result = newColor(parseHtmlColor(p.curr.value))
+  # result.colorType = ColorType.cNamed
   walk p
 
 newPrefixProc "parseAccQuoted":

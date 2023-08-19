@@ -43,6 +43,7 @@ type
     # Condition - Case statements
     caseInvalidValue = "Invalid case statement"
     caseInvalidValueType = "Invalid case statement. Got $, expected $"
+    colorsInvalidInput = "Invalid color"
     # Functions
     fnUndeclared = "Undeclared function $"
     fnMismatchParam = "Type mismatch for $ | Got $ expected $"

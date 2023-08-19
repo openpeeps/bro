@@ -4,7 +4,7 @@
 #          Made by Humans from OpenPeeps
 #          https://github.com/openpeeps/bro
 
-import pkg/[jsony, stashtable]
+import pkg/[jsony, stashtable, chroma]
 import std/[tables, strutils, macros, sequtils, json,
   math, oids, hashes, terminal, threadpool, enumutils]
 import ./ast, ./sourcemap, ./stdlib, ./logging
@@ -234,7 +234,7 @@ proc toString(val: Node): string =
     of ntFloat:   $(val.fVal)
     of ntInt:     $(val.iVal)
     of ntBool:    $(val.bVal)
-    of ntColor:   $(val.cVal)
+    of ntColor:   toHtmlHex(val.cValue)
     of ntSize:    sizeString(val)
     of ntArray:   jsony.toJson(val.arrayItems)
     of ntObject:  fromJson(jsony.toJson(val.pairsVal)).pretty
@@ -272,7 +272,7 @@ template runCallable: untyped {.dirty.} =
       if likely(val != nil):
         if likely(val.nt == pNode[1]):
           add args, (pName, val)
-        else: compileErrorWithArgs(fnMismatchParam, [pName, $val.nt, $pNode[1]],)
+        else: compileErrorWithArgs(fnMismatchParam, [pName, $val.nt, $pNode[1]])
       inc i
     call(std(scopedFn.fnSource)[0], scopedFn.fnName, args)
 
@@ -461,6 +461,12 @@ proc infixEvaluator(c: Compiler, lht, rht: Node, op: InfixOp, scope: var seq[Sco
       of ntCall:      caseCallBody
       of ntMathStmt:  caseMathBody
       else:           printTypeMismatch
+    of ntColor:
+      # echo lht.cValue.toHtmlRgb
+      # echo rht.cValue.toHtmlRgb
+      case rht.nt
+      of ntColor:     lht.cValue == rht.cValue
+      else: printTypeMismatch
     of ntString:
       case rht.nt
       of ntString:    lht.sVal == rht.sVal
@@ -503,6 +509,57 @@ proc scoped(c: Compiler, id: string, scope: var seq[ScopeTable]): Node =
   if currentScope.st != nil:
     result = currentScope.st[id]
 
+proc walkObject*(c: Compiler, tree: CritBitTree, index: Node, scope: var seq[ScopeTable]): Node =
+  case index.nt
+  of ntString:
+    result = tree[index.sVal]
+  of ntCall:
+    result = tree[c.nodeEvaluator(index, scope).sVal]
+  else: discard
+
+proc walkAccessorStorage(c: Compiler, node, index: Node, scope: var seq[ScopeTable]): Node =
+  case node.nt:
+  of ntAccessor:
+    var x: Node
+    if node.accessorType == ntArray:
+      # handle an `ntArray` storage
+      x = c.walkAccessorStorage(node.accessorStorage, node.accessorKey, scope)
+      return c.walkAccessorStorage(x, index, scope)
+    # otherwise handle `ntObject` storage
+    x = c.walkAccessorStorage(node.accessorStorage, node.accessorKey, scope)
+    return c.walkAccessorStorage(x, index, scope)
+  of ntObject:
+    try:
+      if index.nt == ntCall:
+        return c.walkObject(node.pairsVal, index, scope)
+      result = node.pairsVal[index.sVal]
+    except FieldDefect:
+      compileErrorWithArgs(invalidAccessorStorage, [index.toString])
+  of ntArray:
+    try:
+      if index.nt == ntCall:
+        return node.arrayItems[c.nodeEvaluator(index, scope).iVal]
+      result = node.arrayItems[index.iVal]
+    except FieldDefect:
+      compileErrorWithArgs(invalidAccessorStorage, [index.toString])
+  of ntVariable:
+    # echo scope.hasKey(node.varName)
+    var varNode = c.scoped(node.varName, scope)
+    return c.walkAccessorStorage(varNode.varValue, index, scope)
+  of ntStream:
+    case node.streamContent.kind:
+    of JObject:
+      if index.nt == ntCall:
+        return toNode(node.streamContent[c.nodeEvaluator(index, scope).sVal])
+      result = toNode(node.streamContent[index.sVal])
+    of JArray:
+      if index.nt == ntCall:
+        return toNode(node.streamContent[c.nodeEvaluator(index, scope).iVal])
+      result = toNode(node.streamContent[index.iVal])
+    else:
+      result = toNode(node.streamContent)
+  else: discard
+
 proc nodeEvaluator(c: Compiler, node: Node, scope: var seq[ScopeTable]): Node =
   ## Evaluates `node`
   case node.nt
@@ -511,7 +568,20 @@ proc nodeEvaluator(c: Compiler, node: Node, scope: var seq[ScopeTable]): Node =
   of ntCall:
     var varNode = c.scoped(node.callIdent, scope)
     if likely(varNode != nil):
-      return varNode.varValue
+      if node.callNode != nil:
+        case node.callNode.nt
+        of ntAccessor:
+          # node.callNode.accessorStorage = varNode.varValue
+          var x = c.walkAccessorStorage(node.callNode.accessorStorage,
+            node.callNode.accessorKey, scope)
+          if likely(x != nil):
+            return x
+          # return varNode.varValue
+          echo $invalidAccessorStorage
+          # compileErrorWithArgs(invalidAccessorStorage)
+        else:
+          return varNode.varValue
+      else: return varNode.varValue
     compileErrorWithArgs(undeclaredVariable, [node.callIdent], node.meta)
   of ntInfix:
     return newBool(c.infixEvaluator(node.infixLeft, node.infixRight, node.infixOp, scope))

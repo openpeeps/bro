@@ -143,16 +143,13 @@ newPrefixProc "parseProperty":
             let identToken = p.curr
             let callNode = p.parseCallFnCommand()
             if likely(callNode != nil):
-              if likely(callNode.stackReturnType != ntVoid):
-                result.pVal.add(callNode)
-              else:
-                errorWithArgs(fnReturnVoid, identToken, [callNode.stackIdentName])
+              result.pVal.add(callNode)
+              # errorWithArgs(fnReturnVoid, identToken, [callNode.stackIdentName])
           else:
             result.pVal.add(newString(p.curr.value))
             walk p
         of tkNamedColors, tkColor:
-          result.pVal.add(newColor(p.curr.value))
-          walk p
+          add result.pVal, p.parseColor()
         of tkVarCall:
           let varCallNode = p.parseCallCommand()
           if varCallNode != nil:

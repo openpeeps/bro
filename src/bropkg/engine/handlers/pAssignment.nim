@@ -84,27 +84,6 @@ proc parseAssignment(p: var Parser, ident: TokenTuple, varTypeDecl: TokenKind): 
   if likely(varValue != nil):
     return newAssignment(ident, varValue)
 
-proc parseStreamAssignment(p: var Parser, ident: TokenTuple, varTypeDecl: TokenKind): Node =
-  # parse JSON/YAML from external sources
-  result = p.parseVarDef(ident, varTypeDecl)
-  var fpath: string
-  walk p
-  if p.curr is tkLP: walk p
-  case p.curr.kind
-  of tkString:
-    # get file path from string
-    fpath = p.curr.value
-    walk p
-  of tkVarCall:
-    # get file path from a variable
-    let call = p.parseCallCommand()
-    if call != nil:
-      fpath = call.varValue.sVal
-  else: return nil
-  result.varValue = newStream(normalizedPath(p.filePath.parentDir / fpath))
-  result.varInitType = ntStream
-  if p.curr is tkRP: walk p
-
 newPrefixProc "parseAnoArray":
   ## parse an anonymous array
   walk p # [
@@ -234,7 +213,6 @@ newPrefixProc "parseAssignment":
     case p.curr.kind:
     of tkLB:              p.parseArrayAssignment(ident, varTypeDecl)
     of tkLC:              p.parseObjectAssignment(ident, varTypeDecl)
-    # of tkJson:            p.parseStreamAssignment(ident, varTypeDecl)
     of tkAssignableValue: p.parseAssignment(ident, varTypeDecl)
     else: nil
   # if likely(p.hasErrors == false and result != nil):

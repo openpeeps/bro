@@ -6,7 +6,7 @@
 
 {.warning[ImplicitDefaultValue]:off.}
 
-import pkg/[stashtable, flatty, supersnappy,
+import pkg/[stashtable, flatty, supersnappy, chroma,
     checksums/md5, malebolgia, malebolgia/ticketlocks]
 
 import std/[os, strutils, sequtils, sequtils,
@@ -90,10 +90,11 @@ const
     tkColorSlategray, tkColorSnow, tkColorSpringgreen, tkColorSteelblue, tkColorTan, tkColorTeal, tkColorThistle,
     tkColorTomato, tkColorTurquoise, tkColorViolet, tkColorWheat, tkColorWhite, tkColorWhitesmoke, tkColorYellow, tkColorYellowgreen
   }
-  tkAssignable = {tkString, tkInteger, tkFloat, tkBool, tkColor, tkAccQuoted} + tkVars + tkNamedColors + {tkFnCall, tkIdentifier, tkLB, tkLC}
-  tkSizeUnits = {tkPX, tkEM, tkPT, tkVW, tkVH, tkMM, tkCM, tkIN, tkPC, tkEX, tkCH, tkREM, tkVMIN}
+  tkSizeUnits = {tkPX, tkEM, tkPT, tkVW, tkVH, tkMM, tkCM, tkIN,
+    tkPC, tkEX, tkCH, tkREM, tkVMIN, tkPerc}
+  tkAssignable = {tkString, tkInteger, tkFloat, tkBool,
+    tkColor, tkAccQuoted} + tkVars + tkNamedColors + {tkFnCall, tkIdentifier, tkLB, tkLC}
   tkComparable = tkAssignable + {tkIdentifier, tkFnCall, tkLB, tkLC, tkRC} + tkSizeUnits
-  # tkAssignableFn = {tkJson}
   tkTypedLiterals = {
     tkLitArray, tkLitBool, tkLitColor, tkLitFloat, tkLitFunction,
     tkLitInt, tkLitObject, tkLitSize, tkLitString, tkLitStream
@@ -323,6 +324,7 @@ proc toUnits(kind: TokenKind): Units =
   of tkCH: CH
   of tkREM: REM
   of tkVMIN: VMIN
+  of tkPerc: PSIZE
   else: VMAX
 
 template checkColon() =

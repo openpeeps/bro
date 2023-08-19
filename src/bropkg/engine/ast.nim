@@ -4,7 +4,7 @@
 #          Made by Humans from OpenPeeps
 #          https://github.com/openpeeps/bro
 
-# import pkg/stashtable
+import pkg/chroma
 import std/[tables, strutils, json, sequtils]
 import ./critbits
 
@@ -71,7 +71,10 @@ type
   KeyValueTable* = CritBitTree[Node]
 
   ColorType* = enum
-    cNamed, cHex, cRGB, cRGBA, cHSL, cHSLA
+    cNamed, cHex, cRGB, cRGBA, cRGBX,
+    cHSLA, cCMY, cCMYK, cHSL, cHSV, cLAB,
+    cLUV, cOklab, cPolarLab, cPolarLuv,
+    cPolarOklab, cXYZ, cYUV, cColor
 
   GlobalValue* = enum
     gInherit = "inherit"
@@ -132,16 +135,40 @@ type
   CaseCondTuple* = tuple[caseOf: Node, body: Node]
   Meta* = tuple[line, pos: int]
   ParamDef* = (string, NodeType, Node)
-
-  Statement = object
-    stmtList*: seq[Node]
-    stmtScope*: ScopeTable
-    stmtTraces*: seq[string]
-
-  Value* = object
-    node*: Node
-
-  # Instruction* = enum
+  
+  Chroma* = ref object
+    case colorType*: ColorType
+    of cColor:
+      colorColor*: Color
+    of cHSL:
+      colorHSL*: ColorHSL
+    of cHSV:
+      colorHSV*: ColorHSV
+    of cLAB:
+      colorLAB*: ColorLab
+    of cLUV:
+      colorLUV*: ColorLUV
+    of cOklab:
+      colorOklab*: ColorOklab
+    of cPolarLab:
+      colorPolarLab*: ColorPolarLAB
+    of cPolarLuv:
+      colorPolarLuv*: ColorPolarLUV
+    of cPolarOklab:
+      colorPolarOklab*: ColorPolarOklab
+    of cRGBA:
+      colorRGBA*: ColorRGBA
+    of cRGB:
+      colorRGB*: ColorRGB
+    of cRGBX:
+      colorRGBX*: ColorRGBX
+    of cXYZ:
+      colorXYZ*: ColorXYZ
+    of cYUV:
+      colorYUV*: ColorYUV
+    of cNamed:
+      colorNamed*: string
+    else: discard
 
   Node* {.acyclic.} = ref object
     case nt*: NodeType
@@ -175,7 +202,8 @@ type
     of ntBool:
       bVal*: bool
     of ntColor:
-      colorType*: ColorType
+      colorType: ColorType
+      cValue*: Color
       colorGlobals: GlobalValue
       cVal*: string
     of ntArray:
@@ -273,6 +301,8 @@ type
     else: discard
     meta*: Meta
 
+  # BNode = Node[void]
+
   Stylesheet* = ref object
     # info*: tuple[version: string, createdAt: DateTime]
     nodes*: seq[Node]
@@ -306,7 +336,7 @@ proc newFloat*(fVal: float): Node
 proc newBool*(bVal: bool): Node
 
 proc call*(node: Node, scope: ScopeTable): Node
-proc walkAccessorStorage*(node: Node, index: Node, scope: ScopeTable): Node
+# proc walkAccessorStorage*(node: Node, index: Node, scope: var seq[ScopeTable]): Node
 
 proc `$`*(node: Node): string =
   {.gcsafe.}:
@@ -383,62 +413,61 @@ proc toString*(v: JsonNode): string =
   of JNull: "null"
   of JBool: $(v.bval)
 
-proc toNode(v: JsonNode): Node =
+proc toNode*(v: JsonNode): Node =
   case v.kind
   of JString: newString(v.str)
   of JInt:    newInt(v.num.int)
   of JFloat:  newFloat(v.fnum)
-  of JObject,
-     JArray: newStream(v)
+  of JObject, JArray: newStream(v)
   # of JNull: "null"
   of JBool: newBool(v.bval)
   else: nil
 
-proc walkObject*(tree: CritBitTree, index: Node, scope: ScopeTable): Node =
-  case index.nt
-  of ntString:
-    result = tree[index.sVal]
-  of ntCall:
-    result = tree[call(index, scope).sVal]
-  else: discard
+# proc walkObject*(tree: CritBitTree, index: Node, scope: var seq[ScopeTable]): Node =
+#   case index.nt
+#   of ntString:
+#     result = tree[index.sVal]
+#   # of ntCall:
+#     # result = tree[call(index, scope).sVal]
+#   else: discard
 
-proc walkAccessorStorage*(node: Node, index: Node, scope: ScopeTable): Node {.raises: IndexDefect.} =
-  # walk trough a Node tree using `index`
-  # todo catch IndexDefect
-  case node.nt:
-  of ntAccessor:
-    var x: Node
-    if node.accessorType == ntArray:
-      # handle an `ntArray` storage
-      x = walkAccessorStorage(node.accessorStorage, node.accessorKey, scope)
-      return walkAccessorStorage(x, index, scope)
-    # otherwise handle `ntObject` storage
-    x = walkAccessorStorage(node.accessorStorage, node.accessorKey, scope)
-    return walkAccessorStorage(x, index, scope)
-  of ntObject:
-    if index.nt == ntCall:
-      return walkObject(node.pairsVal, index, scope)
-    result = node.pairsVal[index.sVal]
-  of ntArray:
-    if index.nt == ntCall:
-      return node.arrayItems[call(index, scope).iVal]
-    result = node.arrayItems[index.iVal]
-  of ntVariable:
-    # echo scope.hasKey(node.varName)
-    return walkAccessorStorage(scope[node.varName].varValue, index, scope)
-  of ntStream:
-    case node.streamContent.kind:
-    of JObject:
-      if index.nt == ntCall:
-        return toNode(node.streamContent[call(index, scope).sVal])
-      result = toNode(node.streamContent[index.sVal])
-    of JArray:
-      if index.nt == ntCall:
-        return toNode(node.streamContent[call(index, scope).iVal])
-      result = toNode(node.streamContent[index.iVal])
-    else:
-      result = toNode(node.streamContent)
-  else: discard
+# proc walkAccessorStorage*(node: Node, index: Node, scope: var seq[ScopeTable]): Node {.raises: IndexDefect.} =
+#   # walk trough a Node tree using `index`
+#   # todo catch IndexDefect
+#   case node.nt:
+#   of ntAccessor:
+#     var x: Node
+#     if node.accessorType == ntArray:
+#       # handle an `ntArray` storage
+#       x = walkAccessorStorage(node.accessorStorage, node.accessorKey, scope)
+#       return walkAccessorStorage(x, index, scope)
+#     # otherwise handle `ntObject` storage
+#     x = walkAccessorStorage(node.accessorStorage, node.accessorKey, scope)
+#     return walkAccessorStorage(x, index, scope)
+#   of ntObject:
+#     if index.nt == ntCall:
+#       return walkObject(node.pairsVal, index, scope)
+#     result = node.pairsVal[index.sVal]
+#   of ntArray:
+#     if index.nt == ntCall:
+#       return node.arrayItems[call(index, scope).iVal]
+#     result = node.arrayItems[index.iVal]
+#   of ntVariable:
+#     # echo scope.hasKey(node.varName)
+#     return walkAccessorStorage(scope[node.varName].varValue, index, scope)
+#   of ntStream:
+#     case node.streamContent.kind:
+#     of JObject:
+#       if index.nt == ntCall:
+#         return toNode(node.streamContent[call(index, scope).sVal])
+#       result = toNode(node.streamContent[index.sVal])
+#     of JArray:
+#       if index.nt == ntCall:
+#         return toNode(node.streamContent[call(index, scope).iVal])
+#       result = toNode(node.streamContent[index.iVal])
+#     else:
+#       result = toNode(node.streamContent)
+#   else: discard
 
 proc call*(node: Node, scope: ScopeTable): Node =
   if node.callNode != nil:
@@ -448,8 +477,8 @@ proc call*(node: Node, scope: ScopeTable): Node =
         case node.callNode.varValue.nt # todo find a better way
         of ntMathStmt: node.callNode.varValue.mathResult
         else: node.callNode.varValue
-      of ntAccessor:
-        walkAccessorStorage(node.callNode.accessorStorage, node.callNode.accessorKey, scope)
+      # of ntAccessor:
+        # walkAccessorStorage(node.callNode.accessorStorage, node.callNode.accessorKey, scope)
       else: nil
   assert scope != nil
   result = scope[node.callIdent]
@@ -589,7 +618,13 @@ proc newBool*(tk: TokenTuple): Node =
 
 proc newColor*(cVal: string): Node =
   ## Create a new ntColor node
-  result = Node(nt: ntColor, cVal: cVal) 
+  result = Node(nt: ntColor, cVal: cVal)
+
+proc newColor*(cVal: SomeColor): Node =
+  Node(nt: ntColor, cValue: color(cVal))
+
+proc newColor*(cVal: SomeColor, colorType: static ColorType): Node =
+  Node(nt: ntColor, colorType: colorType, cValue: color(cVal))
 
 proc newSize*(size: Node, unit: Units): Node =
   assert size.nt in {ntInt, ntFloat}

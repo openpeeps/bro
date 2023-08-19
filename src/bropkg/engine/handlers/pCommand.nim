@@ -51,39 +51,8 @@ proc parseAccessor(p: var Parser, varNode: Node, tk: TokenTuple): Node =
         else: return nil
       else: return nil # error
 
-# proc parseVarCall(p: var Parser, tk: TokenTuple, varName: string, isFunctionWrap: bool): Node =
-#   # Parse a variable call 
-#   let
-#     varName = if likely(varName.len == 0): p.curr.value else: varName
-#     currentScope = p.getScope(varName)
-#     hashedVarName = hash(varName & $(currentScope.index))
-#   let tk = tk
-#   walk p # tkVariable
-#   if likely(currentScope.st != nil):
-#     var callNode: Node
-#     # if not isFunctionWrap:
-#       # get a memoized call
-#       # todo flush it once is out of scope 
-#       # callNode = memoized(p.mVar, hashedVarName)
-#     if likely(callNode == nil):
-#       var varNode = currentScope.st[varName]
-#       if p.curr is tkLB and p.curr.line == tk.line:
-#         var accessorNode = p.parseAccessor(varNode, tk)
-#         if likely(accessorNode != nil):
-#           callNode = newCall(varName, accessorNode)
-#         else:
-#           error(invalidAccessorStorage, tk)
-#       else:
-#         callNode = newCall(varName, varNode)
-#         # if not isFunctionWrap: # memoize global variables
-#           # p.mVar.memoize(hashedVarName, callNode)
-#       use(varNode)
-#     return callNode
-#   errorWithArgs(undeclaredVariable, tk, [varName])
-
 newPrefixProc "parseCallCommand":
   # Parse variable calls
-  # p.parseVarCall(p.curr, "",   isFunctionWrap)
   let tk = p.curr
   result = ast.newCall(tk)
   walk p
@@ -91,6 +60,7 @@ newPrefixProc "parseCallCommand":
     var accessorNode = p.parseAccessor(newVariable(tk), tk)
     if likely(accessorNode != nil):
       result.callNode = accessorNode
+    else: error(invalidAccessorStorage, tk)
 
 newPrefixProc "parseEchoCommand":
   # Parse a new `echo` command
@@ -119,7 +89,7 @@ newPrefixProc "parseAssert":
   walk p
   let exp = p.getPrefixOrInfix(isFunctionWrap = isFunctionWrap,
               includeOnly = {tkInteger, tkFloat, tkBool, tkString,
-                            tkVarCall, tkIdentifier, tkFnCall})
+                            tkVarCall, tkIdentifier, tkFnCall} + tkNamedColors)
   if likely(exp != nil):
     case exp.nt:
     of ntInfix:
