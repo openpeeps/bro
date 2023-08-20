@@ -1,0 +1,16 @@
+import std/arrays
+
+var x = ["red", "blue", "green"]
+assert $x.contains("red") == true
+
+$x.add("pink")
+assert $x.contains("pink") == true
+
+$x.pop()
+assert $x.contains("pink") == false
+
+$x.shift()
+assert $x.contains("red") == false
+
+$x.shuffle()
+echo `Shuffled ${c} ${1 + 1 * 2}`
