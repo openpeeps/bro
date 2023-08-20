@@ -13,4 +13,3 @@ $x.shift()
 assert $x.contains("red") == false
 
 $x.shuffle()
-echo `Shuffled ${c} ${1 + 1 * 2}`
