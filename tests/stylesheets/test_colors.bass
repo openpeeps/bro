@@ -1,9 +1,9 @@
 import std/colors
 
-var strColors = json("sample.json")
+var strColors = json("./tests/stylesheets/sample.json")
 echo $strColors
 
-assert parseColor($strColors["colors"][1]) == blue
+assert parseColor($strColors[1]) == green
 assert toHex(white) == #FFFFFF
 assert rgb(255,255,255) == white
 
@@ -13,3 +13,14 @@ echo darken($bluez, 20%)
 
 echo saturate($bluez, 100%)
 echo desaturate($bluez, 100%)
+
+const stream = json("./tests/stylesheets/colors.json")
+for $k, $v in $stream:
+  .bg-{$k}
+    background: parseColor($v)
+  assert parseColor($k) == parseColor($v)
+
+// parse some colors
+assert parseColor($stream["aliceblue"]) == toHex(aliceblue)
+assert parseColor($stream["coral"]) == #ff7f50
+assert parseColor($stream["gainsboro"]) == #dcdcdc

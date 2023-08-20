@@ -1,0 +1,10 @@
+import std/colors
+
+var stream = json("./tests/stylesheets/sample.json")
+
+for $str in $stream:
+  var x = parseColor($str)
+  .btn-{$str}
+    background-color: $x
+
+assert parseColor($stream[0]) == toHex(red)

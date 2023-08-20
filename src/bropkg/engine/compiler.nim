@@ -58,7 +58,7 @@ template exploreAst =
         else: "VarDef"
       else: $(node.nt)
     add info, "[$1:$2]" % [$(node.meta.line), $(node.meta.pos)]
-    echo indent(info, node.meta.pos)
+    # echo indent(info, node.meta.pos)
 
 macro newHandler(name: static string, body: untyped) =
   newProc(ident(name),
@@ -149,16 +149,16 @@ proc getTypeInfo(node: Node): string =
       of ntAccessor:
         add result, getTypeInfo(node.callNode.accessorStorage)
       of ntVariable:
-        case node.callNode.varValue.nt:
+        case node.callNode.varMod.nt:
         of ntArray:
           # todo handle types of array (string, int, or mix for mixed values)
-          add result, "$1[$2]($3)" % [$(node.callNode.varValue.nt),
-                          "mix", $(node.callNode.varValue.arrayItems.len)]
+          add result, "$1[$2]($3)" % [$(node.callNode.varMod.nt),
+                          "mix", $(node.callNode.varMod.arrayItems.len)]
         of ntObject:
-          add result, "$1($2)" % [$(node.callNode.varValue.nt),
-                          $(node.callNode.varValue.pairsVal.len)]
+          add result, "$1($2)" % [$(node.callNode.varMod.nt),
+                          $(node.callNode.varMod.pairsVal.len)]
         else:
-          add result, "$1[$2]" % [$ntVariable, $(node.callNode.varValue.nt)]
+          add result, "$1[$2]" % [$ntVariable, $(node.callNode.varMod.nt)]
       else: discard
     else: discard
   of ntString:
@@ -176,7 +176,7 @@ proc getTypeInfo(node: Node): string =
   of ntAccessor:
     add result, getTypeInfo(node.accessorStorage)
   of ntVariable:
-    add result, getTypeInfo(node.varValue)
+    add result, getTypeInfo(node.varMod)
   else: discard
 
 proc sizeString(v: Node): string =
@@ -202,7 +202,7 @@ proc dumpHook*(s: var string, v: Node) =
   of ntArray:
     s.dumpHook(v.arrayItems)
   of ntVariable:
-    s.dumpHook(v.varValue)
+    s.dumpHook(v.varMod)
   else: discard
 
 proc dumpHook*(s: var string, v: seq[Node]) =
@@ -543,9 +543,8 @@ proc walkAccessorStorage(c: Compiler, node, index: Node, scope: var seq[ScopeTab
     except FieldDefect:
       compileErrorWithArgs(invalidAccessorStorage, [index.toString])
   of ntVariable:
-    # echo scope.hasKey(node.varName)
     var varNode = c.scoped(node.varName, scope)
-    return c.walkAccessorStorage(varNode.varValue, index, scope)
+    return c.walkAccessorStorage(varNode.varMod, index, scope)
   of ntStream:
     case node.streamContent.kind:
     of JObject:
@@ -573,15 +572,14 @@ proc nodeEvaluator(c: Compiler, node: Node, scope: var seq[ScopeTable]): Node =
         of ntAccessor:
           # node.callNode.accessorStorage = varNode.varValue
           var x = c.walkAccessorStorage(node.callNode.accessorStorage,
-            node.callNode.accessorKey, scope)
+                                    node.callNode.accessorKey, scope)
           if likely(x != nil):
             return x
-          # return varNode.varValue
           echo $invalidAccessorStorage
           # compileErrorWithArgs(invalidAccessorStorage)
         else:
-          return varNode.varValue
-      else: return varNode.varValue
+          return varNode.varMod
+      else: return varNode.varMod
     compileErrorWithArgs(undeclaredVariable, [node.callIdent], node.meta)
   of ntInfix:
     return ast.newBool(c.infixEvaluator(node.infixLeft, node.infixRight, node.infixOp, scope))
@@ -620,8 +618,8 @@ proc nodeEvaluator(c: Compiler, node: Node, scope: var seq[ScopeTable]): Node =
     result = node
   of ntCallFunction:
     return runCallable()
-  of ntForStmt:
-    echo node
+  # of ntForStmt:
+    # echo node
   # of ntDotExpr:
   #   var lht: Node
   #   case node.dotLeft.nt:
@@ -640,7 +638,7 @@ newHandler "varAssignment":
   #[ 
   Handles variable assignments.
 
-  Bro has a strict type system, meaning that a string var
+  Bro has a strong type system, meaning that a string var
   cannot be changed to `int`, `float`, `bool`, `size` (and so on)
   once initialized.
 
@@ -649,10 +647,10 @@ newHandler "varAssignment":
   let scopeVar = c.scoped(node.asgnVarIdent, scope)
   if likely(scopeVar != nil):
     let
-      varType = scopeVar.varValue.getNodeType
+      varType = scopeVar.varMod.getNodeType
       varModifier = c.nodeEvaluator(node.asgnVal, scope)
     if likely(varType == varModifier.nt):
-      scopeVar.varValue = varModifier
+      scopeVar.varMod = varModifier
       return
     compileErrorWithArgs(fnMismatchParam, [scopeVar.varName, $varModifier.nt, $varType], node.asgnVal.meta)
   compileErrorWithArgs(undeclaredVariable, [node.asgnVarIdent], node.meta)
@@ -670,7 +668,11 @@ newHandler "varDefinition":
   Note: Global variables are publicly visible (at least for now)
   ]#
   if likely(inScope(node.varName, scope) == false):
-    node.varValue = c.nodeEvaluator(node.varValue, scope)
+    # case node.varValue.nt:
+    # of ntMathStmt:
+    node.varMod = c.nodeEvaluator(node.varValue, scope)
+    # else:
+      # node.varMod = c.nodeEvaluator(node.varValue, scope)
     c.stack(node, scope)
     return
   compileErrorWithArgs(varRedefine, [node.varName], node.meta)
@@ -691,12 +693,18 @@ newHandler "command":
     let meta = " (" & $(node.meta.line) & ":" & $(node.meta.pos) & ") "  
     let valNode: Node = c.nodeEvaluator(node.cmdValue, scope)
     if likely(valNode != nil):
+      let valNodeStr =
+        case valNode.nt
+        of ntMathStmt:
+          valNode.mathResult
+        else:
+          valNode
       # echo valNode.toString
       stdout.styledWriteLine(
         fgGreen, "Debug",
         fgDefault, meta,
         fgMagenta, getTypeInfo(valNode),
-        fgDefault, "\n" & valNode.toString
+        fgDefault, "\n" & valNodeStr.toString
       )
   of cmdAssert:
     if c.infixEvaluator(node.cmdValue.infixLeft, node.cmdValue.infixRight,
@@ -743,11 +751,11 @@ newHandler "forBlock":
     case itemsNode.nt
     of ntArray:
       let len = itemsNode.arrayItems.len
-      for item in 0 .. itemsNode.arrayItems.high:
+      for item in itemsNode.arrayItems:
         var forScope = ScopeTable()
         forScope[node.forItem[0].varName] = node.forItem[0]
+        forScope[node.forItem[0].varName].varMod = item
         add scope, forScope
-        forScope[node.forItem[0].varName].varValue = itemsNode.arrayItems[item]
         for innerNode in node.forBody.stmtList:
           c.handleInnerNode(innerNode, parent, scope, len, ix)
         scope.delete(scope.high) # out of scope
@@ -758,9 +766,9 @@ newHandler "forBlock":
         for k, v in itemsNode.pairsVal:
           var forScope = ScopeTable()
           forScope[node.forItem[0].varName] = node.forItem[0]
-          forScope[node.forItem[0].varName].varValue = ast.newString(k)
+          forScope[node.forItem[0].varName].varMod = ast.newString(k)
           forScope[node.forItem[1].varName] = node.forItem[1]
-          forScope[node.forItem[1].varName].varValue = v
+          forScope[node.forItem[1].varName].varMod = v
           add scope, forScope
           for innerNode in node.forBody.stmtList:
             c.handleInnerNode(innerNode, parent, scope, len, ix)
@@ -770,7 +778,7 @@ newHandler "forBlock":
         for k in keys(itemsNode.pairsVal):
           var forScope = ScopeTable()
           forScope[node.forItem[0].varName] = node.forItem[0]
-          forScope[node.forItem[0].varName].varvalue = ast.newString(k)
+          forScope[node.forItem[0].varName].varMod = ast.newString(k)
           add scope, forScope
           for innerNode in node.forBody.stmtList:
             c.handleInnerNode(innerNode, parent, scope, len, ix)
@@ -778,11 +786,16 @@ newHandler "forBlock":
     of ntStream:
       case itemsNode.streamContent.kind
       of JArray:
+        if unlikely(node.forItem[1] != nil):
+          compileErrorWithArgs(forInvalidIteration)
         let len = node.forBody.stmtList.len
         for item in items(itemsNode.streamContent):
           var forScope = ScopeTable()
           forScope[node.forItem[0].varName] = node.forItem[0]
-          forScope[node.forItem[0].varName].varValue = newStream item
+          forScope[node.forItem[0].varName].varMod =
+            case item.kind
+            of JArray, JObject: newStream(item)
+            else: item.toNode
           add scope, forScope
           for innerNode in node.forBody.stmtList:
             c.handleInnerNode(innerNode, parent, scope, len, ix)
@@ -794,9 +807,12 @@ newHandler "forBlock":
           for k, v in pairs(itemsNode.streamContent):
             var forScope = ScopeTable()
             forScope[node.forItem[0].varName] = node.forItem[0]
-            forScope[node.forItem[0].varName].varValue = ast.newString(k)
+            forScope[node.forItem[0].varName].varMod = ast.newString(k)
             forScope[node.forItem[1].varName] = node.forItem[1]
-            forScope[node.forItem[1].varName].varValue = ast.newStream(v)
+            forScope[node.forItem[1].varName].varMod =
+              case v.kind
+              of JArray, JObject: newStream(v)
+              else: v.toNode
             add scope, forScope
             for innerNode in node.forBody.stmtList:
               c.handleInnerNode(innerNode, parent, scope, len, ix)
@@ -806,16 +822,14 @@ newHandler "forBlock":
           for k in keys(itemsNode.streamContent):
             var forScope = ScopeTable()
             forScope[node.forItem[0].varName] = node.forItem[0]
-            forScope[node.forItem[0].varName].varValue = ast.newString(k)
+            forScope[node.forItem[0].varName].varMod = ast.newString(k)
             add scope, forScope
             for innerNode in node.forBody.stmtList:
               c.handleInnerNode(innerNode, parent, scope, len, ix)
             scope.delete(scope.high)   
       else: compileErrorWithArgs(forInvalidIteration, node.meta)
     else: compileErrorWithArgs(forInvalidIterationGot, [$(itemsNode.nt)], node.meta)
-  else:
-    echo node
-    echo "invalid iteration"
+  else: compileErrorWithArgs(forInvalidIterationGot, ["null"], node.meta)
 
 newHandler "importModule":
   #[
@@ -893,8 +907,8 @@ proc handleInnerNode(c: Compiler, node, parent: Node,
     if unlikely(node.pseudo.len > 0):
       for k, psNode in node.pseudo:
         add c.deferred, c.getSelectorGroup(psNode, scope, node)
-  of ntVariable:   c.varDefinition(node, scope, parent)
-  of ntAssign:     c.varAssignment(node, scope, parent)
+  of ntVariable:      c.varDefinition(node, scope, parent)
+  of ntAssign:        c.varAssignment(node, scope, parent)
   of ntCallFunction:  c.fnCallVoid(node, scope)
   of ntFunction:   c.fnDefinition(node, scope)
   of ntCommand:    c.command(node, scope)
@@ -926,9 +940,9 @@ proc getSelectorGroup(c: Compiler, node: Node,
       # .my, .second, .selector
       add result, "," & node.extendBy.join(", ")
     for concatVar in node.identConcat:
-      var varValue = c.nodeEvaluator(concatVar, scope)
-      if likely(varValue != nil):
-        add result, varValue.toString
+      var varMod = c.nodeEvaluator(concatVar, scope)
+      if likely(varMod != nil):
+        add result, varMod.toString
       else: break
     add result, c.strCL # {
     for pName in node.properties.keys:

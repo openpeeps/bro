@@ -91,7 +91,7 @@ macro initStdlib() =
         if not isAbsolute(args[0].value.sVal):
           absolutePath(args[0].value.sVal)
         else: args[0].value.sVal
-      let str = readFile(args[0].value.sVal)
+      let str = readFile(filepath)
       let ext = filepath.splitFile.ext
       if ext == ".json":
         return ast.newStream(str.fromJson(JsonNode))

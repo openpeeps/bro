@@ -1,17 +1,18 @@
 import std/os
+import std/strings
 
-var x = getCurrentDir()
-var somePath = join($x, "test_strings.bass")
+const x = getCurrentDir()
+var somePath = join($x, "/tests/stylesheets/test_strings.bass")
 
 assert dirExists($x) == true
 assert isAbsolute($x) == true
 assert fileExists($somePath) == true
 assert getFilename($somePath) == "test_strings.bass"
-assert parentDir($somePath) == $x
+assert parentDir($somePath) == join($x, "/tests/stylesheets")
 
 assert $somePath.fileExists() == true
-assert $somePath.parentDir() == $x
+assert $somePath.parentDir() == $x.join("/tests/stylesheets")
 
 // os iterators
-for $icon in walkFiles("./icons/*.svg"):
-  echo getFilename($icon)
+for $icon in walkFiles("./tests/stylesheets/icons/*.svg"):
+  assert endsWith(getFilename($icon), ".svg") == true

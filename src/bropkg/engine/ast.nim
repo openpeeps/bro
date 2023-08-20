@@ -160,7 +160,7 @@ type
       comment*: string
     of ntVariable:
       varName*: string
-      varValue*: Node
+      varValue*, varMod*: Node
       varMeta*: Meta
       varType*, varInitType*: NodeType
       varUsed*, varArg*, varImmutable*,

@@ -13,3 +13,4 @@ $x.shift()
 assert $x.contains("red") == false
 
 $x.shuffle()
+echo $x

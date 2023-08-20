@@ -1,11 +1,12 @@
-var a = 5px
-var b = 10px
-var c = true
-var d = 10
-var e = 1.0
+var fox = "Quick brown fox"
+assert $fox == "Quick brown fox" 
 
-assert $a == 5px
-assert "abc" == "abc"
-assert 1 == 1
-assert true == true
-assert 10 + 10 == 20
+var maxw = 1024px
+echo $maxw
+assert $maxw == 1024px
+echo $maxw == 1024px
+
+.container
+  max-width: $maxw
+
+echo 1 - 1 * 2

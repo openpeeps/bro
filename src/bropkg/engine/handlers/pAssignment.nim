@@ -77,7 +77,7 @@ proc parseAssignment(p: var Parser, ident: TokenTuple, varTypeDecl: TokenKind): 
     if likely(varDef != nil):
       let varValue = p.getPrefixOrInfix()
       if likely(varValue != nil):
-        varDef.varType = varValue.getNodeType
+        # varDef.varType = varValue.getNodeType
         varDef.varValue = varValue
         return varDef      
   let varValue = p.getPrefixOrInfix()
