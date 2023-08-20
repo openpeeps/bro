@@ -25,7 +25,7 @@ requires "kapsis"
 requires "malebolgia"
 requires "watchout#head"
 requires "https://github.com/georgelemon/jsony#add-critbits-support" # jsony
-requires "nyml"
+requires "nyml#head"
 requires "denim >= 0.1.7"
 requires "chroma#head"
 requires "stashtable >= 1.2.2"
