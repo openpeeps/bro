@@ -21,6 +21,7 @@ type
   Stdlib* = CritBitTree[(Module, SourceCode)]
 
   StringsModule* = object of CatchableError
+  ArraysModule* = object of CatchableError
   OSModule* = object of CatchableError
   ColorsModule* = object of CatchableError
   SystemModule* = object of CatchableError
@@ -71,9 +72,9 @@ macro initStdlib() =
         alias: alias, wrapper: wrapper, hasWrapper: wrapper != nil,
         loadFrom: loadFrom)
 
-  proc `*`(nt: NodeType, count: int): seq[NodeType] =
-    for i in countup(1, count):
-      result.add(nt)
+  # proc `*`(nt: NodeType, count: int): seq[NodeType] =
+  #   for i in countup(1, count):
+  #     result.add(nt)
 
   proc argToSeq[T](arg: Arg): T =
     toNimSeq[string](arg.value)
@@ -83,9 +84,6 @@ macro initStdlib() =
       ast.newString(format(args[0].value.sVal, argToSeq[seq[string]](args[1])))
     except ValueError as e:
       raise newException(StringsModule, e.msg)
-
-  template seqStrContains: untyped =
-    ast.newBool(contains(args[0].value.sVal, args[0].value.sVal))
 
   template systemStreamFunction: untyped =
     try:
@@ -215,19 +213,59 @@ macro initStdlib() =
       fwd("toHex", ntColor, [(ntColor, "x")], wrapper = getAst color2Hex()),
       # fwd("toRGB", ntColor, [(ntColor, "c")], wrapper = getAst color2Rgb()),
     ]
-    # std/arrays
-    # implements common functions for working with arrays (sequences)
-    # https://nim-lang.github.io/Nim/sequtils.html
-    # fnArrays = @[
-    #   fwd("contains", ntBool, [ntArray, ntString], getAst(seqStrContains())),
-    # ]
+
+  # std/arrays
+  # implements common functions for working with arrays (sequences)
+  # https://nim-lang.github.io/Nim/sequtils.html
+  
+  template arraysContains: untyped =
+    ast.newBool(system.contains(toNimSeq[string](args[0].value), args[1].value.sVal))
+
+  template arraysAdd: untyped =
+    add(args[0].value.arrayItems, args[1].value)
+
+  template arraysShift: untyped =
+    try:
+      delete(args[0].value.arrayItems, 0)
+    except IndexDefect as e:
+      raise newException(ArraysModule, e.msg)
+
+  template arraysPop: untyped =
+    try:
+      delete(args[0].value.arrayItems, args[0].value.arrayItems.high)
+    except IndexDefect as e:
+      raise newException(ArraysModule, e.msg)
+
+  template arraysShuffle: untyped =
+    randomize()
+    shuffle(args[0].value.arrayItems)
+
+  let
+    fnArrays = @[
+      fwd("contains", ntBool, [(ntArray, "x"), (ntString, "item")], wrapper = getAst arraysContains()),
+      fwd("add", ntVoid, [(ntArray, "x"), (ntString, "item")], wrapper = getAst arraysAdd()),
+      fwd("shift", ntVoid, [(ntArray, "x")], wrapper = getAst arraysShift()),
+      fwd("pop", ntVoid, [(ntArray, "x")], wrapper = getAst arraysPop()),
+      fwd("shuffle", ntVoid, [(ntArray, "x")], wrapper = getAst arraysShuffle()),
+    ]
     # fnObjects = @[
     #   fwd("hasKey", ntBool, [ntObject, ntString]),
     #   # fwd("keys", ntArray, [ntObject])
     # ]
-    # std/os
-    # implements some read-only basic operating system functions
-    # https://nim-lang.org/docs/os.html 
+
+
+  # std/os
+  # implements some read-only basic operating system functions
+  # https://nim-lang.org/docs/os.html 
+  template osWalkFiles: untyped =
+    let x = toSeq(walkPattern(args[0].value.sVal))
+    var a = ast.newArray()
+    a.arrayType = ntString
+    a.arrayItems =
+      x.map do:
+        proc(xpath: string): Node = ast.newString(xpath)
+    a
+  let
     fnOs = @[
       fwd("absolutePath", ntString, [(ntString, "path")], "absolute"),
       fwd("dirExists", ntBool, [(ntString, "path")]),
@@ -240,14 +278,16 @@ macro initStdlib() =
       fwd("getCurrentDir", ntString),
       fwd("joinPath", ntString, [(ntString, "head"), (ntString, "tail")], "join"),
       fwd("parentDir", ntString, [(ntString, "path")]),
+      fwd("walkFiles", ntArray, [(ntString, "path")], wrapper = getAst osWalkFiles()),
     ]
+
   result = newStmtList()
   let libs = [
     ("system", fnSystem, "system"),
     ("math", fnMath, "math"),
     ("strutils", fnStrings, "strings"),
     ("chroma", fnColors, "colors"),
-    # ("sequtils", fnArrays, "arrays"),
+    ("sequtils", fnArrays, "arrays"),
     # ("critbits", fnObjects, "objects"),
     ("os", fnOs, "os")
   ]
@@ -285,7 +325,7 @@ macro initStdlib() =
         of ntArray: "newArray" # todo implement toArray
         of ntObject: "newObject" # todo implement toObject
         of ntColor: "newColor"
-        else: "None"
+        else: ""
       var i = 0
       var fnIdent = if fn.alias.len != 0: fn.alias else: fn.id
       add sourceCode, addFunction(fnIdent, fn.args, fn.returns)

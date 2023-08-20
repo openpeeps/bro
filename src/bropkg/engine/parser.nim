@@ -468,17 +468,18 @@ proc parseStatement(p: var Parser, parent: (TokenTuple, Node),
       tk = p.curr
       let node = p.parsePrefix(excludeOnly, includeOnly, returnType, isFunctionWrap)
       if node != nil:
-        case node.nt
+        add result.stmtList, node
+        # case node.nt
         # of ntReturn: # checks return type
         #   if unlikely(node.returnStmt.getNodeType != returnType):
         #     case node.returnStmt.nt:
-        #     of ntCallStack:
-        #       if unlikely(node.returnStmt.stackReturnType != returnType):
-        #         errorWithArgs(fnReturnTypeMismatch, tk, [$(node.returnStmt.stackReturnType), $(returnType)])  
+        #     of ntCallFunction:
+        #       if unlikely(node.returnStmt.callReturnType != returnType):
+        #         errorWithArgs(fnReturnTypeMismatch, tk, [$(node.returnStmt.callReturnType), $(returnType)])  
         #       else: discard
         #     of ntMathStmt:
         #       if unlikely(node.returnStmt.mathResultType != returnType):
-        #         errorWithArgs(fnReturnTypeMismatch, tk, [$(node.returnStmt.stackReturnType), $(returnType)])  
+        #         errorWithArgs(fnReturnTypeMismatch, tk, [$(node.returnStmt.callReturnType), $(returnType)])  
         #       else: discard
         #     of ntInfix: discard
         #     else:
@@ -488,12 +489,11 @@ proc parseStatement(p: var Parser, parent: (TokenTuple, Node),
         #           errorWithArgs(fnReturnTypeMismatch, tk, [$(fnReturnType), $(returnType)])  
         #       else:
         #         errorWithArgs(fnReturnTypeMismatch, tk, [$(node.returnStmt.nt), $(returnType)])  
-        of ntFunction:
-          result.trace(node.fnIdent)
-        of ntVariable:
-          result.trace(node.varName)
-        else: discard
-        add result.stmtList, node
+        # of ntFunction:
+        #   result.trace(node.fnIdent)
+        # of ntVariable:
+        #   result.trace(node.varName)
+        # else: discard
       else: return nil
       p.lastParent = nil
     if result.stmtList.len == 0:
@@ -520,8 +520,8 @@ proc parseSelectorStmt(p: var Parser, parent: (TokenTuple, Node), excludeOnly,
             ntAssign, ntCall, ntForStmt:
           parent[1].innerNodes[$genOid()] = node
         of ntExtend, ntComment: discard
-        of ntCallStack:
-          if node.stackReturnType in {ntProperty, ntTagSelector,
+        of ntCallFunction:
+          if node.callReturnType in {ntProperty, ntTagSelector,
                 ntClassSelector, ntPseudoSelector, ntIDSelector}:
             # todo implement types for CSS selectors 
             parent[1].innerNodes[$genOid()] = node

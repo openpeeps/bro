@@ -30,13 +30,13 @@ newPrefixProc "parseFor":
         else: return
       else: return
 
-    if p.curr.kind in {tkVarCall, tkVarTyped, tkLB, tkLC}:
+    if p.curr.kind in {tkVarCall, tkVarTyped, tkIdentifier, tkFnCall, tkLB, tkLC}:
       # todo when var, check if is iterable (array or object)
-      if p.curr.kind notin {tkLB, tkLC}:
+      if p.curr.kind notin {tkLB, tkLC} and not p.isFnCall:
         p.curr.kind = tkVarCall
       var itemsNode = p.parsePrefix()
       if likely(itemsNode != nil):
-        keyNode.varType = itemsNode.getTypedValue
+        # keyNode.varType = itemsNode.getTypedValue
         if likely(itemsNode != nil and p.curr in {tkColon, tkLC}):
           var isCurlyBlock =
             if p.curr is tkLC:
@@ -51,9 +51,6 @@ newPrefixProc "parseFor":
             forScope[valNode.varName] = valNode
           # scope.add(forScope)
           # parse body
-          result.forBody = p.parseStatement((tk, result), excludeOnly, includeOnly, isCurlyBlock = true)
-          if likely(result.forBody != nil):
-            result.forBody.cleanup(keyNode.varName)
-            if valNode != nil:
-              result.forBody.cleanup(valNode.varName)
-          else: return nil
+          result.forBody = p.parseStatement((tk, result), excludeOnly, includeOnly, isCurlyBlock = isCurlyBlock)
+          if unlikely(result.forBody == nil):
+            return nil

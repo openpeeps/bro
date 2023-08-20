@@ -72,11 +72,13 @@ newPrefixProc "parseAccQuoted":
         while p.curr isnot tkRC:
           if unlikely(p.curr is tkEOF): return nil
           if p.curr in tkTypedLiterals + {tkIdentifier}:
+            p.curr.value.insert("$", 0)
             p.curr.kind = tkIdentifier # dirty fix
-            add result.accVal, indent("$bro" & $(hash(p.curr.value)), tkSymbol.wsno)
+            add result.accVal, indent("$bro" & $(hash(p.curr.value[1..^1])), tkSymbol.wsno)
             # let varNode = p.parseVarCall(tk, "$" & p.curr.value)
             let varNode = p.parseCallCommand()
             if likely(varNode != nil):
+              # varNode.callIdent = "$" & varNode.callIdent 
               add result.accVars, varNode
             else: return nil
           else:

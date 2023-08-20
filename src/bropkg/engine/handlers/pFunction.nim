@@ -58,7 +58,6 @@ newPrefixProc "parseFn":
           walk p
           case p.curr.kind:
           of tkTypedLiterals:
-            # Set type for current argument
             let nTyped = p.getLiteralType()
             fnNode.fnParams["$" & pName.value] = ("$" & pName.value, nTyped, nil)
             fnScope["$" & pName.value] =
@@ -90,10 +89,8 @@ newPrefixProc "parseFn":
     if p.curr is tkColon:
       walk p
       fnNode.fnReturnType = p.getLiteralType()
-      if likely(fnNode.fnReturnType != ntVoid):
-        walk p
-      else:
-        error(fnInvalidReturn, p.curr)
+      walk p
+      # error(fnInvalidReturn, p.curr)
     elif fn is tkMixDef:
       fnNode.fnReturnType = ntProperty
     # parse function body, if available
@@ -184,7 +181,7 @@ newPrefixProc "parseCallFnCommand":
   #   let hashedIdent = hashed(fnIdentName & $(args))
   #   result = memoized(p.mCall, hashedIdent)
   #   if result == nil:
-  #     # otherwise, create a new ntCallStack, then memoize it
+  #     # otherwise, create a new ntCallFunction, then memoize it
   #     result = newFnCall(fn.fnReturnType, args, fnIdentName, ident.value)
   #     p.mCall.memoize(hashedIdent, result)
   # else:

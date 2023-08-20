@@ -18,6 +18,7 @@ else:
 
 type
   NodeType* = enum
+    ntInvalid
     ntVoid = "void"
     ntRoot = "RootSelector"
     ntProperty = "CSSProperty"
@@ -47,7 +48,7 @@ type
     ntDotExpr
     ntAccQuoted = "QuotedString"
     ntCall = "Call"
-    ntCallStack = "FunctionCall"
+    ntCallFunction = "FunctionCall"
     ntCallRec
     ntInfix = "InfixExpression"
     ntImport  = "MagicImport"
@@ -136,39 +137,10 @@ type
   Meta* = tuple[line, pos: int]
   ParamDef* = (string, NodeType, Node)
   
-  Chroma* = ref object
-    case colorType*: ColorType
-    of cColor:
-      colorColor*: Color
-    of cHSL:
-      colorHSL*: ColorHSL
-    of cHSV:
-      colorHSV*: ColorHSV
-    of cLAB:
-      colorLAB*: ColorLab
-    of cLUV:
-      colorLUV*: ColorLUV
-    of cOklab:
-      colorOklab*: ColorOklab
-    of cPolarLab:
-      colorPolarLab*: ColorPolarLAB
-    of cPolarLuv:
-      colorPolarLuv*: ColorPolarLUV
-    of cPolarOklab:
-      colorPolarOklab*: ColorPolarOklab
-    of cRGBA:
-      colorRGBA*: ColorRGBA
-    of cRGB:
-      colorRGB*: ColorRGB
-    of cRGBX:
-      colorRGBX*: ColorRGBX
-    of cXYZ:
-      colorXYZ*: ColorXYZ
-    of cYUV:
-      colorYUV*: ColorYUV
-    of cNamed:
-      colorNamed*: string
-    else: discard
+  OptFlag* = enum
+    optSkipIteration
+    optSkipProperty
+    optSkipSelector
 
   Node* {.acyclic.} = ref object
     case nt*: NodeType
@@ -178,7 +150,7 @@ type
       pRule*: PropertyRule
     of ntFunction, ntMixin:
       fnIdent*, fnName*: string
-      fnParams*: Table[string, ParamDef]
+      fnParams*: OrderedTable[string, ParamDef]
       fnBody*: Node          # ntStmtList
       fnReturnType*: NodeType
       fnUsed*, fnClosure*, fnFwdDecl*, fnExport*: bool
@@ -232,14 +204,14 @@ type
       # callOid*: string
       callIdent*: string
       callNode*: Node
-    of ntCallStack:
+    of ntCallFunction:
       # stackOid*: Oid
       stackIdent*, stackIdentName*: string
       stackType*: NodeType
-      stackReturnType*: NodeType
+      callReturnType*: NodeType
       stackArgs*: seq[Node]
     of ntCallRec:
-      recursiveCall*: Node # ntCallStack
+      recursiveCall*: Node # ntCallFunction
     of ntInfix:
       infixOp*: InfixOp
       infixLeft*, infixRight*: Node
@@ -272,7 +244,8 @@ type
       forItem*: (Node, Node) # key/value (objects) or key/nil (arrays)
       inItems*: Node
       forBody*: Node # ntStmtList
-      forStorage*: ScopeTable
+      # forStorage*: ScopeTable
+      forOptFlags*: OptFlag
     of ntTagSelector, ntClassSelector, ntPseudoSelector,
         ntIDSelector, ntUniversalSelector:
       ident*: string
@@ -531,7 +504,7 @@ proc getNodeType*(node: Node, getVarInitType = false): NodeType =
       else: ntInt
     of ntArray, ntObject, ntBool, ntString, ntInt, ntFloat: node.nt
     of ntFunction: ntFunction
-    of ntCallStack: node.stackReturnType
+    of ntCallFunction: node.callReturnType
     of ntAccQuoted: ntString
     else: node.nt
 
@@ -690,14 +663,14 @@ proc newCall*(tk: TokenTuple): Node =
 
 proc newCall*(id: string, args: seq[Node], types: seq[NodeType]): Node =
   ## Create a new call node
-  Node(nt: ntCallStack, stackArgs: args, stackIdentName: id, stackIdent: identify(id, types))
+  Node(nt: ntCallFunction, stackArgs: args, stackIdentName: id, stackIdent: identify(id, types))
 
 proc newFnCall*[N: Node](returnType: NodeType, args: seq[N], ident, name: string): Node =
-  Node(nt: ntCallStack, stackArgs: args, stackIdent: ident,
-        stackIdentName: name, stackReturnType: returnType)
+  Node(nt: ntCallFunction, stackArgs: args, stackIdent: ident,
+        stackIdentName: name, callReturnType: returnType)
 
 const allowedInfixTokens = {ntColor, ntString, ntInt, ntSize,
-                            ntBool, ntFloat, ntCall, ntCallStack,
+                            ntBool, ntFloat, ntCall, ntCallFunction,
                             ntMathStmt, ntInfix}
 
 proc newInfix*(lht, rht: Node, infixOp: InfixOp, tk: TokenTuple): Node =
@@ -712,19 +685,19 @@ proc newInfix*(lht: Node, tk: TokenTuple): Node =
   result = Node(nt: ntInfix, infixLeft: lht)
 
 proc newInfixCalc*(lht: Node): Node =
-  assert lht.nt in {ntInt, ntFloat, ntSize, ntCall, ntCallStack, ntMathStmt}
+  assert lht.nt in {ntInt, ntFloat, ntSize, ntCall, ntCallFunction, ntMathStmt}
   result = Node(nt: ntMathStmt, mathLeft: lht)
 
 proc newInfixCalc*(lht, rht: Node, infixOp: MathOp): Node =
-  assert lht.nt in {ntInt, ntFloat, ntSize, ntCall, ntCallStack, ntInfix, ntMathStmt}
-  assert rht.nt in {ntInt, ntFloat, ntSize, ntCall, ntCallStack, ntInfix, ntMathStmt}
+  assert lht.nt in {ntInt, ntFloat, ntSize, ntCall, ntCallFunction, ntInfix, ntMathStmt}
+  assert rht.nt in {ntInt, ntFloat, ntSize, ntCall, ntCallFunction, ntInfix, ntMathStmt}
   result = Node(nt: ntMathStmt, mathLeft: lht, mathRight: rht, mathInfixOp: infixOp)
 
 proc newIf*(infix: Node): Node =
   ## Create a new `ntCondStmt` node
-  # assert infix.nt in {ntInfix, ntCallStack, ntCall}
+  # assert infix.nt in {ntInfix, ntCallFunction, ntCall}
   case infix.nt:
-  of ntCallStack, ntCall:
+  of ntCallFunction, ntCall:
     assert infix.getNodeType == ntBool
   of ntInfix: discard
   else: doAssert false

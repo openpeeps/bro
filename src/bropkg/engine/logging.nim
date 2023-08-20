@@ -44,6 +44,9 @@ type
     caseInvalidValue = "Invalid case statement"
     caseInvalidValueType = "Invalid case statement. Got $, expected $"
     colorsInvalidInput = "Invalid color"
+    # Loops
+    forInvalidIteration = "Invalid iteration"
+    forInvalidIterationGot = "Invalid iteration. Got $ | Expected array or object"
     # Functions
     fnUndeclared = "Undeclared function $"
     fnMismatchParam = "Type mismatch for $ | Got $ expected $"
@@ -180,6 +183,10 @@ template errorWithArgs*(msg: Message, tk: TokenTuple, args: openarray[string]) =
 
 template compileErrorWithArgs*(msg: Message, args: openarray[string], meta: Meta = (0,0)) =
   c.logger.newError(msg, meta.line, meta.pos, true, args)
+  return
+
+template compileErrorWithArgs*(msg: Message, meta: Meta = (0,0)) =
+  c.logger.newError(msg, meta.line, meta.pos, true, [])
   return
 
 proc error*(logger: Logger, msg: Message, line, col: int, args: varargs[string]) =

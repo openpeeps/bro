@@ -21,7 +21,7 @@ newPrefixProc "parseCond":
       case compNode.nt
       of ntInfix:
         ifNode = newIf(compNode)
-      of ntCallStack:
+      of ntCallFunction:
         ifNode = newIf(newInfix(compNode, newBool(true), EQ, tk))
       else: discard # error?
       # parse `if` branch

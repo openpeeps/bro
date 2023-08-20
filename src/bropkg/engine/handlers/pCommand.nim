@@ -12,8 +12,8 @@ newPrefixProc "parseReturnCommand":
       tkAccQuoted, tkInteger, tkFloat, tkBool, tkIdentifier, tkLC, tkLB})
   if likely(node != nil):
     case node.nt
-    of ntCallStack:
-      if node.stackReturnType == ntVoid:
+    of ntCallFunction:
+      if node.callReturnType == ntVoid:
         errorWithArgs(fnReturnVoid, tk, [node.stackIdentName])
     else: discard
     if node != nil:
@@ -61,6 +61,13 @@ newPrefixProc "parseCallCommand":
     if likely(accessorNode != nil):
       result.callNode = accessorNode
     else: error(invalidAccessorStorage, tk)
+  elif p.curr is tkDotExpr:
+    walk p
+    if likely(p.isFnCall()):
+      var fnCallNode = p.parseCallFnCommand()
+      fnCallNode.stackArgs.insert(result, 0)
+      fnCallNode.stackIdent = fnCallNode.stackIdentName & "|" & $(fnCallNode.stackArgs.len)
+      return fnCallNode
 
 newPrefixProc "parseEchoCommand":
   # Parse a new `echo` command
@@ -77,8 +84,8 @@ newPrefixProc "parseEchoCommand":
               excludeOnly = {tkEcho, tkReturn, tkVar, tkConst, tkFnDef})
   if node != nil:
     # case node.nt
-    # of ntCallStack:
-    #   if node.stackReturnType == ntVoid:
+    # of ntCallFunction:
+    #   if node.callReturnType == ntVoid:
     #     errorWithArgs(fnReturnVoid, tk, [node.stackIdentName])
     # else: discard
     return newEcho(node, tk)
