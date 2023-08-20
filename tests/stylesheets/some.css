@@ -15,9 +15,9 @@ a strong {
   color: currentColor;
 }
 
-/*a:hover {
+a:hover {
   color: #363636;
-}*/
+}
 
 code {
   font-weight: normal;
