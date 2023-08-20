@@ -1,0 +1,41 @@
+body {
+  line-height: 1.5;
+  color: #4a4a4a;
+  font-size: 1em;
+  font-weight: 400;
+}
+
+a {
+  cursor: pointer;
+  text-decoration: none;
+  color: #485fc7;
+}
+
+a strong {
+  color: currentColor;
+}
+
+/*a:hover {
+  color: #363636;
+}*/
+
+code {
+  font-weight: normal;
+  background-color: whitesmoke;
+  font-size: 0.875em;
+  color: #da1039;
+  padding: 0.25em 0.5em 0.25em;
+}
+
+hr {
+  height: 2px;
+  border: none;
+  background-color: whitesmoke;
+  margin: 1.5rem 0;
+  display: block;
+}
+
+img {
+  max-width: 100%;
+  height: auto;
+}
