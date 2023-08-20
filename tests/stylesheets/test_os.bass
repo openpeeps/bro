@@ -8,3 +8,10 @@ assert isAbsolute($x) == true
 assert fileExists($somePath) == true
 assert getFilename($somePath) == "test_strings.bass"
 assert parentDir($somePath) == $x
+
+assert $somePath.fileExists() == true
+assert $somePath.parentDir() == $x
+
+// os iterators
+for $icon in walkFiles("./icons/*.svg"):
+  echo getFilename($icon)
