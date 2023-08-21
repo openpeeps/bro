@@ -305,9 +305,6 @@ proc divide(lht, rht: int): float {.inline.} = lht / rht
 proc divide(lht, rht: float): float {.inline.} = lht / rht
 proc modulo(lht, rht: int): int {.inline.} = lht mod rht
 
-template ofMathCallStack(): untyped {.dirty.} =
-  var rht = handleCallStack(c, rht, scope)
-  c.evalMathInfix(lht, rht, infixOp, scope)
 
 template calc(calcHandle): untyped {.dirty.} =
   case lht.nt
@@ -321,13 +318,12 @@ template calc(calcHandle): untyped {.dirty.} =
         Node(nt: ntInt, iVal: int(x))
     of ntFloat:
       Node(nt: ntFloat, fVal: calcHandle(toFloat(lht.iVal), rht.fVal))
-    of ntCall:
+    of ntCall, ntCallFunction:
       var rht = c.nodeEvaluator(rht, scope)
       c.mathEvaluator(lht, rht, infixOp, scope)
     of ntMathStmt:
       var rht = c.mathEvaluator(rht.mathLeft, rht.mathRight, rht.mathInfixOp, scope)
       c.mathEvaluator(lht, rht, infixOp, scope)
-    # of ntCallFunction: ofMathCallStack
     else: nil
   of ntFloat:
     case rht.nt:
@@ -339,7 +335,7 @@ template calc(calcHandle): untyped {.dirty.} =
         Node(nt: ntInt, iVal: int(x))
     of ntFloat:
       Node(nt: ntFloat, fVal: calcHandle(lht.fVal, rht.fVal))
-    of ntCall:
+    of ntCall, ntCallFunction:
       var rht = c.nodeEvaluator(rht, scope)
       c.mathEvaluator(lht, rht, infixOp, scope)
     of ntMathStmt:
@@ -368,23 +364,27 @@ template calc(calcHandle): untyped {.dirty.} =
           else: nil
         else: nil # todo handle int/float callables
     else: nil
-  of ntCall:
+  of ntCall, ntCallFunction:
     var lht = c.nodeEvaluator(lht, scope)
     if lht.nt == ntMathStmt:
       lht = c.mathEvaluator(lht.mathLeft, lht.mathRight, lht.mathInfixOp, scope)
     case rht.nt:
       of ntInt, ntFloat:
         c.mathEvaluator(lht, rht, infixOp, scope)
-      of ntCall:
+      of ntCall, ntCallFunction:
         var rht = c.nodeEvaluator(rht, scope)
         c.mathEvaluator(lht, rht, infixOp, scope)
       # of ntCallFunction: ofMathCallStack
       else: nil
   of ntMathStmt:
     var lht = c.mathEvaluator(lht.mathLeft, lht.mathRight, lht.mathInfixOp, scope)
+    var rht = rht
+    case rht.nt
+    of ntMathStmt:
+      rht = c.mathEvaluator(rht.mathLeft, rht.mathRight, rht.mathInfixOp, scope)
+    else: discard
     c.mathEvaluator(lht, rht, infixOp, scope)
-  else:
-    nil # todo handle function calls
+  else: nil
 
 proc mathEvaluator*(c: Compiler, lht, rht: Node, infixOp: MathOp, scope: var seq[ScopeTable]): Node =
   case infixOp
@@ -433,6 +433,12 @@ template caseSizeBody {.dirty.} =
   else:
     return false
 
+template caseLhtCallBody {.dirty.} =
+  var lht = c.nodeEvaluator(lht, scope)
+  if likely(lht != nil):
+    return c.infixEvaluator(lht, rht, op, scope)
+  return false
+
 proc infixEvaluator(c: Compiler, lht, rht: Node, op: InfixOp, scope: var seq[ScopeTable]): bool =
   case op
   of EQ:
@@ -451,20 +457,13 @@ proc infixEvaluator(c: Compiler, lht, rht: Node, op: InfixOp, scope: var seq[Sco
       of ntCall:      caseCallBody
       of ntMathStmt:  caseMathBody
       else:           printTypeMismatch
-    of ntCall:
-      var lht = c.nodeEvaluator(lht, scope)
-      if likely(lht != nil):
-        return c.infixEvaluator(lht, rht, op, scope)
-      false
+    of ntCall:        caseLhtCallBody
     of ntBool:
       case rht.nt
       of ntBool:      lht.bVal == rht.bVal
       of ntCall:      caseCallBody
-      of ntMathStmt:  caseMathBody
       else:           printTypeMismatch
     of ntColor:
-      # echo lht.cValue.toHtmlRgb
-      # echo rht.cValue.toHtmlRgb
       case rht.nt
       of ntColor:     lht.cValue == rht.cValue
       else: printTypeMismatch
@@ -484,8 +483,7 @@ proc infixEvaluator(c: Compiler, lht, rht: Node, op: InfixOp, scope: var seq[Sco
       of ntObject:    lht.toString == rht.toString
       of ntCall:      caseCallStorageBody
       else:           printTypeMismatch
-    of ntSize:
-      caseSizeBody
+    of ntSize:        caseSizeBody
     of ntCallFunction:
       var lht = c.nodeEvaluator(lht, scope)
       var rht = rht
@@ -496,6 +494,180 @@ proc infixEvaluator(c: Compiler, lht, rht: Node, op: InfixOp, scope: var seq[Sco
       case rht.nt
       of ntStream:    lht.toString == rht.toString
       else:           printTypeMismatch
+    else:
+      var lht = c.mathEvaluator(lht.mathLeft, lht.mathRight, lht.mathInfixOp, scope)
+      if likely(lht != nil):
+        return c.infixEvaluator(lht, rht, op, scope)
+      false
+  of NE:
+    case lht.nt
+    of ntInt:
+      case rht.nt
+      of ntInt:       lht.iVal != rht.iVal
+      of ntFloat:     lht.iVal.toFloat != rht.fVal
+      of ntCall:      caseCallBody
+      of ntMathStmt:  caseMathBody
+      else:           printTypeMismatch
+    of ntFloat:
+      case rht.nt:
+      of ntFloat:     lht.fVal != rht.fVal
+      of ntInt:       lht.fVal != rht.iVal.toFloat
+      of ntCall:      caseCallBody
+      of ntMathStmt:  caseMathBody
+      else:           printTypeMismatch
+    of ntCall:        caseLhtCallBody
+    of ntBool:
+      case rht.nt
+      of ntBool:      lht.bVal != rht.bVal
+      of ntCall:      caseCallBody
+      else:           printTypeMismatch
+    of ntColor:
+      case rht.nt
+      of ntColor:     lht.cValue != rht.cValue
+      else: printTypeMismatch
+    of ntString:
+      case rht.nt
+      of ntString:    lht.sVal != rht.sVal
+      of ntCall:      caseCallBody
+      of ntMathStmt:  caseMathBody
+      else:           printTypeMismatch
+    of ntArray:
+      case rht.nt
+      of ntArray:     lht.toString != rht.toString
+      of ntCall:      caseCallStorageBody
+      else:           printTypeMismatch
+    of ntObject:
+      case rht.nt
+      of ntObject:    lht.toString != rht.toString
+      of ntCall:      caseCallStorageBody
+      else:           printTypeMismatch
+    of ntSize:        caseSizeBody
+    of ntCallFunction:
+      var lht = c.nodeEvaluator(lht, scope)
+      var rht = rht
+      if rht.nt == ntCallFunction:
+        rht = c.nodeEvaluator(rht, scope)
+      return c.infixEvaluator(lht, rht, op, scope)
+    of ntStream:
+      case rht.nt
+      of ntStream:    lht.toString != rht.toString
+      else:           printTypeMismatch
+    else:
+      var lht = c.mathEvaluator(lht.mathLeft, lht.mathRight, lht.mathInfixOp, scope)
+      if likely(lht != nil):
+        return c.infixEvaluator(lht, rht, op, scope)
+      false
+  of GT:
+    case lht.nt
+    of ntInt:
+      case rht.nt
+      of ntInt:       lht.iVal > rht.iVal
+      of ntFloat:     lht.iVal.toFloat > rht.fVal
+      of ntCall:      caseCallBody
+      of ntMathStmt:  caseMathBody
+      else:           printTypeMismatch
+    of ntFloat:
+      case rht.nt:
+      of ntFloat:     lht.fVal > rht.fVal
+      of ntInt:       lht.fVal > rht.iVal.toFloat
+      of ntCall:      caseCallBody
+      of ntMathStmt:  caseMathBody
+      else:           printTypeMismatch
+    of ntCall:        caseLhtCallBody
+    of ntSize:        caseSizeBody
+    of ntCallFunction:
+      var lht = c.nodeEvaluator(lht, scope)
+      var rht = rht
+      if rht.nt == ntCallFunction:
+        rht = c.nodeEvaluator(rht, scope)
+      return c.infixEvaluator(lht, rht, op, scope)
+    else:
+      var lht = c.mathEvaluator(lht.mathLeft, lht.mathRight, lht.mathInfixOp, scope)
+      if likely(lht != nil):
+        return c.infixEvaluator(lht, rht, op, scope)
+      false
+  of GTE:
+    case lht.nt
+    of ntInt:
+      case rht.nt
+      of ntInt:       lht.iVal >= rht.iVal
+      of ntFloat:     lht.iVal.toFloat >= rht.fVal
+      of ntCall:      caseCallBody
+      of ntMathStmt:  caseMathBody
+      else:           printTypeMismatch
+    of ntFloat:
+      case rht.nt:
+      of ntFloat:     lht.fVal >= rht.fVal
+      of ntInt:       lht.fVal >= rht.iVal.toFloat
+      of ntCall:      caseCallBody
+      of ntMathStmt:  caseMathBody
+      else:           printTypeMismatch
+    of ntCall:        caseLhtCallBody
+    of ntSize:        caseSizeBody
+    of ntCallFunction:
+      var lht = c.nodeEvaluator(lht, scope)
+      var rht = rht
+      if rht.nt == ntCallFunction:
+        rht = c.nodeEvaluator(rht, scope)
+      return c.infixEvaluator(lht, rht, op, scope)
+    else:
+      var lht = c.mathEvaluator(lht.mathLeft, lht.mathRight, lht.mathInfixOp, scope)
+      if likely(lht != nil):
+        return c.infixEvaluator(lht, rht, op, scope)
+      false
+  of LT:
+    case lht.nt
+    of ntInt:
+      case rht.nt
+      of ntInt:       lht.iVal < rht.iVal
+      of ntFloat:     lht.iVal.toFloat < rht.fVal
+      of ntCall:      caseCallBody
+      of ntMathStmt:  caseMathBody
+      else:           printTypeMismatch
+    of ntFloat:
+      case rht.nt:
+      of ntFloat:     lht.fVal < rht.fVal
+      of ntInt:       lht.fVal < rht.iVal.toFloat
+      of ntCall:      caseCallBody
+      of ntMathStmt:  caseMathBody
+      else:           printTypeMismatch
+    of ntCall:        caseLhtCallBody
+    of ntSize:        caseSizeBody
+    of ntCallFunction:
+      var lht = c.nodeEvaluator(lht, scope)
+      var rht = rht
+      if rht.nt == ntCallFunction:
+        rht = c.nodeEvaluator(rht, scope)
+      return c.infixEvaluator(lht, rht, op, scope)
+    else:
+      var lht = c.mathEvaluator(lht.mathLeft, lht.mathRight, lht.mathInfixOp, scope)
+      if likely(lht != nil):
+        return c.infixEvaluator(lht, rht, op, scope)
+      false
+  of LTE:
+    case lht.nt
+    of ntInt:
+      case rht.nt
+      of ntInt:       lht.iVal <= rht.iVal
+      of ntFloat:     lht.iVal.toFloat <= rht.fVal
+      of ntCall:      caseCallBody
+      of ntMathStmt:  caseMathBody
+      else:           printTypeMismatch
+    of ntFloat:
+      case rht.nt:
+      of ntFloat:     lht.fVal <= rht.fVal
+      of ntInt:       lht.fVal <= rht.iVal.toFloat
+      of ntCall:      caseCallBody
+      of ntMathStmt:  caseMathBody
+      else:           printTypeMismatch
+    of ntCall:        caseLhtCallBody
+    of ntSize:        caseSizeBody
+    of ntCallFunction:
+      var lht = c.nodeEvaluator(lht, scope)
+      var rht = rht
+      if rht.nt == ntCallFunction:
+        rht = c.nodeEvaluator(rht, scope)
+      return c.infixEvaluator(lht, rht, op, scope)
     else:
       var lht = c.mathEvaluator(lht.mathLeft, lht.mathRight, lht.mathInfixOp, scope)
       if likely(lht != nil):
