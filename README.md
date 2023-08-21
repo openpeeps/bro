@@ -10,22 +10,36 @@
 </p>
 
 ## 😍 Key Features
-- 🍃 Lightweight, tiny executable
+- ⚡ Extremely fast & Highly optimized [Jump to Benchmarks](#benchmarks)
+- 🍃 Lightweight, **1.5MB** tiny executable
 - 🐱 Dependency Free / **No Virtual Machine**
 - 💪 **Strongly Typed** = Perfect **Cascading Style Sheets** 🤩
 - 🌍 Works on **Linux**, **macOS**, **Windows**
-- 👉 `Warnings` => Unused **Variables**
-- 👉 `Warnings` => Unused **Mixins**, **Functions**, **Empty selectors**
-- 👉 `Errors` => **invalid** properties/values or typos!
 - 🔖 A beautiful, improved `SASS`-like Syntax [Learn Bro in 5 minutes](https://github.com/openpeeps/bro/wiki/Learn-Bro-in-5-minutes)
-- 🎁 **CSS Minifier**
+- 📚 Standard Library (`strings`, `arrays`, `objects`, `math`, `regex`, `os`) [Check the manual](https://github.com/openpeeps/bro/wiki/Standard-Library)
+- 👋 Human readable Syntax => **Developer friendly**
+  - `var` & `const`
+  - `[]` Arrays
+  - `{}` Objects
+  - `if` & `case` Conditionals  
+  - `for` Loop Statements
+  - `fn` Functions & `mix` Mixins
+    - Overloading + Closures + Forward declaration
+  - `CSS` to `BASS` AST with `include some.css`
+  - `BASS` imports using `import std/[strings, math]`
+  - **JSON/YAML stream** to BASS using `json("some.json")`, `yaml("some.yml")`
+- 👏 Built-in CSS Optimization (Autoprefixer, Minifier, CSS Alphabetize & Deduplication)
 - 🗺 **CSS SourceMap Generator**
 - 🔄 **CSS Reload** & **Browser sync** [Setup info](https://github.com/openpeeps/bro/wiki/Index#css-reload--browser-syncing)
-- 🌴 **Abstract Syntax Tree** binary serialization via **MessagePack**
+- 🌴 **Abstract Syntax Tree** binary serialization
 - 🎉 Built-in `HTML`, `JSON` Documentation Generator
 - 🔥 Works with **Node.js** & **Bun.js** via `NAPI`
 - 🎆 Works in **Browser via WASM** (unstable)
 - 🌍 Dynamically Linked Library
+- 👉 `Warnings` => Unused **Variables**
+- 👉 `Warnings` => Unused **Mixins**, **Functions**, **Empty selectors**
+- 👉 `Errors` => **invalid** properties/values or typos!
+- 🏳 Recommended Extension `.bass`
 - 🎩 Open Source | [LGPLv3 license](https://github.com/openpeeps/bro/blob/main/LICENSE)
 - 👑 Written in **Nim language**
 - 😋 **Made for Cool Kids**
@@ -38,7 +52,8 @@
 > Since Bro is written in native code, anti-virus software can sometimes incorrectly flag it as a virus
 
 ## Bro CLI
-Install Bro as a standalone CLI application. Get it from [Releases](#), or you might want to compile from source.
+Install Bro as a standalone CLI application. Get it from [Releases](#) or build it from source using Nim & Nimble.
+
 
 ### Bro 💛 Nim
 Integrate Bro in your Nim application
@@ -47,9 +62,9 @@ Integrate Bro in your Nim application
 import bro
 
 let stylesheet = """
-var colors = [blue, yellow, orchid]
+$colors = [blue, yellow, orchid]
 for $color in $colors:
-  .bg-{$color}:
+  .bg-{$color}
     background: $color 
 """
 
@@ -60,25 +75,26 @@ echo c.getCSS # .bg-blue{background:blue}.bg-yellow{...
 ```
 
 ### Bro 💖 Bun & Node.js
-Integrate the most powerful CSS pre-processor with Node.js/Bun.sh!
+Integrate the most powerful CSS pre-processor in your Node.js/Bun app. Bro is available as a native addon module
 
 ```javascript
 let stylesheet = `
-var colors = [blue, yellow, orchid]
+$colors = [blue, yellow, orchid]
 for $color in $colors:
-  .bg-{$color}:
+  .bg-{$color}
     background: $color
 `
 const bro = require("bro.node")
 bro.compile(stylesheet) // .bg-blue{background:blue}.bg-yellow{...
 ```
 
-### Bro in Browser via WASM
+### Bro in Browser via Wasm
+Build complex real-time web-apps using Bro + WebAssembly
 ```html
 <style type="text/bro" id="stylesheet">
-var colors = [blue, yellow, orchid]
+$colors = [blue, yellow, orchid]
 for $color in $colors:
-  .bg-{$color}:
+  .bg-{$color}
     background: $color
 </style>
 <script src="/bro.min.js"></script>
@@ -99,40 +115,39 @@ DartSass, SassC, **Bro**, **BroJS (via NAPI w/ Node & Bun)**, Sass (JS w/ Node &
 
 ```
 Benchmark 1: ./dart sass.snapshot test.sass:test.css --no-source-map --style=compressed
-  Time (abs ≡):         4.846 s               [User: 6.077 s, System: 0.208 s]
+  Time (abs ≡):         4.925 s               [User: 6.060 s, System: 0.263 s]
  
-Benchmark 2: sassc test.sass test.css --style=compressed
-  Time (abs ≡):         5.982 s               [User: 5.531 s, System: 0.448 s]
+Benchmark 2: bro test.sass test.css --min
+  Time (abs ≡):        441.7 ms               [User: 422.3 ms, System: 19.9 ms]
  
-Benchmark 3: bro test.sass test.css --min
-  Time (abs ≡):        658.9 ms               [User: 543.7 ms, System: 112.8 ms]
+Benchmark 3: sassc test.sass test.css --style=compressed
+  Time (abs ≡):         5.757 s               [User: 5.346 s, System: 0.400 s]
  
-Benchmark 4: node bro.js
-  Time (abs ≡):        942.3 ms               [User: 835.2 ms, System: 107.9 ms]
+Benchmark 4: bun bro.js
+  Time (abs ≡):        679.0 ms               [User: 616.0 ms, System: 24.0 ms]
  
-Benchmark 5: bun bro.js
-  Time (abs ≡):        969.6 ms               [User: 775.7 ms, System: 153.5 ms]
+Benchmark 5: node bro.js
+  Time (abs ≡):        653.7 ms               [User: 625.8 ms, System: 32.3 ms]
  
 Benchmark 6: node sass.js
-  Time (abs ≡):        12.566 s               [User: 19.499 s, System: 1.212 s]
+  Time (abs ≡):        12.783 s               [User: 19.640 s, System: 1.185 s]
  
 Benchmark 7: bun sass.js
-  Time (abs ≡):         9.892 s               [User: 18.939 s, System: 0.938 s]
+  Time (abs ≡):        10.485 s               [User: 20.422 s, System: 1.030 s]
  
 Summary
   'bro test.sass test.css --min' ran
-    1.43 times faster than 'node bro.js'
-    1.47 times faster than 'bun bro.js'
-    7.35 times faster than './dart sass.snapshot test.sass:test.css --no-source-map --style=compressed'
-    9.08 times faster than 'sassc test.sass test.css --style=compressed'
-   15.01 times faster than 'bun sass.js'
-   19.07 times faster than 'node sass.js'
+    1.48 times faster than 'node bro.js'
+    1.54 times faster than 'bun bro.js'
+   11.15 times faster than './dart sass.snapshot test.sass:test.css --no-source-map --style=compressed'
+   13.03 times faster than 'sassc test.sass test.css --style=compressed'
+   23.74 times faster than 'bun sass.js'
+   28.94 times faster than 'node sass.js'
 ```
 
 [Check Benchmarks page](https://github.com/openpeeps/bro/wiki/Benchmarks) for more numbers
 
 </details>
-
 Benchmarks made with [hyperfine](https://github.com/sharkdp/hyperfine) on<br>
 **Ubuntu 22.04 LTS** / Ryzen 5 5600g 3.9GHz × 12 / RAM 32 GB 3200MHz / SSD M.2
 
@@ -161,7 +176,6 @@ Benchmarks made with [hyperfine](https://github.com/sharkdp/hyperfine) on<br>
   - [ ] Mixins
   - [x] Conditionals (`if`, `elif`, `else`, and `case`)
   - [x] For/Loop statements `for $x in $y`
-  - [ ] Magically `@when` instead of `@media`
   - [ ] Typed CSS properties/values
   - [x] Warnings unused `variables`, `functions`
   - [ ] CSS Variable Declaration using `var` instead of `--`
@@ -172,9 +186,9 @@ Benchmarks made with [hyperfine](https://github.com/sharkdp/hyperfine) on<br>
   - [ ] Implement AST caching system
 - [x] Command Line Interface 
   - [x] CLI `watch` for live changes
-  - [x] CLI `build` BASS code to css
+  - [x] CLI `build` BASS code to CSS
   - [ ] CLI generate source `map`
-  - [x] CLI generate `ast` nodes to binary AST
+  - [x] CLI `ast` command for generating binary AST
 - [x] Build
   - [x] Cross-platform compilation
   - [x] Node.js/Bun.js via NAPI 
@@ -182,7 +196,7 @@ Benchmarks made with [hyperfine](https://github.com/sharkdp/hyperfine) on<br>
 
 #### 0.2.x
 - [ ] Convert boring SASS to BASS
-- [ ] CLI build code documentation with `doc`
+- [ ] CLI `doc` command for generating documentation website
 
 
 ### ❤ Contributions & Support
