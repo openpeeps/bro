@@ -4,7 +4,7 @@
 #          Made by Humans from OpenPeeps
 #          https://github.com/openpeeps/bro
 
-import pkg/[jsony, stashtable, chroma]
+import pkg/[jsony, chroma]
 import std/[tables, strutils, macros, sequtils, json,
   math, oids, hashes, terminal, threadpool, enumutils]
 import ./ast, ./sourcemap, ./stdlib, ./logging
@@ -187,6 +187,7 @@ proc sizeString(v: Node): string =
 
 proc dumpHook*(s: var string, v: seq[Node])
 proc dumpHook*(s: var string, v: CritBitTree[Node])
+# proc dumpHook*(s: var string, v: Color)
 
 proc dumpHook*(s: var string, v: Node) =
   ## Dumps `v` node to stringified JSON using `pkg/jsony`

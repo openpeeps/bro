@@ -148,6 +148,7 @@ type
       pName*: string
       pVal*: seq[Node] # a seq of CSS values
       pRule*: PropertyRule
+      pShared*: seq[Node] # a seq of CSS properties sharing the same value
     of ntFunction, ntMixin:
       fnIdent*, fnName*: string
       fnParams*: OrderedTable[string, ParamDef]

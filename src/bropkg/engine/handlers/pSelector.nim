@@ -123,10 +123,28 @@ newPrefixProc "parseProperty":
   ## Parse `key: value` pair as CSS Property
   if likely(p.propsTable.hasKey(p.curr.value)):
     let pName = p.curr
-    if p.next is tkColon:
-      walk p, 2
+    var pColon: TokenTuple
+    var shared: seq[Node]
+    if p.next in {tkColon, tkComma}:
+      walk p
+      pColon = p.next
       result = newProperty(pName.value)
-      while p.curr.line == pName.line:
+      if unlikely(p.curr is tkComma):
+        while p.curr is tkComma:
+          walk p
+          if likely(p.propsTable.hasKey(p.curr.value)):
+            shared.add(newProperty(p.curr.value))
+            walk p
+          else: return nil
+        if likely(p.curr is tkColon):
+          pColon = p.curr
+          walk p
+        else: return nil
+      elif p.curr is tkColon:
+        pColon = p.curr
+        walk p
+      else: return nil
+      while p.curr.line == pColon.line:
         # walk along the line and parse values
         case p.curr.kind
         of tkString:
@@ -157,6 +175,7 @@ newPrefixProc "parseProperty":
             use(varCallNode)
         else: break
     if unlikely(p.curr is tkSemiColon): walk p
+    result.pShared = shared
     return result
   if p.next is tkColon:
     let suggest = toSeq(p.propsTable.itemsWithPrefix(p.curr.value))

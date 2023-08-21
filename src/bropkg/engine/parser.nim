@@ -6,7 +6,7 @@
 
 {.warning[ImplicitDefaultValue]:off.}
 
-import pkg/[stashtable, flatty, supersnappy, chroma,
+import pkg/[flatty, supersnappy, chroma,
     checksums/md5, malebolgia, malebolgia/ticketlocks]
 
 import std/[os, strutils, sequtils, sequtils,
@@ -174,11 +174,6 @@ macro newPrefixProc(name: static string, body: untyped) =
         nnkVarTy.newTree(ident("Parser")),
         newEmptyNode()
       ),
-      # nnkIdentDefs.newTree(
-        # ident("scope"),
-        # nnkVarTy.newTree(nnkBracketExpr.newTree(ident("seq"), ident("ScopeTable"))),
-        # newEmptyNode()
-      # ),
       nnkIdentDefs.newTree(
         ident("excludeOnly"),
         ident("includeOnly"),
@@ -516,6 +511,11 @@ proc parseSelectorStmt(p: var Parser, parent: (TokenTuple, Node), excludeOnly,
         case node.nt:
         of ntProperty:
           parent[1].properties[node.pName] = node
+          if unlikely(node.pShared.len > 0):
+            for sharedProp in node.pShared:
+              sharedProp.pVal = node.pVal
+              parent[1].properties[sharedProp.pName] = sharedProp
+              node.pShared.setLen(0)
         of ntCaseStmt, ntCondStmt, ntVariable,
             ntAssign, ntCall, ntForStmt:
           parent[1].innerNodes[$genOid()] = node
@@ -631,11 +631,7 @@ template startParseStylesheet(src, path: string) =
     p.logger = Logger(filePath: "")
   else:
     p.logger = Logger(filePath: path)
-    # p.stylesheets = newStashTable[string, Stylesheet, 1000]()
-  # p.imports = newOrderedTable[string, Stylesheet]()
   p.propsTable = initPropsTable()
-
-  # scope.add(ScopeTable())
   p.program = Stylesheet()
   p.program.sourcePath = path
   p.program.setGlobalScope(ScopeTable())
@@ -648,42 +644,9 @@ template startParseStylesheet(src, path: string) =
     if p.hasErrors: break
     let node = p.parseRoot(excludeOnly = {tkExtend, tkPseudo, tkReturn})
     if likely(node != nil):
-      # echo node
-      # echo ""
       add p.program.nodes, node
     # else: break
   p.lex.close()
-
-# proc importModule(th: ModuleThreadArgs) {.thread.} =
-#   {.gcsafe.}:
-#     proc newImportParser(): Parser =
-#       var p = Parser(filePath: th.path, dirPath: th.dirpath)
-#       # var scope = newSeq[ScopeTable]()
-#       if not th.isStdlib:
-#         startParseStylesheet(readFile(th.path), th.path)
-#       else:
-#         startParseStylesheet(th.code, th.path)
-#       result = p
-#     var subParser = newImportParser()
-#     if subParser.hasErrors:
-#       for error in subParser.logger.errors:
-#         display(error)
-#       display(" 👉 " & subParser.logger.filePath)
-#       return
-#     th.stylesheets.withValue(th.path):
-#       value[] = subParser.getStylesheet
-#     # if subParser.stylesheets.len > 0:
-#     discard th.stylesheets.addAll(subParser.stylesheets, false)
-
-
-# proc moduleImporter(path, dirPath: string, results: ptr CountTable[Stylesheet], L: ptr TicketLock) {.gcsafe.} =
-#   var p = Parser(filePath: path, dirPath: dirPath)
-#   startParseStylesheet(readFile(path), path)
-#   if p.hasErrors:
-#     echo "error"
-#   else:
-#     withLock L[]:
-#       results[].inc p.getStylesheet
 
 proc parseStylesheet*(src, path: string, enableCache = false): Parser =
   var p = Parser()
