@@ -66,20 +66,6 @@ handlers:
     else:
       lex.kind = tkVarCall
 
-  proc handleVarDef(lex: var Lexer, kind: TokenKind) =
-    skip lex
-    lex.token = "$"
-    if lex.buf[lex.bufpos] in IdentStartChars:
-      add lex
-      while true:
-        if lex.buf[lex.bufpos] in IdentChars:
-          add lex
-        else: break
-    else:
-      lex.setError("Invalid variable declaration")
-      return
-    lex.kind = kind
-
   proc handleExclamation(lex: var Lexer, kind: TokenKind) =
     lexReady lex
     inc lex
@@ -105,7 +91,7 @@ handlers:
       lex.kind = tkPseudo
       add lex
     elif current(lex) == '&':
-      lex.kind = tkAndAnd
+      lex.kind = tkPipePipe
       add lex
     else:
       lex.kind = kind
@@ -226,18 +212,20 @@ registerTokens lexerSettings:
     varDefRef = '='
   semiColon = ';'
   comma = ','
-  `and` = '&':
-    andAnd = '&'
+  amp = '&':
+    ampAmp = '&'
     pseudo = ':'
   pipe = '|':
-    `or` = '|'
+    `pipePipe` = '|'
   multiply = '*'
   `mod` = '%'
   minus = '-'
   plus = '+'
   # caret = '^'
-  `var` = tokenize(handleVarDef, "var")
-  `const` = tokenize(handleVarDef, "const")
+  # `var` = tokenize(handleVarDef, "var")
+  # `const` = tokenize(handleVarDef, "const")
+  `var` = "var"
+  `const` = "const"
   assign = '=':
     eq = '='
   `not` = '!':
@@ -275,13 +263,11 @@ registerTokens lexerSettings:
   hash = tokenize(handleHash, '#')
   varSymbol # $
   varCall = tokenize(handleVariable, '$')
-  # cssVarDef       # $$default-size
-  # cssVarDefRef
   varTyped
   varAssgn
   fnCall
   class
-  dotExpr = '.'
+  dot = '.'
   accQuoted = '`'
   divide = '/':
     doc = tokenize(handleDocBlock, '*')
@@ -294,7 +280,8 @@ registerTokens lexerSettings:
     mixCall = "mixin"
     importRule = "import"
 
-  litAnd = "and"
+  `and` = "and"
+  `or` = "or"
   litArray = "array"
   litBool = "bool"
   litColor = tokenize(handleColorLit, "color")
@@ -302,12 +289,12 @@ registerTokens lexerSettings:
   litFunction = "function"
   litInt = "int"
   litObject = "object"
-  litOr = "or"
   litSize = "size"
   litString = "string"
   litCSS = "css"
   litMixin = "mixin"
   litStream = "stream"
+  litVoid = "void"
 
   id
   color

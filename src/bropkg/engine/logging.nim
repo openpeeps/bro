@@ -14,32 +14,38 @@ when compileOption("app", "console"):
 
 type
   Message* = enum
-    invalidIndentation = "Invalid indentation"
-    undeclaredVariable = "Undeclared variable $"
-    varRedefine = "Attempt to redefine variable $"
+    invalidIndentation = "Invalid indentation [InvalidIndent]"
+    varUndeclared = "Undeclared variable $ [VarUndeclared]"
+    varRedefine = "Attempt to redefine variable $ [VarRedefine]"
+    varImmutable = "Cannot assign twice to a immutable variable $ [VarImmutable]"
+
     undeclaredCSSSelector = "Undeclared CSS selector"
     extendRedundancyError = "Selector $ extends $ multiple times"
     invalidProperty = "Invalid CSS property $"
+    propMissingCSSValue = "CSS property $ missing value [MissingCSSValue]"
     duplicateSelector = "Duplicated CSS declaration"
     unexpectedToken = "Unexpected token $"
-    declaredEmptySelector = "Declared selector $ has no properties"
+    selectorEmpty = "Declared selector $ has no properties [DeclaredEmptySelector]"
     badIndentation = "Nestable statement requires indentation"
     invalidInfixMissingValue = "Invalid infix missing assignable token"
     invalidInfixOp = "Invalid infix operator $ for $"
     invalidInfixOpExpect = "Invalid infix operator $ | Got $ expected $"
+    invalidIterator = "Invalid iterator"
     declaredNotUsed = "Declared and not used $"
     # accessor storage
-    invalidAccessorStorage = "Invalid accessor storage"
+    invalidAccessorStorage = "Invalid accessor storage $ for $"
     duplicateObjectKey = "Duplicate object field $"
     duplicateCaseLabel = "Duplicate case label"
+    undeclaredField = "Undeclared field $ [UndeclaredField]"
     missingAssignmentToken = "Missing assignment token"
     missingRB = "Missing closing bracket"
     missingRC = "Missing closing curly bracket"
-    immutableReassign = "Cannot assign twice to immutable variable $"
+
     invalidCallContext = "Invalid call in this context"
     # Use/Imports
     importDuplicateModule = "Module $ already in use"
     importModuleNotFound = "Module $ not found"
+    importCircular = "Circular import not allowed"
     # Condition - Case statements
     caseInvalidValue = "Invalid case statement"
     caseInvalidValueType = "Invalid case statement. Got $, expected $"
@@ -49,7 +55,7 @@ type
     forInvalidIterationGot = "Invalid iteration. Got $ | Expected array or object"
     # Functions
     fnUndeclared = "Undeclared function $"
-    fnMismatchParam = "Type mismatch for $ | Got $ expected $"
+    typeMismatch = "Type mismatch. Got $ expected $"
     fnExtraArg = "Function $ expects $ arguments, $ given"
     fnReturnVoid = "Invalid return type for $ | Got void"
     fnReturnTypeMismatch = "Invalid return type | Got $ expected $"
@@ -60,7 +66,8 @@ type
     assertionInvalid = "Cannot assert $"
     suggestLabel = "Did you mean?"
     invalidContext = "Invalid $ in this context"
-    internalError = "$"
+    indexDefect = "Index $ not in $"
+    internalError = "$ [ModuleError: $ | $]"
 
   Level* = enum
     lvlInfo
@@ -118,26 +125,26 @@ proc getMessage*(log: Log): Message =
   result = log.msg
 
 proc newInfo*(logger: Logger, msg: Message, line, col: int,
-              useFmt: bool, args:varargs[string]) =
+        useFmt: bool, args:varargs[string]) =
   logger.add(lvlInfo, msg, line, col, useFmt, args)
 
-proc newNotice*(logger: Logger, msg: Message, line, col: int, useFmt: bool, args:varargs[string]) =
+proc newNotice*(logger: Logger, msg: Message, line, col: int,
+        useFmt: bool, args:varargs[string]) =
   logger.add(lvlNotice, msg, line, col, useFmt, args)
 
-proc newWarn*(logger: Logger, msg: Message, line, col: int, useFmt: bool, args:varargs[string]) =
+proc newWarn*(logger: Logger, msg: Message, line, col: int,
+        useFmt: bool, args:varargs[string]) =
   logger.add(lvlWarn, msg, line, col, useFmt, args)
 
 proc newError*(logger: Logger, msg: Message, line, col: int, useFmt: bool, args:varargs[string]) =
   logger.add(lvlError, msg, line, col, useFmt, args)
 
 proc newErrorMultiLines*(logger: Logger, msg: Message, line, col: int, 
-                            useFmt: bool, extraLines: seq[string],
-                            extraLabel: string, args:varargs[string]) =
+        useFmt: bool, extraLines: seq[string], extraLabel: string, args:varargs[string]) =
   logger.add(lvlError, msg, line, col, useFmt, extraLines, extraLabel, args)
 
 proc newWarningMultiLines*(logger: Logger, msg: Message, line, col: int,
-                          useFmt: bool, extraLines: seq[string],
-                          extraLabel: string, args:varargs[string]) =
+        useFmt: bool, extraLines: seq[string], extraLabel: string, args:varargs[string]) =
   logger.add(lvlWarn, msg, line, col, useFmt, extraLines, extraLabel, args)
 
 template warn*(msg: Message, tk: TokenTuple, args: varargs[string]) =
@@ -181,12 +188,16 @@ template errorWithArgs*(msg: Message, tk: TokenTuple, args: openarray[string]) =
     p.hasErrors = true
   return # block code execution
 
-template compileErrorWithArgs*(msg: Message, args: openarray[string], meta: Meta = (0,0)) =
-  c.logger.newError(msg, meta.line, meta.pos, true, args)
+template compileErrorWithArgs*(msg: Message, args: openarray[string]) =
+  c.logger.newError(msg, node.meta[0], node.meta[2], true, args)
   return
 
-template compileErrorWithArgs*(msg: Message, meta: Meta = (0,0)) =
-  c.logger.newError(msg, meta.line, meta.pos, true, [])
+template compileErrorWithArgs*(msg: Message) =
+  c.logger.newError(msg, node.meta[0], node.meta[2], true, [])
+  return
+
+template compileErrorWithArgs*(msg: Message, args: openarray[string], m: Meta) =
+  c.logger.newError(msg, m[0], m[2], true, args)
   return
 
 proc error*(logger: Logger, msg: Message, line, col: int, args: varargs[string]) =

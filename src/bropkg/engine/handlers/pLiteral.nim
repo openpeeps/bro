@@ -4,12 +4,12 @@
 #          Made by Humans from OpenPeeps
 #          https://github.com/openpeeps/bro
 
-newPrefixProc "parseString":
+prefixHandle parseString:
   # parse strings
   result = newString(p.curr)
   walk p
 
-newPrefixProc "parseInt":
+prefixHandle parseInt:
   # parse integers
   if p.next.kind in tkUnits:
     let size = p.curr.value.parseInt
@@ -22,12 +22,12 @@ newPrefixProc "parseInt":
   result = ast.newInt(p.curr)
   walk p
 
-newPrefixProc "parseBool":
+prefixHandle parseBool:
   # parse boolean values
   result = newBool(p.curr)
   walk p
 
-newPrefixProc "parseFloat":
+prefixHandle parseFloat:
   # parse float numbers
   if p.next.kind in tkUnits:
     let size = p.curr.value.parseFloat
@@ -40,7 +40,7 @@ newPrefixProc "parseFloat":
   result = newFloat(p.curr)
   walk p
 
-newPrefixProc "parseColor":
+prefixHandle parseColor:
   # parse colors
   try:
     result = newColor(parseHtmlColor(p.curr.value))
@@ -48,16 +48,16 @@ newPrefixProc "parseColor":
   except InvalidColor:
     error(colorsInvalidInput, p.curr, [p.curr.value])
 
-newPrefixProc "parseNamedColor":
+prefixHandle parseNamedColor:
   # parse named colors
   if unlikely(p.isFnCall):
     p.curr.kind = tkIdentifier
-    return p.parseCallFnCommand(excludeOnly, includeOnly)
+    return p.pFunctionCall(excludeOnly, includeOnly)
   result = newColor(parseHtmlColor(p.curr.value))
   # result.colorType = ColorType.cNamed
   walk p
 
-newPrefixProc "parseAccQuoted":
+prefixHandle parseAccQuoted:
   # parse string/var concat using backticks
   let tk = p.curr
   walk p
@@ -74,24 +74,24 @@ newPrefixProc "parseAccQuoted":
           if p.curr in tkTypedLiterals + {tkIdentifier}:
             p.curr.value.insert("$", 0)
             p.curr.kind = tkIdentifier # dirty fix
-            add result.accVal, indent("$bro" & $(hash(p.curr.value[1..^1])), tkSymbol.wsno)
+            # add result.accVal, indent("$bro" & $(hash(p.curr.value[1..^1])), tkSymbol.wsno)
             # let varNode = p.parseVarCall(tk, "$" & p.curr.value)
-            let varNode = p.parseCallCommand()
+            let varNode = p.pIdentCall()
             if likely(varNode != nil):
               # varNode.callIdent = "$" & varNode.callIdent 
               add result.accVars, varNode
             else: return nil
           else:
             let prefixInfixNode = p.getPrefixOrInfix(includeOnly = {tkInteger, tkFloat, tkVarCall, tkFnCall, tkIdentifier})
-            if likely(prefixInfixNode != nil):
-              case prefixInfixNode.nt
-              of ntInt, ntBool:
-                add result.accVal, indent("$bro" & $(hash(p.curr.value)), tkSymbol.wsno)
-              of ntMathStmt, ntInfix:
-                add result.accVal, indent("$bro" & $(hash(prefixInfixNode)), tkSymbol.wsno)
-              else: discard
-              add result.accVars, prefixInfixNode
-            else: return nil
+            # if likely(prefixInfixNode != nil):
+            #   case prefixInfixNode.nt
+            #   of ntInt, ntBool:
+            #     add result.accVal, indent("$bro" & $(hash(p.curr.value)), tkSymbol.wsno)
+            #   of ntInfixMathExpr, ntInfixExpr:
+            #     add result.accVal, indent("$bro" & $(hash(prefixInfixNode)), tkSymbol.wsno)
+            #   else: discard
+            #   add result.accVars, prefixInfixNode
+            # else: return nil
         walk p # tkRC
     else:
       add result.accVal, indent(p.curr.value, p.curr.wsno)

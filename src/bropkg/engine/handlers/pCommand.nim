@@ -4,7 +4,7 @@
 #          Made by Humans from OpenPeeps
 #          https://github.com/openpeeps/bro
 
-newPrefixProc "parseReturnCommand":
+prefixHandle parseReturnCommand:
   ## Parse a `return` command
   let tk = p.curr
   walk p
@@ -13,8 +13,8 @@ newPrefixProc "parseReturnCommand":
   if likely(node != nil):
     case node.nt
     of ntCallFunction:
-      if node.callReturnType == ntVoid:
-        errorWithArgs(fnReturnVoid, tk, [node.stackIdentName])
+      if node.fnCallReturnType == ntVoid:
+        errorWithArgs(fnReturnVoid, tk, [node.fnCallIdentName])
     else: discard
     if node != nil:
       result = newReturn(node)
@@ -22,87 +22,85 @@ newPrefixProc "parseReturnCommand":
 proc parseAccessor(p: var Parser, varNode: Node, tk: TokenTuple): Node =
   # Parse accessor storage. $[0][1]["x"][$y]
   while p.curr is tkLB and p.curr.line == tk.line:
-    if result == nil:
-      case p.next.kind
-      of tkInteger:
-        result = p.parseArrayAccessor(varNode)
-      of tkString:
-        result = p.parseObjectAccessor(varNode)
-      of tkVarCall:
-        result = p.parseCallAccessor(varNode)
-      of tkIdentifier:
-        walk p
-        if p.isFnCall():
-          echo "todo"
-        else: return
-      else: return # error
-    else:
+    notnil result:
       case p.next.kind
       of tkInteger:
         result = p.parseArrayAccessor(result)
       of tkString:
         result = p.parseObjectAccessor(result)
-      of tkVarCall:
-        result = p.parseCallAccessor(result)
+      # of tkVarCall:
+      #   result = p.parseCallAccessor(result)
       of tkIdentifier:
         walk p
         if p.isFnCall():
           echo "todo"
         else: return nil
       else: return nil # error
+    do:
+      case p.next.kind
+      of tkInteger:
+        result = p.parseArrayAccessor(varNode)
+      of tkString:
+        result = p.parseObjectAccessor(varNode)
+      # of tkVarCall:
+        # result = p.parseCallAccessor(varNode)
+      of tkIdentifier:
+        walk p
+        if p.isFnCall():
+          echo "todo"
+        else: return
+      else: return # error
 
-newPrefixProc "parseCallCommand":
-  # Parse variable calls
+prefixHandle pIdentCall:
+  # parse ident calls
   let tk = p.curr
   result = ast.newCall(tk)
   walk p
-  if p.curr is tkLB and p.curr.line == tk.line:
-    var accessorNode = p.parseAccessor(newVariable(tk), tk)
-    if likely(accessorNode != nil):
-      result.callNode = accessorNode
-    else: error(invalidAccessorStorage, tk)
-  elif p.curr is tkDotExpr:
-    walk p
-    if likely(p.isFnCall()):
-      var fnCallNode = p.parseCallFnCommand()
-      fnCallNode.stackArgs.insert(result, 0)
-      fnCallNode.stackIdent = fnCallNode.stackIdentName & "|" & $(fnCallNode.stackArgs.len)
-      return fnCallNode
+  if p.curr.line == result.meta[0]:
+    case p.curr.kind
+    of tkLB:
+      result = p.parseBracketExpr(result)
+      notnil result:
+        discard
+    of tkDot:
+      result = p.parseDotExpr(result)
+      notnil result:
+        discard
+    else: discard # todo
+  #   var accessorNode = p.parseAccessor(newVariable(tk), tk)
+  #   if likely(accessorNode != nil):
+  #     result.identNode = accessorNode
+  #   else: error(invalidAccessorStorage, tk)
+  # elif p.curr is tkDot and p.curr.line == tk.line:
+  #   walk p
+  #   if likely(p.isFnCall()):
+  #     var fnCallNode = p.pFunctionCall()
+  #     fnCallNode.fnCallArgs.insert(result, 0)
+  #     fnCallNode.fnCallIdent = fnCallNode.fnCallIdentName & "|" & $(fnCallNode.fnCallArgs.len)
+  #     return fnCallNode
 
-newPrefixProc "parseEchoCommand":
+prefixHandle parseEchoCommand:
   # Parse a new `echo` command
   let tk = p.curr
   walk p
-  # if p.curr.kind == tkIdentifier and p.next isnot tkLPAR:
-  #   if scope.len > 0:
-  #     if scope[^1].hasKey(p.curr.value):
-  #       return newEcho(scope[^1][p.curr.value], tk)
-  #   if p.program.getStack.hasKey(p.curr.value):
-  #     walk p
-  #     return newEcho(newInfo(p.program.getStack()[p.prev.value]), tk)
   let node = p.getPrefixOrInfix(isFunctionWrap = isFunctionWrap,
               excludeOnly = {tkEcho, tkReturn, tkVar, tkConst, tkFnDef})
-  if node != nil:
-    # case node.nt
-    # of ntCallFunction:
-    #   if node.callReturnType == ntVoid:
-    #     errorWithArgs(fnReturnVoid, tk, [node.stackIdentName])
-    # else: discard
-    return newEcho(node, tk)
+  notnil node:
+    result = newEcho(node, tk)
 
-newPrefixProc "parseAssert":
-  # Parse a new `assert` command
-  let tk = p.curr
-  walk p
-  let exp = p.getPrefixOrInfix(isFunctionWrap = isFunctionWrap,
-              includeOnly = {tkInteger, tkFloat, tkBool, tkString,
-                            tkVarCall, tkIdentifier, tkFnCall} + tkNamedColors)
-  if likely(exp != nil):
-    case exp.nt:
-    of ntInfix:
-      result = newAssert(exp, tk)
-    of ntCall:
-      if exp.getNodeType in {ntBool, ntInt, ntFloat, ntString}:
-        result = newAssert(exp, tk)
-    else:
-      errorWithArgs(assertionInvalid, tk, [$exp.nt])
+# prefixHandle parseAssert:
+#   # Parse a new `assert` command
+#   let tk = p.curr
+#   walk p
+#   let exp = p.getPrefixOrInfix(isFunctionWrap = isFunctionWrap,
+#               includeOnly = {tkInteger, tkFloat, tkBool, tkString,
+#                             tkVarCall, tkIdentifier, tkFnCall} + tkNamedColors)
+#   if likely(exp != nil):
+#     case exp.nt:
+#     of ntInfixExpr:
+#       result = newAssert(exp, tk)
+#     of ntIdent:
+#       if exp.getNodeType in {ntBool, ntInt, ntFloat, ntString}:
+#         result = newAssert(exp, tk)
+#     else:
+#       errorWithArgs(assertionInvalid, tk, [$exp.nt])

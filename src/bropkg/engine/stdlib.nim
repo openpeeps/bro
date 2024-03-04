@@ -26,16 +26,21 @@ type
   ColorsModule* = object of CatchableError
   SystemModule* = object of CatchableError
 
-var stdlib* {.threadvar.}: Stdlib
-var strutilsModule, sequtilsModule,
-    osModule, critbitsModule, systemModule,
-    mathModule, chromaModule {.threadvar.}: Module
+var
+  stdlib*: Stdlib
+  strutilsModule {.threadvar.},
+    sequtilsModule {.threadvar.},
+    osModule {.threadvar.},
+    critbitsModule {.threadvar.},
+    systemModule {.threadvar.},
+    mathModule {.threadvar.},
+    chromaModule {.threadvar.}: Module
 
-proc toNimSeq*[T](node: Node): seq[T] =
+proc toNimSeq*(node: Node): seq[string] =
   for item in node.arrayItems:
     result.add(item.sVal)
 
-macro initStdlib() =
+macro initStandardLibrary() =
   type
     Wrapper = proc(args: seq[Node]): Node {.nimcall.}
     
@@ -63,7 +68,7 @@ macro initStdlib() =
   proc addFunction(id: string, args: openarray[(NodeType, string)], nt: NodeType): string =
     var p = args.map do:
               proc(x: (NodeType, string)): string =
-                "$1: $2" % [x[1], $(x[0])]          
+                "$1: $2" % [x[1], $(x[0])]
     result = "fn $1*($2): $3\n" % [id, p.join(", "), $nt]
 
   proc fwd(id: string, returns: NodeType, args: openarray[(NodeType, string)] = [],
@@ -77,7 +82,7 @@ macro initStdlib() =
   #     result.add(nt)
 
   proc argToSeq[T](arg: Arg): T =
-    toNimSeq[string](arg.value)
+    toNimSeq(arg.value)
 
   template formatWrapper: untyped =
     try:
@@ -185,11 +190,13 @@ macro initStdlib() =
     ast.newColor(chroma.parseHtmlColor(args[0].value.sVal))
 
   template color2Rgb: untyped =
-    let rgbColor = rgb(uint8(args[0].value.iVal), uint8(args[1].value.iVal), uint8(args[2].value.iVal))
+    let rgbColor = rgb(uint8(args[0].value.iVal), uint8(args[1].value.iVal),
+                    uint8(args[2].value.iVal))
     ast.newColor(rgbColor, ColorType(cRGB))
   
   template color2Rgba: untyped =
-    let rgbaColor = rgba(uint8(args[0].value.iVal), uint8(args[1].value.iVal), uint8(args[2].value.iVal), uint8(args[3].value.iVal))
+    let rgbaColor = rgba(uint8(args[0].value.iVal), uint8(args[1].value.iVal),
+                    uint8(args[2].value.iVal), uint8(args[3].value.fVal * 100))
     ast.newColor(rgbaColor, ColorType(cRGBA))
 
   template color2Hex: untyped =
@@ -208,7 +215,7 @@ macro initStdlib() =
       fwd("desaturate", ntColor, [(ntColor, "x"), (ntSize, "amount")], wrapper = getAst colorDesaturate()),
       # fwd("mix", ntColor, [(ntColor, "x"), (ntColor, "y")], wrapper = getAst(colorsLighten())),
       fwd("rgb", ntColor, [(ntInt, "red"), (ntInt, "green"), (ntInt, "blue")], wrapper = getAst(color2Rgb())),
-      fwd("rgba", ntColor, [(ntInt, "red"), (ntInt, "green"), (ntInt, "blue"), (ntInt, "alpha")], wrapper = getAst(color2Rgba())),
+      fwd("rgba", ntColor, [(ntInt, "red"), (ntInt, "green"), (ntInt, "blue"), (ntFloat, "alpha")], wrapper = getAst(color2Rgba())),
       fwd("parseColor", ntColor, [(ntString, "x")], wrapper = getAst colorParse()),
       fwd("toHex", ntColor, [(ntColor, "x")], wrapper = getAst color2Hex()),
       # fwd("toRGB", ntColor, [(ntColor, "c")], wrapper = getAst color2Rgb()),
@@ -219,7 +226,7 @@ macro initStdlib() =
   # https://nim-lang.github.io/Nim/sequtils.html
   
   template arraysContains: untyped =
-    ast.newBool(system.contains(toNimSeq[string](args[0].value), args[1].value.sVal))
+    ast.newBool(system.contains(toNimSeq(args[0].value), args[1].value.sVal))
 
   template arraysAdd: untyped =
     add(args[0].value.arrayItems, args[1].value)
@@ -240,6 +247,17 @@ macro initStdlib() =
     randomize()
     shuffle(args[0].value.arrayItems)
 
+  template arraysJoin: untyped =
+    ast.newString(strutils.join(toNimSeq(args[0].value), args[1].value.sVal))
+  
+  template arraysDelete: untyped =
+    delete(args[0].value.arrayItems, args[1].value.iVal)
+
+  template arraysFind: untyped =
+    for i in 0..args[0].value.arrayItems.high:
+      if args[0].value.arrayItems[i].sVal == args[1].value.sVal:
+        return ast.newInt(i)
+
   let
     fnArrays = @[
       fwd("contains", ntBool, [(ntArray, "x"), (ntString, "item")], wrapper = getAst arraysContains()),
@@ -247,6 +265,9 @@ macro initStdlib() =
       fwd("shift", ntVoid, [(ntArray, "x")], wrapper = getAst arraysShift()),
       fwd("pop", ntVoid, [(ntArray, "x")], wrapper = getAst arraysPop()),
       fwd("shuffle", ntVoid, [(ntArray, "x")], wrapper = getAst arraysShuffle()),
+      fwd("join", ntString, [(ntArray, "x"), (ntString, "sep")], wrapper = getAst arraysJoin()),
+      fwd("delete", ntVoid, [(ntArray, "x"), (ntInt, "pos")], wrapper = getAst arraysDelete()),
+      fwd("find", ntInt, [(ntArray, "x"), (ntString, "item")], wrapper = getAst arraysFind()),
     ]
     # fnObjects = @[
     #   fwd("hasKey", ntBool, [ntObject, ntString]),
@@ -389,7 +410,9 @@ macro initStdlib() =
     # echo sourceCode
   # echo result.repr
 
-initStdlib()
+proc initstdlib*() =
+  {.gcsafe.}:
+    initStandardLibrary()
 
 proc exists*(lib: string): bool =
   ## Checks if if `lib` exists in `Stdlib` 
@@ -399,6 +422,6 @@ proc std*(lib: string): (Module, SourceCode) {.raises: KeyError.} =
   ## Retrieves a module from `Stdlib`
   result = stdlib[lib]
 
-proc call*(module: Module, fnName: string, args: seq[Arg]): Node =
+proc call*(lib, fnName: string, args: seq[Arg]): Node =
   ## Retrieves a Nim proc from `module`
-  result = module[fnName](args)
+  result = stdlib[lib][0][fnName](args)

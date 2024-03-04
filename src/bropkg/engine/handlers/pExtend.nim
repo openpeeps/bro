@@ -16,11 +16,11 @@ proc resolveExtended(p: var Parser, pNode: Node, stylesheet: Stylesheet) =
     return
   errorWithArgs(extendRedundancyError, p.curr, [p.currentSelector.ident, pNode.ident])
 
-newPrefixProc "parseExtend":
+prefixHandle parseExtend:
   ## Parse a new `@extend` statement and return `Node` representation 
   walk p
   case p.curr.kind
-  of tkDotExpr:
+  of tkDot:
     walk p
     p.curr.value = "." & p.curr.value
     p.curr.kind = tkClass

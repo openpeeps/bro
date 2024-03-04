@@ -4,21 +4,29 @@
 #          Made by Humans from OpenPeeps
 #          https://github.com/openpeeps/bro
 
-proc parseMultiSelector(p: var Parser, node: Node) =
+proc getSelectorName(p: var Parser): string =
+  case p.curr.kind
+  of tkDot:
+    walk p
+    result = "." & p.curr.value
+  of tkID:
+    result = "#" & p.curr.value
+  of tkIdentifier:
+    result = p.curr.value
+  else: discard
+
+proc parseCommonSelectors(p: var Parser, node: Node) =
   var selectors: seq[string]
   while p.curr is tkComma:
     walk p
-    if p.curr notin {tkColon, tkIdentifier}:
-      var selectorIdent: string
-      # if p.curr.kind == tkPseudo:
-      #   if not p.checkPseudoSelector():
-      #     return
-      selectorIdent = p.curr.value
-      if selectorIdent != node.ident and selectorIdent notin selectors:
-        add selectors, selectorIdent
+    if p.curr notin {tkColon #[, tkIdentifier]#}:
+      let sName = p.getSelectorName()
+      if sName != node.ident and sName notin selectors:
+        add selectors, sName
         walk p
       else:
-        errorWithArgs(duplicateSelector, p.curr, [selectorIdent])
+        errorWithArgs(duplicateSelector, p.curr, [sName])
+    else: break
   node.multipleSelectors = selectors
   setLen(selectors, 0)
   if p.lastParent != nil:
@@ -42,7 +50,7 @@ template handleSelectorConcat(parseWithConcat, parseWithoutConcat: untyped) {.di
           let prefixInfixNode = p.getPrefixOrInfix(includeOnly = {tkInteger, tkBool, tkString, tkVarCall})
           if likely(prefixInfixNode != nil):
             case prefixInfixNode.nt
-            of ntInt, ntBool, ntCall, ntInfix, ntMathStmt:
+            of ntInt, ntBool, ntIdent, ntInfixExpr, ntInfixMathExpr:
               concatNodes.add(prefixInfixNode)
             else: discard
           else: return nil
@@ -56,25 +64,31 @@ template handleSelectorConcat(parseWithConcat, parseWithoutConcat: untyped) {.di
 
 proc parseSelector(p: var Parser, node: Node, tk: TokenTuple, eatIdent = false): Node =
   if eatIdent: walk p # selector ident
-  p.parseMultiSelector(node)
+  p.parseCommonSelectors(node)
   p.parseSelectorStmt((tk, node), excludeOnly = {tkImport, tkFnDef})
   if unlikely(node.properties.len == 0 and node.innerNodes.len == 0):
     if not node.extends:
-      warnWithArgs(declaredEmptySelector, tk, [node.ident])
+      warnWithArgs(selectorEmpty, tk, [node.ident])
   result = node
 
-newPrefixProc "parseUniversalSelector":
+prefixHandle parseUniversalSelector:
   let tk = p.curr
   var node = newUniversalSelector()
   p.currentSelector = node
   result = p.parseSelector(node, tk, true)
 
-newPrefixProc "parseClass":
+template reuseDeclaredSelector() =
+  node = p.program.selectors[tk.value]
+  p.currentSelector = node
+  discard p.parseSelector(node, tk, true)
+  p.nilNotError = true
+
+prefixHandle parseClass:
   let tk = p.curr
   var concatNodes: seq[Node] # ntVariable
   var node: Node
   handleSelectorConcat:
-    if unlikely(p.program.selectors.hasKey(tk.value)):
+    if p.program.selectors.hasKey(tk.value):
       node = p.program.selectors[tk.value]
       discard p.parseSelector(node, tk, true)
       p.nilNotError = true
@@ -82,32 +96,40 @@ newPrefixProc "parseClass":
       node = tk.newClass(concat = concatNodes)
       p.currentSelector = node
       result = p.parseSelector(node, tk)
-      p.program.selectors[tk.value] = result
+      # p.program.selectors[tk.value] = result
   do:
-    if unlikely(p.program.selectors.hasKey(tk.value)):
-      node = p.program.selectors[tk.value]
-      p.currentSelector = node
-      discard p.parseSelector(node, tk, true)
-      p.nilNotError = true
+    if p.program.selectors.hasKey(tk.value):
+      reuseDeclaredSelector()
     else:
       node = tk.newClass()
       p.currentSelector = node
       result = p.parseSelector(node, tk, eatIdent = true)
-      p.program.selectors[tk.value] = result
+      # p.program.selectors[tk.value] = result
 
-newPrefixProc "parseSelectorTag":
+prefixHandle parseSelectorTag:
   let tk = p.curr
   var concatNodes: seq[Node] # ntVariable
+  var node: Node
   handleSelectorConcat:
-    let node = tk.newTag(concat = concatNodes)
-    p.currentSelector = node
-    result = p.parseSelector(node, tk)
+    if p.program.selectors.hasKey(tk.value):
+      node = p.program.selectors[tk.value]
+      discard p.parseSelector(node, tk)
+      p.nilNotError = true
+    else:
+      let node = tk.newTag(concat = concatNodes)
+      p.currentSelector = node
+      result = p.parseSelector(node, tk)
+      # p.program.selectors[tk.value] = result
   do:
-    let node = tk.newTag()
-    p.currentSelector = node
-    result = p.parseSelector(node, tk, eatIdent = true)
+    if p.program.selectors.hasKey(tk.value):
+      reuseDeclaredSelector()
+    else:
+      let node = tk.newTag()
+      p.currentSelector = node
+      result = p.parseSelector(node, tk, eatIdent = true)
+      # p.program.selectors[tk.value] = result
 
-newPrefixProc "parseSelectorID":
+prefixHandle parseSelectorID:
   let tk = p.curr
   var concatNodes: seq[Node] # ntVariable
   handleSelectorConcat:
@@ -119,7 +141,20 @@ newPrefixProc "parseSelectorID":
     p.currentSelector = node
     result = p.parseSelector(node, tk, eatIdent = true)
 
-newPrefixProc "parseProperty":
+prefixHandle pMultiSelector:
+  let tk = p.curr
+  walk p
+  case p.curr.kind
+  of tkDot:
+    result = p.pClassSelector()
+  of tkID:
+    result = p.parseSelectorID()
+  of tkIdentifier:
+    result = p.parseSelectorTag()
+  else: discard
+  result.nested = true
+
+prefixHandle parseProperty:
   ## Parse `key: value` pair as CSS Property
   if likely(p.propsTable.hasKey(p.curr.value)):
     let pName = p.curr
@@ -159,7 +194,7 @@ newPrefixProc "parseProperty":
         of tkIdentifier:
           if unlikely(p.next.kind == tkLP and p.next.line == p.curr.line):
             let identToken = p.curr
-            let callNode = p.parseCallFnCommand()
+            let callNode = p.pFunctionCall()
             if likely(callNode != nil):
               result.pVal.add(callNode)
               # errorWithArgs(fnReturnVoid, identToken, [callNode.stackIdentName])
@@ -169,24 +204,25 @@ newPrefixProc "parseProperty":
         of tkNamedColors, tkColor:
           add result.pVal, p.parseColor()
         of tkVarCall:
-          let varCallNode = p.parseCallCommand()
+          let varCallNode = p.pIdentCall()
           if varCallNode != nil:
             result.pVal.add(varCallNode)
             use(varCallNode)
         else: break
+      if unlikely(result.pVal.len == 0):
+        errorWithArgs(propMissingCSSValue, pName, [pName.value])
     if unlikely(p.curr is tkSemiColon): walk p
     result.pShared = shared
-    return result
-  if p.next is tkColon:
-    let suggest = toSeq(p.propsTable.itemsWithPrefix(p.curr.value))
-    if suggest.len > 0:
-        error(invalidProperty, p.curr, true, suggest, $suggestLabel, p.curr.value)
-    else:
-      errorWithArgs(invalidProperty, p.curr, [p.curr.value])
+  # if p.next is tkColon:
+  #   let suggest = toSeq(p.propsTable.itemsWithPrefix(p.curr.value))
+  #   if suggest.len > 0:
+  #       error(invalidProperty, p.curr, true, suggest, $suggestLabel, p.curr.value)
+  #   else:
+  #     errorWithArgs(invalidProperty, p.curr, [p.curr.value])
 
-newPrefixProc "parseThis":
+prefixHandle parseThis:
   ## parse `this` symbol inside a selector block
-  if p.next.kind == tkDotExpr:
+  if p.next.kind == tkDot:
     walk p
-    let dotExpr = p.parseDotExpr()
+    let dotExpr = p.pClassSelector()
     echo dotExpr

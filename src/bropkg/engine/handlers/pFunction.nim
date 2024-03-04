@@ -4,17 +4,7 @@
 #          Made by Humans from OpenPeeps
 #          https://github.com/openpeeps/bro
 
-template collectImplicitValue() {.dirty.} =
-  let implValNode = p.getPrefixOrInfix(includeOnly = {tkString, tkInteger})
-  if likely(implValNode != nil):
-    let nt = implValNode.getNodeType()
-    fnNode.fnParams["$" & pName.value] = ("$" & pName.value, nt, implValNode)
-    fnScope["$" & pName.value] = 
-      newVariable("$" & pName.value, implValNode, tk = pName, isArg = true)
-    fnScope["$" & pName.value].varType = nt
-    types.add(nt)
-
-newPrefixProc "parseFn":
+prefixHandle parseFn:
   # Parse function/mixin definitions,
   # Declaring a function looks like this:
   #```bass
@@ -32,7 +22,7 @@ newPrefixProc "parseFn":
   let
     fn = p.curr
     fnName = p.next
-    fnScope = ScopeTable()
+    # fnScope = ScopeTable()
   walk p # `fn` / `mix`
   var fnNode =
     if fn is tkMixDef:
@@ -60,19 +50,26 @@ newPrefixProc "parseFn":
           of tkTypedLiterals:
             let nTyped = p.getLiteralType()
             fnNode.fnParams["$" & pName.value] = ("$" & pName.value, nTyped, nil)
-            fnScope["$" & pName.value] =
-              newVariable("$" & pName.value, Node(nt: nTyped), tk = pName, isArg = true)
-            fnScope["$" & pName.value].varType = nTyped
+            # fnScope["$" & pName.value] =
+              # newVariable("$" & pName.value, Node(nt: nTyped), tk = pName, isArg = true)
+            # fnScope["$" & pName.value].varType = nTyped
             types.add(nTyped)
             walk p
             # todo support default assignments
           else: return # unexpectedToken
         else: errorWithArgs(fnAttemptRedefineIdent, pName, [pName.value])
       of tkAssign:
-        # Set type and value from given assignment
+        # Set type from implicit value
         if likely(fnNode.fnParams.hasKey(pName.value) == false):
           walk p
-          collectImplicitValue()
+          let implValNode = p.getPrefixOrInfix(includeOnly = {tkString, tkInteger})
+          if likely(implValNode != nil):
+            let nt = implValNode.getNodeType()
+            fnNode.fnParams["$" & pName.value] = ("$" & pName.value, nt, implValNode)
+            # fnScope["$" & pName.value] = 
+              # newVariable("$" & pName.value, implValNode, tk = pName, isArg = true)
+            # fnScope["$" & pName.value].varType = nt
+            types.add(nt)
         else: errorWithArgs(fnAttemptRedefineIdent, pName, [pName.value])        
       else: break # unexpectedToken
       if p.curr.kind == tkComma:
@@ -81,16 +78,15 @@ newPrefixProc "parseFn":
 
   # create function identifier
   fnNode.fnIdent = identify(fnNode.fnName, types)
-  # if unlikely(p.inScope(fnNode.fnIdent)):
-    # errorWithArgs(fnOverload, fnName, [fnName.value])
   if p.curr is tkRP:
     walk p
     # parse function return type
     if p.curr is tkColon:
       walk p
       fnNode.fnReturnType = p.getLiteralType()
+      if unlikely(fnNode.fnReturnType == ntInvalid):
+        error(fnInvalidReturn, p.curr)
       walk p
-      # error(fnInvalidReturn, p.curr)
     elif fn is tkMixDef:
       fnNode.fnReturnType = ntProperty
     # parse function body, if available
@@ -99,7 +95,7 @@ newPrefixProc "parseFn":
       if fn.line == p.curr.line:
         walk p
         let
-          setExcl = if fn is tkFnDef: {tkImport, tkDotExpr} else: {}
+          setExcl = if fn is tkFnDef: {tkImport, tkDot} else: {}
           setIncl = if fn is tkFnDef: {} else: {tkIdentifier, tkEcho, tkAssert}
           stmtNode = p.parseStatement((fn, fnNode), excludeOnly = setExcl,
                         includeOnly = setIncl, returnType = fnNode.fnReturnType,
@@ -108,7 +104,6 @@ newPrefixProc "parseFn":
           fnNode.fnBody = stmtNode
           if unlikely(isFunctionWrap):
             fnNode.fnClosure = true
-            # scope[^2].localScope(fnNode)
             if unlikely(exported):
               error(fnAnoExport, fnName)
           else:
@@ -120,8 +115,12 @@ newPrefixProc "parseFn":
       fnNode.fnFwdDecl = true
       fnNode.fnExport = exported
       result = fnNode
+    case p.program.sheetType
+    of styleTypeLibrary:
+      fnNode.fnSource = p.program.sourcePath
+    else: discard # todo
 
-newPrefixProc "parseCallFnCommand":
+prefixHandle pFunctionCall:
   # Parse function calls with or without arguments,
   # looking for the following pattern: 
   # ```bass

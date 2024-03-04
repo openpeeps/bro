@@ -4,13 +4,14 @@
 #          Made by Humans from OpenPeeps
 #          https://github.com/openpeeps/bro
 
-newPrefixProc "parseFor":
+prefixHandle parseFor:
   # Parse `for x in y:` loops of objects, arrays or ranges.
   let tk = p.curr
   if p.next is tkVarCall:
     walk p # tkFor
     var keyToken = p.curr
     keyToken.kind = tkConst # be parsed as a const
+    keyToken.value = keyToken.value[1..^1]
     var keyNode = p.parseVarDef(keyToken, tkAssign)
     var valNode: Node
     walk p
@@ -44,13 +45,6 @@ newPrefixProc "parseFor":
             else:
               walk p; false
           result = newForStmt((keyNode, valNode), itemsNode)
-          # add a pre-initialized ScopeTable to seq[ScopeTable]
-          let forScope = ScopeTable()
-          forScope[keyNode.varName] = keyNode
-          if valNode != nil:
-            forScope[valNode.varName] = valNode
-          # scope.add(forScope)
-          # parse body
-          result.forBody = p.parseStatement((tk, result), excludeOnly, includeOnly, isCurlyBlock = isCurlyBlock)
-          if unlikely(result.forBody == nil):
-            return nil
+          result.loopBody = p.parseStatement((tk, result), excludeOnly, includeOnly, isCurlyBlock = isCurlyBlock)
+          notnil result.loopBody:
+            discard

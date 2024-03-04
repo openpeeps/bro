@@ -11,44 +11,60 @@ import ./ast, ./sourcemap, ./stdlib, ./logging
 
 type
   Warning* = tuple[msg: string, line, col: int]
-  Compiler* = ref object
+  Compiler* = object
     css*, deferred, deferredProps: string
-    program: Stylesheet
+    stylesheet: Stylesheet
     sourceMap: SourceInfo
     minify: bool
     strCL: string = "{"
     strCR: string = "}"
     strNL: string = "\n"
     stylesheets: Stylesheets
-    localScope: seq[ScopeTable]
+    # localScope: seq[ScopeTable]
     globalScope: ScopeTable
     warnings*: seq[Warning]
     when compileOption("app", "console"):
       logger*: Logger
   
-  CompileHandler = proc(c: Compiler, node: Node, scope: var seq[ScopeTable], parent: Node = nil)
+  FunctionHandler = proc(c: var Compiler, node: Node, scope: var seq[ScopeTable], parent: Node = nil): Node
   CallableFn = proc(c: Compiler, scope: var seq[ScopeTable], fnNode: Node, args: seq[Node]): Node {.nimcall.}
 
   BroAssert* = object of CatchableError
   CompilerError = object of CatchableError
 
-# forward declaration
-proc interpret(c: Compiler, node: Node, scope: var seq[ScopeTable])
+#
+# Forward declaration
+#
+proc walkNodes(c: var Compiler, node: Node, scope: var seq[ScopeTable]): Node {.discardable.}
+proc walkSubNodes(c: var Compiler, node, parent: Node,
+      scopetables: var seq[ScopeTable], len: int, ix: var int)
 
-proc getSelectorGroup(c: Compiler, node: Node,
-  scope: var seq[ScopeTable], parent: Node = nil): string
+proc getValue(c: var Compiler, node: Node,
+    scopetables: var seq[ScopeTable], printError = true): Node
 
-proc handleInnerNode(c: Compiler, node, parent: Node,
-  scope: var seq[ScopeTable], len: int, ix: var int)
+proc typeCheck(c: var Compiler, x, node: Node): bool
+proc typeCheck(c: var Compiler, node: Node, expect: NodeType): bool
 
-proc nodeEvaluator(c: Compiler, node: Node,
-  scope: var seq[ScopeTable]): Node
+proc dotEvaluator(c: var Compiler, node: Node, scopetables: var seq[ScopeTable]): Node
+proc bracketEvaluator(c: var Compiler, node: Node, scopetables: var seq[ScopeTable]): Node
 
-proc infixEvaluator(c: Compiler, lht, rht: Node, op: InfixOp,
-  scope: var seq[ScopeTable]): bool
+proc infixEvaluator(c: var Compiler, lhs, rhs: Node,
+    op: InfixOp, scopetables: var seq[ScopeTable]): bool
 
-proc fnCallVoid(c: Compiler, node: Node,
-  scope: var seq[ScopeTable], parent: Node = nil)
+proc mathInfixEvaluator(c: var Compiler, lhs, rhs: Node,
+    op: MathOp, scopetables: var seq[ScopeTable]): Node
+
+proc getSelectorGroup(c: var Compiler, node: Node,
+  scopetables: var seq[ScopeTable], parent: Node = nil): string
+
+proc functionCall(c: var Compiler, node: Node,
+      scopetables: var seq[ScopeTable], parent: Node = nil): Node {.discardable.}
+
+#
+# template errors
+#
+template printTypeMismatch {.dirty.} =
+  compileErrorWithArgs(typeMismatch, [$op, $(ln.nt), $(rn.nt)], rn.meta)
 
 template exploreAst =
     var info =
@@ -60,13 +76,14 @@ template exploreAst =
     add info, "[$1:$2]" % [$(node.meta.line), $(node.meta.pos)]
     # echo indent(info, node.meta.pos)
 
-macro newHandler(name: static string, body: untyped) =
-  newProc(ident(name),
+macro newHandler(name, body: untyped) =
+  newProc(name,
     [
-      newEmptyNode(), # return type
+      # newEmptyNode(), # return type
+      ident("Node"),
       nnkIdentDefs.newTree(
         ident("c"),
-        ident("Compiler"),
+        nnkVarTy.newTree(ident("Compiler")),
         newEmptyNode()
       ),
       nnkIdentDefs.newTree(
@@ -75,7 +92,7 @@ macro newHandler(name: static string, body: untyped) =
         newEmptyNode()
       ),
       nnkIdentDefs.newTree(
-        ident("scope"),
+        ident("scopetables"),
         nnkVarTy.newTree(nnkBracketExpr.newTree(ident("seq"), ident("ScopeTable"))),
         newEmptyNode()
       ),
@@ -85,125 +102,131 @@ macro newHandler(name: static string, body: untyped) =
         newNilLit()
       ),
     ],
-    body
+    body,
+    pragmas = nnkPragma.newTree(
+      ident("discardable")
+    )
   )
 
 #
-# Local Scope Handlers
+# Type Checker
 #
-proc globalScope(c: Compiler, node: Node) =
-  ## Add `node` to global scope
-  case node.nt:
-  of ntFunction, ntMixin:
-    c.globalScope[node.fnIdent] = node
+proc typeCheck(c: var Compiler, x, node: Node): bool =
+  if unlikely(x.nt != node.nt):
+    case x.nt
+    of ntInfixMathExpr, ntInt, ntFloat:
+      return node.nt in {ntInt, ntFloat, ntInfixMathExpr} 
+    else: discard
+    compileErrorWithArgs(typeMismatch, [$(node.nt), $(x.nt)])
+  result = true
+
+proc typeCheck(c: var Compiler, node: Node, expect: NodeType): bool =
+  if unlikely(node.nt != expect):
+    compileErrorWithArgs(typeMismatch, [$(node.nt), $(expect)])
+  result = true
+
+#
+# Scope API
+# todo rework scope tables
+# lookout for scoped callables using the address
+# cast[int](node.addr).toHex
+#
+proc globalScope(c: var Compiler, key: string, node: Node) =
+  # Add `node` to global scope
+  c.globalScope[key] = node
+
+proc `+=`(scope: ScopeTable, key: string, node: Node) =
+  # Add `node` to current `scope` 
+  scope[key] = node
+
+proc stack(c: var Compiler, key: string, node: Node,
+    scopetables: var seq[ScopeTable]) =
+  # Add `node` to either local or global scope
+  case node.nt
   of ntVariable:
-    c.globalScope[node.varName] = node
+    if scopetables.len > 0:
+      scopetables[^1]["$" & node.varName] = node
+    else:
+      c.globalScope["$" & node.varName] = node
+  of ntFunction:
+    if node.fnSource != "std/system":
+      if scopetables.len > 0:
+        scopetables[^1][node.fnName] = node
+      else:
+        c.globalScope[node.fnName] = node
+    else:
+      c.stylesheet.exports[node.fnName] = node
   else: discard
 
-proc toScope(scope: ScopeTable, node: Node) =
-  ## Add `node` to current `scope`
-  case node.nt:
-  of ntFunction, ntMixin:
-    scope[node.fnIdent] = node
-  of ntVariable:
-    scope[node.varName] = node
-  else: discard
-
-proc stack(c: Compiler, node: Node, scopetables: var seq[ScopeTable]) =
-  ## Stack `node` into local/global scope
+proc getCurrentScope(c: var Compiler,
+    scopetables: var seq[ScopeTable]): ScopeTable =
+  # Returns the current `ScopeTable`. When not found,
+  # returns the `globalScope` ScopeTable
   if scopetables.len > 0:
-    toScope(scopetables[^1], node)
-  else:
-    toScope(c.globalScope, node)
-
-proc getScope(c: Compiler, name: string, scopetables: var seq[ScopeTable]): tuple[st: ScopeTable, index: int] =
-  ## Search through available seq[ScopeTable] for `name`,
-  if scopetables.len > 0:
-    for i in countdown(scopetables.high, scopetables.low):
-      if scopetables[i].hasKey(name):
-        return (scopetables[i], i)
-  if c.globalScope.hasKey(name):
-    return (c.globalScope, 0)
-
-proc getScope(c: Compiler, scopetables: var seq[ScopeTable]): ScopeTable =
-  ## Returns the current scope
-  if scopetables.len > 0:
-    return scopetables[^1]
+    return scopetables[^1] # the last scope
   return c.globalScope
 
-proc inScope(c: Compiler, id: string, scopetables: var seq[ScopeTable]): bool =
-  ## Perform a `getScope` call, if `nil` then returns false
-  result = c.getScope(id, scopetables).st != nil
-
-proc inScope(id: string, scopetables: var seq[ScopeTable]): bool =
-  ## Performs a quick search in the current `ScopeTable`
+proc getScope(c: var Compiler, key: string,
+    scopetables: var seq[ScopeTable]
+  ): tuple[scopeTable: ScopeTable, index: int] =
+  # Walks (bottom-top) through available `scopetables`, and finds
+  # the closest `ScopeTable` that contains a node for given `key`.
+  # If found returns the ScopeTable followed by index (position).
   if scopetables.len > 0:
-    return scopetables[^1].hasKey(id)
+    for i in countdown(scopetables.high, scopetables.low):
+      if scopetables[i].hasKey(key):
+        return (scopetables[i], i)
+  if c.globalScope.hasKey(key):
+    return (c.globalScope, 0)
 
-proc getTypeInfo(node: Node): string =
-  # Return type info for given Node
-  case node.nt
-  of ntCall:
-    if node.callNode != nil:
-      case node.callNode.nt:
-      of ntAccessor:
-        add result, getTypeInfo(node.callNode.accessorStorage)
-      of ntVariable:
-        case node.callNode.varMod.nt:
-        of ntArray:
-          # todo handle types of array (string, int, or mix for mixed values)
-          add result, "$1[$2]($3)" % [$(node.callNode.varMod.nt),
-                          "mix", $(node.callNode.varMod.arrayItems.len)]
-        of ntObject:
-          add result, "$1($2)" % [$(node.callNode.varMod.nt),
-                          $(node.callNode.varMod.pairsVal.len)]
-        else:
-          add result, "$1[$2]" % [$ntVariable, $(node.callNode.varMod.nt)]
-      else: discard
-    else: discard
-  of ntString:
-    add result, "$1[$2]" % [$ntString, $node.sVal.len]
-  of ntInt:
-    add result, "$1" % [$ntInt]
-  of ntFloat:
-    add result, "$1" % [$ntFloat]
-  of ntCallFunction:
-    add result, "$1[$2]" % [$ntFunction, $node.callReturnType]
-  of ntArray:
-    add result, "$1[$2]($3)" % [$(node.nt), "mix", $(node.arrayItems.len)] # todo handle types of array (string, int, or mix for mixed values)
-  of ntObject:
-    add result, "$1($2)" % [$(node.nt), $(node.pairsVal.len)]
-  of ntAccessor:
-    add result, getTypeInfo(node.accessorStorage)
-  of ntVariable:
-    add result, getTypeInfo(node.varMod)
-  else: discard
+proc inScope(c: Compiler, key: string, scopetables: var seq[ScopeTable]): bool =
+  # Performs a quick search in the current `ScopeTable`
+  if scopetables.len > 0:
+    result = scopetables[^1].hasKey(key)
+  if not result:
+    return c.globalScope.hasKey(key)
 
-proc sizeString(v: Node): string =
-  case v.sizeVal.nt
-  of ntInt:   $(v.sizeVal.iVal) & $(v.sizeUnit)
-  of ntFloat: $(v.sizeVal.fVal) & $(v.sizeUnit)
-  else: "" # todo support for callables
+proc fromScope(c: var Compiler, key: string,
+    scopetables: var seq[ScopeTable]): Node =
+  # Retrieves a node by `key` from `scopetables`
+  let some = c.getScope(key, scopetables)
+  if some.scopeTable != nil:
+    return some.scopeTable[key]
 
-proc dumpHook*(s: var string, v: seq[Node])
-proc dumpHook*(s: var string, v: CritBitTree[Node])
-# proc dumpHook*(s: var string, v: Color)
+proc newScope(scopetables: var seq[ScopeTable]) {.inline.} =
+  ## Create a new Scope
+  scopetables.add(ScopeTable())
+
+proc clearScope(scopetables: var seq[ScopeTable]) {.inline.} =
+  ## Clears the current (latest) ScopeTable
+  scopetables.delete(scopetables.high)
+
+template notnil(x, body) =
+  if likely(x != nil):
+    body
+
+template notnil(x, body, elseBody) =
+  if likely(x != nil):
+    body
+  else:
+    elseBody
+
+#
+# AST Modifiers
+#
+proc dumpHook*(s: var string, v: seq[Node])         # dump array storage
+proc dumpHook*(s: var string, v: CritBitTree[Node]) # dump object storage
 
 proc dumpHook*(s: var string, v: Node) =
   ## Dumps `v` node to stringified JSON using `pkg/jsony`
   case v.nt
-  of ntString:s.add("\"" & $v.sVal & "\"")
-  of ntFloat: s.add($v.fVal)
-  of ntInt:   s.add($v.iVal)
-  of ntBool:  s.add($v.bVal)
-  of ntColor: s.add("\"" & $v.cVal  & "\"")
-  of ntSize:  s.add("\"" & v.sizeString & "\"")
-  of ntObject:
-    s.dumpHook(v.pairsVal)
-  of ntArray:
-    s.dumpHook(v.arrayItems)
-  of ntVariable:
-    s.dumpHook(v.varMod)
+  of ntString: s.add("\"" & $v.sVal & "\"")
+  of ntFloat:  s.add($v.fVal)
+  of ntInt:    s.add($v.iVal)
+  of ntBool:   s.add($v.bVal)
+  of ntObject: s.dumpHook(v.pairsVal) # rename field to objectItems
+  of ntArray:  s.dumpHook(v.arrayItems)
+  of ntStream: s.dumpHook(v.streamContent)
   else: discard
 
 proc dumpHook*(s: var string, v: seq[Node]) =
@@ -227,881 +250,589 @@ proc dumpHook*(s: var string, v: CritBitTree[Node]) =
     inc i
   s.add("}")
 
-proc toString(val: Node): string =
-  ## Converts `val` node to string
+proc sizeToString(v: Node): string =
+  case v.sizeVal.nt
+  of ntInt:   $(v.sizeVal.iVal) & $(v.sizeUnit)
+  of ntFloat: $(v.sizeVal.fVal) & $(v.sizeUnit)
+  else: "" # todo support for callables
+
+proc toString(node: Node): string =
   result =
-    case val.nt
-    of ntString:  val.sVal
-    of ntFloat:   $(val.fVal)
-    of ntInt:     $(val.iVal)
-    of ntBool:    $(val.bVal)
-    of ntColor:   toHtmlHex(val.cValue)
-    of ntSize:    sizeString(val)
-    of ntArray:   jsony.toJson(val.arrayItems)
-    of ntObject:  fromJson(jsony.toJson(val.pairsVal)).pretty
+    case node.nt
+    of ntString:
+      node.sVal
+    of ntInt:   $(node.iVal)
+    of ntFloat: $(node.fVal)
+    of ntBool:  $(node.bVal)
+    of ntSize:  sizeToString(node)
+    of ntColor: toHtmlHex(node.cValue)
+    of ntArray:
+      fromJson(jsony.toJson(node.arrayItems)).pretty
+    of ntObject:
+      fromJson(jsony.toJson(node.pairsVal)).pretty
     of ntStream:
-      toString(val.streamContent)
-    else: "null" # todo more things toString
+      fromJson(jsony.toJson(node.streamContent)).pretty
+    else: ""
 
-#
-# Compile Utils
-#
-template runCallable: untyped {.dirty.} =
-  var scopedFn: Node = c.scoped(node.stackIdent, scope)
-  if scopedFn == nil:
-    if c.globalScope.hasKey(node.stackIdent):
-      scopedFn = c.globalScope[node.stackIdent]
-    else: compileErrorWithArgs(fnUndeclared, [node.stackIdentName])
-  var i = 0
-  if not scopedFn.fnFwdDecl:
-    var fnScope = ScopeTable()
-    for pIdent, pDef in scopedFn.fnParams:
-      fnScope[pIdent] = ast.newVariable(pIdent, node.stackArgs[i])
-      fnScope[pIdent].varArg = true
-      inc i
-    add scope, fnScope
-    let res = c.callableFn(scope, scopedFn, node.stackArgs)
-    scope.delete(scope.high) # out of scope
-    res
-  else:
-    # let x = strings().call(scopedFn.fnName, strEndsWithFn).get()
-    # std(scopedFn.fnName)
-    var args: seq[Arg]
-    var i = 0
-    for pName, pNode in scopedFn.fnParams:
-      let val: Node = c.nodeEvaluator(node.stackArgs[i], scope)
-      if likely(val != nil):
-        if likely(val.nt == pNode[1]):
-          add args, (pName, val)
-        else: compileErrorWithArgs(fnMismatchParam, [pName, $val.nt, $pNode[1]])
-      inc i
-    call(std(scopedFn.fnSource)[0], scopedFn.fnName, args)
+template print(v: Node) =
+  block:
+    let meta = " ($1:$2) " % [$v.meta[0], $v.meta[2]]
+    stdout.styledWriteLine(
+      fgGreen, "Debug",
+      fgDefault, meta,
+      fgMagenta, $(v.nt),
+      fgDefault, "\n" & v.toString()
+    )
 
-const callableFn: CallableFn =
-  proc(c: Compiler, scope: var seq[ScopeTable], fnNode: Node, args: seq[Node]): Node {.nimcall.} =
-    var ix = 1
-    for innerNode in fnNode.fnBody.stmtList:
-      case innerNode.nt
-      of ntReturn:
-        let returnNode = c.nodeEvaluator(innerNode.returnStmt, scope)
-        if returnNode != nil:
-          return returnNode
-        else: discard # error?
-      else: c.handleInnerNode(innerNode, fnNode, scope, 0, ix)
+proc getValues(c: var Compiler, node: Node,
+    scopetables: var seq[ScopeTable]): seq[Node] =
+  add result, c.getValue(node.infixLeft, scopetables)
+  add result, c.getValue(node.infixRight, scopetables)
 
-#
-# Math Evaluator
-#
-proc plus(lht, rht: int): int {.inline.} = lht + rht
-proc plus(lht, rht: float): float {.inline.} = lht + rht
-
-proc minus(lht, rht: int): int {.inline.} = lht - rht
-proc minus(lht, rht: float): float {.inline.} = lht - rht
-
-proc multi(lht, rht: int): int {.inline.} = lht * rht
-proc multi(lht, rht: float): float {.inline.} = lht * rht
-
-proc divide(lht, rht: int): float {.inline.} = lht / rht
-proc divide(lht, rht: float): float {.inline.} = lht / rht
-proc modulo(lht, rht: int): int {.inline.} = lht mod rht
-
-
-template calc(calcHandle): untyped {.dirty.} =
-  case lht.nt
-  of ntInt:
-    case rht.nt:
-    of ntInt:
-      let x = calcHandle(lht.iVal.toFloat, rht.iVal.toFloat)
-      if x mod 1 != 0:
-        Node(nt: ntFloat, fVal: x)
-      else:
-        Node(nt: ntInt, iVal: int(x))
-    of ntFloat:
-      Node(nt: ntFloat, fVal: calcHandle(toFloat(lht.iVal), rht.fVal))
-    of ntCall, ntCallFunction:
-      var rht = c.nodeEvaluator(rht, scope)
-      c.mathEvaluator(lht, rht, infixOp, scope)
-    of ntMathStmt:
-      var rht = c.mathEvaluator(rht.mathLeft, rht.mathRight, rht.mathInfixOp, scope)
-      c.mathEvaluator(lht, rht, infixOp, scope)
-    else: nil
-  of ntFloat:
-    case rht.nt:
-    of ntInt:
-      let x = calcHandle(lht.fVal, rht.iVal.toFloat)
-      if x mod 1 != 0:
-        Node(nt: ntFloat, fVal: x)
-      else:
-        Node(nt: ntInt, iVal: int(x))
-    of ntFloat:
-      Node(nt: ntFloat, fVal: calcHandle(lht.fVal, rht.fVal))
-    of ntCall, ntCallFunction:
-      var rht = c.nodeEvaluator(rht, scope)
-      c.mathEvaluator(lht, rht, infixOp, scope)
-    of ntMathStmt:
-      var rht = c.mathEvaluator(rht.mathLeft, rht.mathRight, rht.mathInfixOp, scope)
-      c.mathEvaluator(lht, rht, infixOp, scope)
-    # of ntCallFunction: ofMathCallStack
-    else: nil
-  of ntSize:
-    case lht.sizeVal.nt
-    of ntInt:
-      case rht.nt
-        of ntSize:
-          if rht.sizeVal.nt == ntInt:
-            newSize(calcHandle(lht.sizeVal.iVal, rht.sizeVal.iVal), lht.sizeUnit)
-          elif rht.sizeVal.nt == ntFloat:
-            newSize(calcHandle(toFloat(lht.sizeVal.iVal), rht.sizeVal.fVal), lht.sizeUnit)
-          else: nil
-        else: nil # todo handle int/float callables
-    of ntFloat:
-      case rht.nt
-        of ntSize:
-          if rht.sizeVal.nt == ntInt:
-            newSize(calcHandle(lht.sizeVal.fVal, toFloat(rht.sizeVal.iVal)), lht.sizeUnit)
-          elif rht.sizeVal.nt == ntFloat:
-            newSize(calcHandle(lht.sizeVal.fVal, rht.sizeVal.fVal), lht.sizeUnit)
-          else: nil
-        else: nil # todo handle int/float callables
-    else: nil
-  of ntCall, ntCallFunction:
-    var lht = c.nodeEvaluator(lht, scope)
-    if lht.nt == ntMathStmt:
-      lht = c.mathEvaluator(lht.mathLeft, lht.mathRight, lht.mathInfixOp, scope)
-    case rht.nt:
-      of ntInt, ntFloat:
-        c.mathEvaluator(lht, rht, infixOp, scope)
-      of ntCall, ntCallFunction:
-        var rht = c.nodeEvaluator(rht, scope)
-        c.mathEvaluator(lht, rht, infixOp, scope)
-      # of ntCallFunction: ofMathCallStack
-      else: nil
-  of ntMathStmt:
-    var lht = c.mathEvaluator(lht.mathLeft, lht.mathRight, lht.mathInfixOp, scope)
-    var rht = rht
-    case rht.nt
-    of ntMathStmt:
-      rht = c.mathEvaluator(rht.mathLeft, rht.mathRight, rht.mathInfixOp, scope)
+proc getValue(c: var Compiler, node: Node,
+    scopetables: var seq[ScopeTable], printError = true): Node =
+  notnil node:
+    case node.nt
+    of ntString, ntInt, ntFloat, ntBool,
+       ntColor, ntStream, ntArray, ntObject:
+      result = node
+    of ntIdent:
+      let some = c.getScope(node.identName, scopetables)
+      notnil some.scopeTable:
+        return some.scopeTable[node.identName].varvalue
+      if printError:
+        compileErrorWithArgs(varUndeclared, [node.identName])
+    of ntInfixMathExpr:
+      result = c.mathInfixEvaluator(node.mathLeft, node.mathRight, node.mathInfixOp, scopetables)
+    of ntInfixExpr:
+      var x = c.infixEvaluator(node.infixLeft, node.infixRight, node.infixOp, scopetables)
+      result = ast.newNode(ntBool)
+      result.bVal = x
+    of ntDotExpr:
+      result = c.dotEvaluator(node, scopetables)
+    of ntSize:
+      result = node.sizeVal
+    of ntCallFunction:
+      result = c.functionCall(node, scopetables)
+    of ntBracketExpr:
+      result = c.bracketEvaluator(node, scopetables)
     else: discard
-    c.mathEvaluator(lht, rht, infixOp, scope)
-  else: nil
 
-proc mathEvaluator*(c: Compiler, lht, rht: Node, infixOp: MathOp, scope: var seq[ScopeTable]): Node =
-  case infixOp
-  of mPlus:   calc(plus)
-  of mMinus:  calc(minus)
-  of mMulti:  calc(multi)
-  of mDiv:    calc(divide)
-  # of mMod:    calcFloat(modulo)
-  else: nil
+# math evaluator branches
+template calcInfixNest() {.dirty.} =
+  let rhs = c.mathInfixEvaluator(rhs.mathLeft, rhs.mathRight, rhs.mathInfixOp, scopetables)
+  notnil rhs:
+    return c.mathInfixEvaluator(lhs, rhs, op, scopetables)
 
-#
-# Infix Evaluator
-#
-template caseCallBody {.dirty.} =
-  var rht = c.nodeEvaluator(rht, scope)
-  if likely(rht != nil):
-    return c.infixEvaluator(lht, rht, op, scope)
-  return false
+proc mathInfixEvaluator(c: var Compiler, lhs, rhs: Node,
+    op: MathOp, scopetables: var seq[ScopeTable]): Node =
+  ## todo unit conversion
+  ## based on body font-size
+  ## default font-size in browsers: 1em = 16px
+  case op
+  of mPlus:
+    var ln = c.getValue(lhs, scopetables)
+    let rn = c.getValue(rhs, scopetables)
+    case ln.nt
+    of ntInt:
+      case rn.nt
+      of ntInt:
+        result = ast.newNode(ntInt)
+        result.iVal = ln.iVal + rn.iVal
+      of ntFloat:
+        result = ast.newNode(ntFloat)
+        result.fVal = toFloat(ln.iVal) + rn.fVal
+      else: discard
+    of ntFloat:
+      case rn.nt
+      of ntFloat:
+        result = ast.newNode(ntFloat)
+        result.fVal = ln.fVal + rn.fVal
+      of ntInt:
+        result = ast.newNode(ntInt)
+        result.fVal = ln.fVal + toFloat(rn.iVal)
+      else: discard
+    else: discard
+    case lhs.nt
+    of ntSize:
+      result = ast.newSize(result, lhs.sizeUnit)
+    else: discard
+  else: discard
 
-template printTypeMismatch {.dirty.} =
-  compileErrorWithArgs(fnMismatchParam, [$op, $(rht.nt), $(lht.nt)], rht.meta)
+proc walkAccessorStorage(c: var Compiler,
+    lhs, rhs: Node, scopetables: var seq[ScopeTable]): Node =
+  case lhs.nt
+  of ntIdent:
+    let x = c.getValue(lhs, scopetables)
+    notnil x:
+      result = c.walkAccessorStorage(x, rhs, scopetables)
+  of ntObject:
+    case rhs.nt
+    of ntIdent:
+      try:
+        result = lhs.pairsVal[rhs.identName]
+      except KeyError:
+        compileErrorWithArgs(undeclaredField, [rhs.identName], rhs.meta)
+    else: compileErrorWithArgs(invalidAccessorStorage, [rhs.toString, $lhs.nt], rhs.meta)
+  of ntArray:
+    case rhs.nt
+    of ntInt:
+      try:
+        result = lhs.arrayItems[rhs.iVal]
+      except Defect:
+        compileErrorWithArgs(indexDefect, [$(rhs.iVal), "0.." & $(lhs.arrayItems.high)], lhs.meta)
+    else: compileErrorWithArgs(invalidAccessorStorage, [rhs.toString, $lhs.nt], rhs.meta)
+  of ntBracketExpr:
+    let lhs = c.bracketEvaluator(lhs, scopetables)
+    notnil lhs:
+      return c.walkAccessorStorage(lhs, rhs, scopetables)
+  of ntDotExpr:
+    let lhs = c.dotEvaluator(lhs, scopetables)
+    notnil lhs:
+      return c.walkAccessorStorage(lhs, rhs, scopetables)
+  else: discard # todo
 
-template caseMathBody {.dirty.} =
-  var rht = c.mathEvaluator(rht.mathLeft, rht.mathRight, rht.mathInfixOp, scope)
-  if likely(rht != nil):
-    return c.infixEvaluator(lht, rht, op, scope)
-  return false
+proc dotEvaluator(c: var Compiler, node: Node,
+    scopetables: var seq[ScopeTable]): Node =
+  # evaluates dot expressions
+  result = c.walkAccessorStorage(node.lhs, node.rhs, scopetables)
 
-template caseCallStorageBody {.dirty.} =
-  # not ideal, transforms ntArray/ntObject
-  # to string then compares A <> B
-  var rht = c.nodeEvaluator(rht, scope)
-  return lht.toString == rht.toString
+proc bracketEvaluator(c: var Compiler, node: Node, scopetables: var seq[ScopeTable]): Node =
+  let index = c.getValue(node.bracketIndex, scopetables)
+  notnil index:
+    result = c.walkAccessorStorage(node.bracketLeft, index, scopetables)
 
-template caseSizeBody {.dirty.} =
-  case rht.nt
-  of ntSize:
-    c.infixEvaluator(lht.sizeVal, rht.sizeVal, op, scope)
-  of ntCall:
-    var rht = c.nodeEvaluator(rht, scope)
-    if likely(rht != nil):
-      return c.infixEvaluator(lht, rht, op, scope)
-    return false
-  of ntMathStmt:
-    caseMathBody
-  else:
-    return false
-
-template caseLhtCallBody {.dirty.} =
-  var lht = c.nodeEvaluator(lht, scope)
-  if likely(lht != nil):
-    return c.infixEvaluator(lht, rht, op, scope)
-  return false
-
-proc infixEvaluator(c: Compiler, lht, rht: Node, op: InfixOp, scope: var seq[ScopeTable]): bool =
+proc infixEvaluator(c: var Compiler, lhs, rhs: Node,
+    op: InfixOp, scopetables: var seq[ScopeTable]): bool =
+  # evaluates comparison expressions
+  if unlikely(lhs == nil or rhs == nil): return
+  let
+    ln = c.getValue(lhs, scopetables)
+    rn = c.getValue(rhs, scopetables)
   case op
   of EQ:
-    case lht.nt
+    case ln.nt
     of ntInt:
-      case rht.nt
-      of ntInt:       lht.iVal == rht.iVal
-      of ntFloat:     lht.iVal.toFloat == rht.fVal
-      of ntCall:      caseCallBody
-      of ntMathStmt:  caseMathBody
-      else:           printTypeMismatch
-    of ntFloat:
-      case rht.nt:
-      of ntFloat:     lht.fVal == rht.fVal
-      of ntInt:       lht.fVal == rht.iVal.toFloat
-      of ntCall:      caseCallBody
-      of ntMathStmt:  caseMathBody
-      else:           printTypeMismatch
-    of ntCall:        caseLhtCallBody
-    of ntBool:
-      case rht.nt
-      of ntBool:      lht.bVal == rht.bVal
-      of ntCall:      caseCallBody
-      else:           printTypeMismatch
-    of ntColor:
-      case rht.nt
-      of ntColor:     lht.cValue == rht.cValue
-      else: printTypeMismatch
-    of ntString:
-      case rht.nt
-      of ntString:    lht.sVal == rht.sVal
-      of ntCall:      caseCallBody
-      of ntMathStmt:  caseMathBody
-      else:           printTypeMismatch
-    of ntArray:
-      case rht.nt
-      of ntArray:     lht.toString == rht.toString
-      of ntCall:      caseCallStorageBody
-      else:           printTypeMismatch
-    of ntObject:
-      case rht.nt
-      of ntObject:    lht.toString == rht.toString
-      of ntCall:      caseCallStorageBody
-      else:           printTypeMismatch
-    of ntSize:        caseSizeBody
-    of ntCallFunction:
-      var lht = c.nodeEvaluator(lht, scope)
-      var rht = rht
-      if rht.nt == ntCallFunction:
-        rht = c.nodeEvaluator(rht, scope)
-      return c.infixEvaluator(lht, rht, op, scope)
-    of ntStream:
-      case rht.nt
-      of ntStream:    lht.toString == rht.toString
-      else:           printTypeMismatch
-    else:
-      var lht = c.mathEvaluator(lht.mathLeft, lht.mathRight, lht.mathInfixOp, scope)
-      if likely(lht != nil):
-        return c.infixEvaluator(lht, rht, op, scope)
-      false
-  of NE:
-    case lht.nt
-    of ntInt:
-      case rht.nt
-      of ntInt:       lht.iVal != rht.iVal
-      of ntFloat:     lht.iVal.toFloat != rht.fVal
-      of ntCall:      caseCallBody
-      of ntMathStmt:  caseMathBody
-      else:           printTypeMismatch
-    of ntFloat:
-      case rht.nt:
-      of ntFloat:     lht.fVal != rht.fVal
-      of ntInt:       lht.fVal != rht.iVal.toFloat
-      of ntCall:      caseCallBody
-      of ntMathStmt:  caseMathBody
-      else:           printTypeMismatch
-    of ntCall:        caseLhtCallBody
-    of ntBool:
-      case rht.nt
-      of ntBool:      lht.bVal != rht.bVal
-      of ntCall:      caseCallBody
-      else:           printTypeMismatch
-    of ntColor:
-      case rht.nt
-      of ntColor:     lht.cValue != rht.cValue
-      else: printTypeMismatch
-    of ntString:
-      case rht.nt
-      of ntString:    lht.sVal != rht.sVal
-      of ntCall:      caseCallBody
-      of ntMathStmt:  caseMathBody
-      else:           printTypeMismatch
-    of ntArray:
-      case rht.nt
-      of ntArray:     lht.toString != rht.toString
-      of ntCall:      caseCallStorageBody
-      else:           printTypeMismatch
-    of ntObject:
-      case rht.nt
-      of ntObject:    lht.toString != rht.toString
-      of ntCall:      caseCallStorageBody
-      else:           printTypeMismatch
-    of ntSize:        caseSizeBody
-    of ntCallFunction:
-      var lht = c.nodeEvaluator(lht, scope)
-      var rht = rht
-      if rht.nt == ntCallFunction:
-        rht = c.nodeEvaluator(rht, scope)
-      return c.infixEvaluator(lht, rht, op, scope)
-    of ntStream:
-      case rht.nt
-      of ntStream:    lht.toString != rht.toString
-      else:           printTypeMismatch
-    else:
-      var lht = c.mathEvaluator(lht.mathLeft, lht.mathRight, lht.mathInfixOp, scope)
-      if likely(lht != nil):
-        return c.infixEvaluator(lht, rht, op, scope)
-      false
-  of GT:
-    case lht.nt
-    of ntInt:
-      case rht.nt
-      of ntInt:       lht.iVal > rht.iVal
-      of ntFloat:     lht.iVal.toFloat > rht.fVal
-      of ntCall:      caseCallBody
-      of ntMathStmt:  caseMathBody
-      else:           printTypeMismatch
-    of ntFloat:
-      case rht.nt:
-      of ntFloat:     lht.fVal > rht.fVal
-      of ntInt:       lht.fVal > rht.iVal.toFloat
-      of ntCall:      caseCallBody
-      of ntMathStmt:  caseMathBody
-      else:           printTypeMismatch
-    of ntCall:        caseLhtCallBody
-    of ntSize:        caseSizeBody
-    of ntCallFunction:
-      var lht = c.nodeEvaluator(lht, scope)
-      var rht = rht
-      if rht.nt == ntCallFunction:
-        rht = c.nodeEvaluator(rht, scope)
-      return c.infixEvaluator(lht, rht, op, scope)
-    else:
-      var lht = c.mathEvaluator(lht.mathLeft, lht.mathRight, lht.mathInfixOp, scope)
-      if likely(lht != nil):
-        return c.infixEvaluator(lht, rht, op, scope)
-      false
-  of GTE:
-    case lht.nt
-    of ntInt:
-      case rht.nt
-      of ntInt:       lht.iVal >= rht.iVal
-      of ntFloat:     lht.iVal.toFloat >= rht.fVal
-      of ntCall:      caseCallBody
-      of ntMathStmt:  caseMathBody
-      else:           printTypeMismatch
-    of ntFloat:
-      case rht.nt:
-      of ntFloat:     lht.fVal >= rht.fVal
-      of ntInt:       lht.fVal >= rht.iVal.toFloat
-      of ntCall:      caseCallBody
-      of ntMathStmt:  caseMathBody
-      else:           printTypeMismatch
-    of ntCall:        caseLhtCallBody
-    of ntSize:        caseSizeBody
-    of ntCallFunction:
-      var lht = c.nodeEvaluator(lht, scope)
-      var rht = rht
-      if rht.nt == ntCallFunction:
-        rht = c.nodeEvaluator(rht, scope)
-      return c.infixEvaluator(lht, rht, op, scope)
-    else:
-      var lht = c.mathEvaluator(lht.mathLeft, lht.mathRight, lht.mathInfixOp, scope)
-      if likely(lht != nil):
-        return c.infixEvaluator(lht, rht, op, scope)
-      false
-  of LT:
-    case lht.nt
-    of ntInt:
-      case rht.nt
-      of ntInt:       lht.iVal < rht.iVal
-      of ntFloat:     lht.iVal.toFloat < rht.fVal
-      of ntCall:      caseCallBody
-      of ntMathStmt:  caseMathBody
-      else:           printTypeMismatch
-    of ntFloat:
-      case rht.nt:
-      of ntFloat:     lht.fVal < rht.fVal
-      of ntInt:       lht.fVal < rht.iVal.toFloat
-      of ntCall:      caseCallBody
-      of ntMathStmt:  caseMathBody
-      else:           printTypeMismatch
-    of ntCall:        caseLhtCallBody
-    of ntSize:        caseSizeBody
-    of ntCallFunction:
-      var lht = c.nodeEvaluator(lht, scope)
-      var rht = rht
-      if rht.nt == ntCallFunction:
-        rht = c.nodeEvaluator(rht, scope)
-      return c.infixEvaluator(lht, rht, op, scope)
-    else:
-      var lht = c.mathEvaluator(lht.mathLeft, lht.mathRight, lht.mathInfixOp, scope)
-      if likely(lht != nil):
-        return c.infixEvaluator(lht, rht, op, scope)
-      false
-  of LTE:
-    case lht.nt
-    of ntInt:
-      case rht.nt
-      of ntInt:       lht.iVal <= rht.iVal
-      of ntFloat:     lht.iVal.toFloat <= rht.fVal
-      of ntCall:      caseCallBody
-      of ntMathStmt:  caseMathBody
-      else:           printTypeMismatch
-    of ntFloat:
-      case rht.nt:
-      of ntFloat:     lht.fVal <= rht.fVal
-      of ntInt:       lht.fVal <= rht.iVal.toFloat
-      of ntCall:      caseCallBody
-      of ntMathStmt:  caseMathBody
-      else:           printTypeMismatch
-    of ntCall:        caseLhtCallBody
-    of ntSize:        caseSizeBody
-    of ntCallFunction:
-      var lht = c.nodeEvaluator(lht, scope)
-      var rht = rht
-      if rht.nt == ntCallFunction:
-        rht = c.nodeEvaluator(rht, scope)
-      return c.infixEvaluator(lht, rht, op, scope)
-    else:
-      var lht = c.mathEvaluator(lht.mathLeft, lht.mathRight, lht.mathInfixOp, scope)
-      if likely(lht != nil):
-        return c.infixEvaluator(lht, rht, op, scope)
-      false
-  else:
-    false
-
-proc scoped(c: Compiler, id: string, scope: var seq[ScopeTable]): Node =
-  ## Returns a callable node from `scope` table. Returns `nil` when not found
-  let currentScope = c.getScope(id, scope)
-  if currentScope.st != nil:
-    result = currentScope.st[id]
-
-proc walkObject*(c: Compiler, tree: CritBitTree, index: Node, scope: var seq[ScopeTable]): Node =
-  case index.nt
-  of ntString:
-    result = tree[index.sVal]
-  of ntCall:
-    result = tree[c.nodeEvaluator(index, scope).sVal]
-  else: discard
-
-proc walkAccessorStorage(c: Compiler, node, index: Node, scope: var seq[ScopeTable]): Node =
-  case node.nt:
-  of ntAccessor:
-    var x: Node
-    if node.accessorType == ntArray:
-      # handle an `ntArray` storage
-      x = c.walkAccessorStorage(node.accessorStorage, node.accessorKey, scope)
-      return c.walkAccessorStorage(x, index, scope)
-    # otherwise handle `ntObject` storage
-    x = c.walkAccessorStorage(node.accessorStorage, node.accessorKey, scope)
-    return c.walkAccessorStorage(x, index, scope)
-  of ntObject:
-    try:
-      if index.nt == ntCall:
-        return c.walkObject(node.pairsVal, index, scope)
-      result = node.pairsVal[index.sVal]
-    except FieldDefect:
-      compileErrorWithArgs(invalidAccessorStorage, [index.toString])
-  of ntArray:
-    try:
-      if index.nt == ntCall:
-        return node.arrayItems[c.nodeEvaluator(index, scope).iVal]
-      result = node.arrayItems[index.iVal]
-    except FieldDefect:
-      compileErrorWithArgs(invalidAccessorStorage, [index.toString])
-  of ntVariable:
-    var varNode = c.scoped(node.varName, scope)
-    return c.walkAccessorStorage(varNode.varMod, index, scope)
-  of ntStream:
-    case node.streamContent.kind:
-    of JObject:
-      if index.nt == ntCall:
-        return toNode(node.streamContent[c.nodeEvaluator(index, scope).sVal])
-      result = toNode(node.streamContent[index.sVal])
-    of JArray:
-      if index.nt == ntCall:
-        return toNode(node.streamContent[c.nodeEvaluator(index, scope).iVal])
-      result = toNode(node.streamContent[index.iVal])
-    else:
-      result = toNode(node.streamContent)
-  else: discard
-
-proc nodeEvaluator(c: Compiler, node: Node, scope: var seq[ScopeTable]): Node =
-  ## Evaluates `node`
-  case node.nt
-  of ntInt, ntFloat, ntBool, ntString, ntColor, ntSize:
-    result = node
-  of ntCall:
-    var varNode = c.scoped(node.callIdent, scope)
-    if likely(varNode != nil):
-      if node.callNode != nil:
-        case node.callNode.nt
-        of ntAccessor:
-          # node.callNode.accessorStorage = varNode.varValue
-          var x = c.walkAccessorStorage(node.callNode.accessorStorage,
-                                    node.callNode.accessorKey, scope)
-          if likely(x != nil):
-            return x
-          echo $invalidAccessorStorage
-          # compileErrorWithArgs(invalidAccessorStorage)
-        else:
-          return varNode.varMod
-      else: return varNode.varMod
-    compileErrorWithArgs(undeclaredVariable, [node.callIdent], node.meta)
-  of ntInfix:
-    return ast.newBool(c.infixEvaluator(node.infixLeft, node.infixRight, node.infixOp, scope))
-  of ntAccQuoted:
-    var accValues: seq[(string, string)]
-    for accVar in node.accVars:
-      var accVal: (string, string)
-      accVal[0] = "$bro"
-      case accVar.nt
-      of ntCall:
-        add accVal[0], $(hash(accVar.callIdent[1..^1])) # variable name without `$`
+      case rn.nt
       of ntInt:
-        add accVal[0], $(hash($accVar.iVal))
-      of ntMathStmt, ntInfix:
-        add accVal[0], $(hash(accVar)) 
+        if lhs.nt == ntSize and rhs.nt == ntSize:
+          return ln.iVal == rn.iVal and lhs.sizeUnit == rhs.sizeUnit
+        result = ln.iVal == rn.iVal
+      of ntFloat:
+        if lhs.nt == ntSize and rhs.nt == ntSize:
+          return toFloat(ln.iVal) == rn.fVal and lhs.sizeUnit == rhs.sizeUnit
+        result = toFloat(ln.iVal) == rn.fVal
       else: discard
-      var accVarNode = c.nodeEvaluator(accVar, scope)
-      if likely(accVarNode != nil):
-        accVal[1] = toString(c.nodeEvaluator(accVar, scope))
-        add accValues, accVal
-      else: return
-    return ast.newString(node.accVal.multiReplace(accValues))
-  of ntMathStmt:
-    # echo node
-    result = c.mathEvaluator(node.mathLeft, node.mathRight, node.mathInfixOp, scope)
-    if likely(result != nil):
-      return # result
-    # error?
-  of ntObject:
-    for k, v in node.pairsVal.mpairs:
-      v = c.nodeEvaluator(v, scope)
-    result = node
-  of ntArray:
-    for v in node.arrayItems.mitems:
-      v = c.nodeEvaluator(v, scope)
-    result = node
-  of ntCallFunction:
-    return runCallable()
-  # of ntForStmt:
-    # echo node
-  # of ntDotExpr:
-  #   var lht: Node
-  #   case node.dotLeft.nt:
-  #     of ntCall:
-  #       lht = c.nodeEvaluator(node.dotLeft)
-  #     else: discard
-  #   if lht != nil:
-  #     case 
-  #     return c.nodeEvaluator(node.dotRight)
-  else:
-    echo node
-    echo node.nt
-    result = nil
+    of ntFloat:
+      case rn.nt
+      of ntInt:
+        if lhs.nt == ntSize and rhs.nt == ntSize:
+          return ln.fVal == toFloat(rn.iVal) and lhs.sizeUnit == rhs.sizeUnit
+        result = ln.fVal == toFloat(rn.iVal)
+      of ntFloat:
+        if lhs.nt == ntSize and rhs.nt == ntSize:
+          return ln.fVal == rn.fVal and lhs.sizeUnit == rhs.sizeUnit
+        result = ln.fVal == rn.fVal
+      else: discard
+    of ntColor:
+      case rn.nt
+      of ntColor:
+        result = ln.cValue == rn.cValue
+      else: printTypeMismatch
+    of ntBool:
+      case rn.nt
+      of ntBool:
+        result = ln.bVal == rn.bVal
+      else: printTypeMismatch
+    of ntString:
+      case rn.nt:
+      of ntString:
+        result = ln.sVal == rn.sVal
+      else: printTypeMismatch
+    else: discard
+  of NE:
+    case ln.nt
+    of ntInt:
+      case rn.nt
+      of ntInt:
+        result = ln.iVal != rn.iVal
+      of ntFloat:
+        result = toFloat(ln.iVal) != rn.fVal
+      else: discard
+    of ntFloat:
+      case rn.nt
+      of ntInt:
+        result = toFloat(ln.iVal) != rn.fVal
+      of ntFloat:
+        result = ln.fVal != rn.fVal
+      else: discard
+    else: discard
+  of GT:
+    case lhs.nt:
+    of ntInt:
+      case rhs.nt
+      of ntInt:
+        result = lhs.iVal > rhs.iVal
+      of ntFloat:
+        result = toFloat(lhs.iVal) > rhs.fVal
+      else: discard
+    of ntFloat:
+      case rhs.nt
+      of ntFloat:
+        result = lhs.fVal > rhs.fVal
+      of ntInt:
+        result = lhs.fVal > toFloat(rhs.iVal)
+      else: discard
+    of ntIdent:
+      let lhs = c.getValue(lhs, scopetables)
+      if likely(lhs != nil):
+        return c.infixEvaluator(lhs, rhs, op, scopetables)
+    else: discard
+  of GTE:
+    case lhs.nt:
+    of ntInt:
+      case rhs.nt
+      of ntInt:
+        result = lhs.iVal >= rhs.iVal
+      of ntFloat:
+        result = toFloat(lhs.iVal) >= rhs.fVal
+      else: discard
+    of ntFloat:
+      case rhs.nt
+      of ntFloat:
+        result = lhs.fVal >= rhs.fVal
+      of ntInt:
+        result = lhs.fVal >= toFloat(rhs.iVal)
+      else: discard
+    of ntIdent:
+      let lhs = c.getValue(lhs, scopetables)
+      if likely(lhs != nil):
+        return c.infixEvaluator(lhs, rhs, op, scopetables)
+    else: discard
+  of LT:
+    case lhs.nt:
+    of ntInt:
+      case rhs.nt
+      of ntInt:
+        result = lhs.iVal < rhs.iVal
+      of ntFloat:
+        result = toFloat(lhs.iVal) < rhs.fVal
+      else: discard
+    of ntFloat:
+      case rhs.nt
+      of ntFloat:
+        result = lhs.fVal < rhs.fVal
+      of ntInt:
+        result = lhs.fVal < toFloat(rhs.iVal)
+      else: discard
+    of ntIdent:
+      let lhs = c.getValue(lhs, scopetables)
+      if likely(lhs != nil):
+        return c.infixEvaluator(lhs, rhs, op, scopetables)
+    else: discard
+  of LTE:
+    case lhs.nt:
+    of ntInt:
+      case rhs.nt
+      of ntInt:
+        result = lhs.iVal <= rhs.iVal
+      of ntFloat:
+        result = toFloat(lhs.iVal) <= rhs.fVal
+      else: discard
+    of ntFloat:
+      case rhs.nt
+      of ntFloat:
+        result = lhs.fVal <= rhs.fVal
+      of ntInt:
+        result = lhs.fVal <= toFloat(rhs.iVal)
+      else: discard
+    of ntIdent:
+      let lhs = c.getValue(lhs, scopetables)
+      if likely(lhs != nil):
+        return c.infixEvaluator(lhs, rhs, op, scopetables)
+    else: discard
+  of AND:
+    case lhs.nt
+    of ntInfixExpr:
+      result = c.infixEvaluator(lhs.infixLeft, lhs.infixRight, lhs.infixOp, scopetables)
+      if result:
+        case rhs.nt:
+        of ntInfixExpr:
+          return c.infixEvaluator(rhs.infixLeft, rhs.infixRight, rhs.infixOp, scopetables)
+        else: discard # todo
+    else: discard
+  of OR:
+    case lhs.nt
+    of ntInfixExpr:
+      result = c.infixEvaluator(lhs.infixLeft, lhs.infixRight, lhs.infixOp, scopetables)
+      if not result:
+        case rhs.nt:
+        of ntInfixExpr:
+          return c.infixEvaluator(rhs.infixLeft, rhs.infixRight, rhs.infixOp, scopetables)
+        else: discard # todo
+    else: discard
+  else: discard
 
-newHandler "varAssignment":
-  #[ 
-  Handles variable assignments.
-
-  Bro has a strong type system, meaning that a string var
-  cannot be changed to `int`, `float`, `bool`, `size` (and so on)
-  once initialized.
-
-  Constants are constants, no matter what.
-  ]#
-  let scopeVar = c.scoped(node.asgnVarIdent, scope)
-  if likely(scopeVar != nil):
-    let
-      varType = scopeVar.varMod.getNodeType
-      varModifier = c.nodeEvaluator(node.asgnVal, scope)
-    if likely(varType == varModifier.nt):
-      scopeVar.varMod = varModifier
-      return
-    compileErrorWithArgs(fnMismatchParam, [scopeVar.varName, $varModifier.nt, $varType], node.asgnVal.meta)
-  compileErrorWithArgs(undeclaredVariable, [node.asgnVarIdent], node.meta)
-
-newHandler "varDefinition":
-  #[
-  Handles variable definitions.
-  
-  By default, all variables are available at compile-time.
-  To expose a variable to the final CSS output, it must be marked with `*` 
-  
-  Variables defined with `var' behave as mutable storages,
-  while variables defined with `const' become immutable.
-  
-  Note: Global variables are publicly visible (at least for now)
-  ]#
-  if likely(inScope(node.varName, scope) == false):
-    # case node.varValue.nt:
-    # of ntMathStmt:
-    node.varMod = c.nodeEvaluator(node.varValue, scope)
-    # else:
-      # node.varMod = c.nodeEvaluator(node.varValue, scope)
-    c.stack(node, scope)
-    return
-  compileErrorWithArgs(varRedefine, [node.varName], node.meta)
-
-newHandler "command":
-  #[
-  Handles system commands `echo` and `assert`
-
-  - `echo` can print function calls (with return type),
-  literals (string, int, bool, float), variable values
-  stream contents, objects and arrays
-
-  - `assert` statement enables you to test assumptions about
-  your stylesheet.
-  ]# 
-  case node.cmdIdent
-  of cmdEcho:
-    let meta = " (" & $(node.meta.line) & ":" & $(node.meta.pos) & ") "  
-    let valNode: Node = c.nodeEvaluator(node.cmdValue, scope)
-    if likely(valNode != nil):
-      let valNodeStr =
-        case valNode.nt
-        of ntMathStmt:
-          valNode.mathResult
-        else:
-          valNode
-      # echo valNode.toString
-      stdout.styledWriteLine(
-        fgGreen, "Debug",
-        fgDefault, meta,
-        fgMagenta, getTypeInfo(valNode),
-        fgDefault, "\n" & valNodeStr.toString
-      )
-  of cmdAssert:
-    if c.infixEvaluator(node.cmdValue.infixLeft, node.cmdValue.infixRight,
-        node.cmdValue.infixOp, scope) == false:
-      raise newException(BroAssert, "($1:$2) Assertion failed" %
-        [$(node.meta.line), $(node.meta.pos)])
-
-newHandler "fnDefinition":
-  #[ 
-  Handles function/mixin definitions in the current scope.
-  - `fn` Functions can be used to do heavy computations
-  - `mix` Mixins help keep your style sheets clean and readable. A mixin
-  can only return CSS properties
-  ]#
-  var currentScope: ScopeTable  = c.getScope(scope)
-  if likely(currentScope.hasKey(node.fnIdent) == false):
-    node.fnSource = c.logger.filePath
-    currentScope[node.fnIdent] = node
-    return
-  compileErrorWithArgs(fnOverload, [node.fnIdent], node.fnMeta)
-
-newHandler "fnCallVoid":
-  #[
-  Handles function calls with return type `void`.
-  ]#
-  discard runCallable()
-
-newHandler "forBlock":
-  #[
-  Handles for block statements
-  ]#
+#
+# Load all handlers
+#
+newHandler walkInnerStmtList:
+  let len = node.stmtList.len
   var ix = 1
-  var itemsNode =
-    case node.inItems.nt
-    of {ntArray, ntObject}:
-      node.inItems
-    of ntCall:
-      c.nodeEvaluator(node.inItems, scope)
-    of ntCallFunction:
-      c.nodeEvaluator(node.inItems, scope)
-    else: nil
-  if likely(itemsNode != nil):
-    # first, create a new scope and makes `$item` variable available
-    case itemsNode.nt
-    of ntArray:
-      let len = itemsNode.arrayItems.len
-      for item in itemsNode.arrayItems:
-        var forScope = ScopeTable()
-        forScope[node.forItem[0].varName] = node.forItem[0]
-        forScope[node.forItem[0].varName].varMod = item
-        add scope, forScope
-        for innerNode in node.forBody.stmtList:
-          c.handleInnerNode(innerNode, parent, scope, len, ix)
-        scope.delete(scope.high) # out of scope
-    of ntObject:
-      let len = itemsNode.pairsVal.len
-      if likely(node.forItem[1] != nil):
-        # yields all `$k, $v` pairs of the object
-        for k, v in itemsNode.pairsVal:
-          var forScope = ScopeTable()
-          forScope[node.forItem[0].varName] = node.forItem[0]
-          forScope[node.forItem[0].varName].varMod = ast.newString(k)
-          forScope[node.forItem[1].varName] = node.forItem[1]
-          forScope[node.forItem[1].varName].varMod = v
-          add scope, forScope
-          for innerNode in node.forBody.stmtList:
-            c.handleInnerNode(innerNode, parent, scope, len, ix)
-          scope.delete(scope.high)
-      else:
-        # yields all `$k` keys of the object
-        for k in keys(itemsNode.pairsVal):
-          var forScope = ScopeTable()
-          forScope[node.forItem[0].varName] = node.forItem[0]
-          forScope[node.forItem[0].varName].varMod = ast.newString(k)
-          add scope, forScope
-          for innerNode in node.forBody.stmtList:
-            c.handleInnerNode(innerNode, parent, scope, len, ix)
-          scope.delete(scope.high)
-    of ntStream:
-      case itemsNode.streamContent.kind
-      of JArray:
-        if unlikely(node.forItem[1] != nil):
-          compileErrorWithArgs(forInvalidIteration)
-        let len = node.forBody.stmtList.len
-        for item in items(itemsNode.streamContent):
-          var forScope = ScopeTable()
-          forScope[node.forItem[0].varName] = node.forItem[0]
-          forScope[node.forItem[0].varName].varMod =
-            case item.kind
-            of JArray, JObject: newStream(item)
-            else: item.toNode
-          add scope, forScope
-          for innerNode in node.forBody.stmtList:
-            c.handleInnerNode(innerNode, parent, scope, len, ix)
-          scope.delete(scope.high)
-      of JObject:
-        # yields all `$k, $v` pairs of the object
-        let len = node.forBody.stmtList.len
-        if likely(node.forItem[1] != nil):
-          for k, v in pairs(itemsNode.streamContent):
-            var forScope = ScopeTable()
-            forScope[node.forItem[0].varName] = node.forItem[0]
-            forScope[node.forItem[0].varName].varMod = ast.newString(k)
-            forScope[node.forItem[1].varName] = node.forItem[1]
-            forScope[node.forItem[1].varName].varMod =
-              case v.kind
-              of JArray, JObject: newStream(v)
-              else: v.toNode
-            add scope, forScope
-            for innerNode in node.forBody.stmtList:
-              c.handleInnerNode(innerNode, parent, scope, len, ix)
-            scope.delete(scope.high)
-        else:
-          # yields all `$k` keys of the object
-          for k in keys(itemsNode.streamContent):
-            var forScope = ScopeTable()
-            forScope[node.forItem[0].varName] = node.forItem[0]
-            forScope[node.forItem[0].varName].varMod = ast.newString(k)
-            add scope, forScope
-            for innerNode in node.forBody.stmtList:
-              c.handleInnerNode(innerNode, parent, scope, len, ix)
-            scope.delete(scope.high)   
-      else: compileErrorWithArgs(forInvalidIteration, node.meta)
-    else: compileErrorWithArgs(forInvalidIterationGot, [$(itemsNode.nt)], node.meta)
-  else: compileErrorWithArgs(forInvalidIterationGot, ["null"], node.meta)
+  for inner in node.stmtList:
+    c.walkSubNodes(inner, parent, scopetables, len, ix)
 
-newHandler "importModule":
-  #[
-  Handles imports from the standard library or local project.
-  This handler can import `mixins`, `functions` and `variables`
-  from other `.bass` files. 
-  
-  This handler has nothing to do with the at-rule CSS `@import`,
-  which is passed by the compiler to the final output without evaluation.
-  ]#
+newHandler walkStmtList:
+  for inner in node.stmtList:
+    c.walkNodes(inner, scopetables)
+
+newHandler varDecl:
+  # handle variable declarations
+  if likely(not c.inScope("$" & node.varName, scopetables)):
+    let x = c.getValue(node.varValue, scopetables)
+    notnil x:
+      case node.varValue.nt
+      of ntInfixMathExpr:
+        node.varValue = x
+      of ntIdent:
+        node.varValue = deepCopy(x)
+      of ntCallFunction:
+        node.varValue = x
+      else: discard
+      c.stack(node.varName, node, scopetables)
+  else: compileErrorWithArgs(varRedefine, [node.varName])
+
+newHandler varAssign:
+  # handle variable assignments
+  let some = c.getScope(node.asgnIdent, scopetables)
+  notnil some.scopeTable:
+    let varNode = some.scopeTable[node.asgnIdent]
+    let newValue = c.getValue(node.asgnValue, scopetables)
+    notnil newValue:
+      if likely(c.typeCheck(varNode.varValue, newValue)):
+        if likely(not varNode.varImmutable):
+          varNode.varValue = newValue
+        else:
+          compileErrorWithArgs(varImmutable, [varNode.varName])
+
+let rhsDefaultBool = ast.newNode(ntBool)
+rhsDefaultBool.bVal = true
+
+template evalBranch(branch: Node, body: untyped) =
+  case branch.nt
+  of ntInfixExpr:
+    if c.infixEvaluator(branch.infixLeft, branch.infixRight,
+        branch.infixOp, scopetables):
+      newScope(scopetables)
+      body
+      clearScope(scopetables)
+      return # condition is thruty
+  of ntIdent:
+    if c.infixEvaluator(branch, rhsDefaultBool, EQ, scopetables):
+      newScope(scopetables)
+      body
+      clearScope(scopetables)
+      return # condition is thruty
+  of ntDotExpr:
+    let x = c.dotEvaluator(branch, scopetables)
+    notnil x:
+      if c.infixEvaluator(x, rhsDefaultBool, EQ, scopetables):
+        newScope(scopetables)
+        body
+        clearScope(scopetables)
+        return # condition is thruty
+  else: discard
+
+newHandler condDecl:
+  # handle conditional statements
+  evalBranch node.condIfBranch.expr:
+    c.walkNodes(node.condIfBranch.body, scopetables)
+  if node.condElifBranch.len > 0:
+    # handle `elif` branches
+    for elifbranch in node.condElifBranch:
+      evalBranch elifBranch.expr:
+        c.walkNodes(elifbranch.body, scopetables)
+  notnil node.condElseBranch:
+    # handle `else` branch
+    c.walkNodes(node.condElseBranch, scopetables)
+
+newHandler innerCondDecl:
+  # handles conditional statements in selector nests
+  evalBranch node.condIfBranch.expr:
+    c.walkInnerStmtList(node.condIfBranch.body, scopetables, parent)
+  if node.condElifBranch.len > 0:
+    # handle `elif` branches
+    for elifbranch in node.condElifBranch:
+      evalBranch elifBranch.expr:
+        c.walkInnerStmtList(elifbranch.body, scopetables, parent)
+  notnil node.condElseBranch:
+    # handle `else` branch
+    c.walkInnerStmtList(node.condElseBranch, scopetables, parent)
+
+template loopEvaluator(kv: (Node, Node), items: Node) =
+  case items.nt
+  of ntArray:
+    if kv[1] == nil:
+      case kv[0].nt
+      of ntVariable:
+        for x in items.arrayItems:
+          newScope(scopetables)
+          kv[0].varValue = x
+          c.varDecl(kv[0], scopetables)
+          c.walkNodes(node.loopBody, scopetables)
+          clearScope(scopetables)
+          kv[0].varValue = nil
+      else: discard
+  else: discard
+
+newHandler loopEval:
+  # handles iterations
+  case node.loopItems.nt
+  of ntIdent:
+    let some = c.getScope(node.loopItems.identName, scopetables)
+    notnil some.scopeTable:
+      let items = some.scopeTable[node.loopItems.identName]
+      loopEvaluator(node.loopItem, items.varValue)
+    do: compileErrorWithArgs(varUndeclared, [node.loopItems.identName])
+  of ntDotExpr:
+    let items = c.dotEvaluator(node.loopItems, scopetables)
+    notnil items:
+      loopEvaluator(node.loopItem, items)
+    do:
+      compileErrorWithArgs(varUndeclared, [node.loopItems.lhs.identName])
+  of ntArray:
+    loopEvaluator(node.loopItem, node.loopItems)
+  of ntBracketExpr:
+    let items = c.bracketEvaluator(node.loopItems, scopetables)
+    loopEvaluator(node.loopItem, items)
+  else: compileErrorWithArgs(invalidIterator)
+
+newHandler commandEval:
+  # evaluates a command
+  if c.minify: return # disable debugging when enabled minify
+  let val = c.getvalue(node.cmdValue, scopetables)
+  notnil val:
+    case node.cmdIdent
+    of cmdEcho:
+      val.meta = node.cmdValue.meta
+      print val
+    else: discard
+
+newHandler functionCall:
+  # handles function calls
+  let some = c.getScope(node.fnCallIdentName, scopetables)
+  notnil some.scopeTable:
+    let fnNode = some.scopeTable[node.fnCallIdentName]
+    if fnNode.fnParams.len == node.fnCallArgs.len:
+      if fnNode.fnFwdDecl:
+        # echo fnNode
+        # echo node
+        let params = fnNode.fnParams.keys.toSeq()
+        var args: seq[stdlib.Arg]
+        for i in 0..node.fnCallArgs.high:
+          let param = fnNode.fnParams[params[i]]
+          if c.typeCheck(node.fnCallArgs[i], param[1]):
+            add args, (param[0][1..^1], node.fnCallArgs[i])
+        try:
+          return stdlib.call(fnNode.fnSource, fnNode.fnName, args)
+        except SystemModule as e:
+          compileErrorWithArgs(internalError, [e.msg, fnNode.fnSource, fnNode.fnName], node.meta)
+    else: discard # todo check optional args
+  do:
+    compileErrorWithArgs(fnUndeclared, [node.fnCallIdentName], node.meta)
+
+newHandler importModule:
   if likely(c.stylesheets.len > 0):
     for path in node.modules:
       # change logger's file path during iteration
       c.logger.filePath = c.stylesheets[path].sourcePath
       for childNode in c.stylesheets[path].nodes:
-        c.interpret(childNode, scope)
-    c.logger.filePath = c.program.sourcePath # back to main file
+        c.walkNodes(childNode, scopetables)
+    c.logger.filePath = c.stylesheet.sourcePath # back to main file
 
-newHandler "moduleInclude":
-  #[ 
-    Includes the contents of a file .css/.bass.
-    The include statement is useful to split up a large
-    module/style sheet into several files (partials)
-  ]#
-  discard
-
-newHandler "cssSelector":
-  ## Handles CSS selectors and properties
-  add c.css, c.getSelectorGroup(node, scope)
+newHandler cssSelector:
+  # handles CSS selectors and properties
+  add c.css, c.getSelectorGroup(node, scopetables)
   if node.pseudo.len > 0:
     for k, psNode in node.pseudo:
-      add c.css, c.getSelectorGroup(psNode, scope)
+      add c.css, c.getSelectorGroup(psNode, scopetables)
 
-#
-# CSS Selectors, Properties and other nested nodes
-#
-proc getValue(c: Compiler, vals: seq[Node], scope: var seq[ScopeTable]): string =
-  var strVal: seq[string]
-  for v in vals:
-    var value = c.nodeEvaluator(v, scope)
-    if likely(value != nil):
-      add strVal, value.toString
-  result = strVal.join(" ") # todo make it work with a valid separator (space, colon) 
+newHandler fnDecl:
+  # handles function declaration
+  if likely(not c.inScope(node.fnIdent, scopetables)):
+    c.stack(node.fnIdent, node, scopetables)
+  else:
+    compileErrorWithArgs(fnOverload, [node.fnName], node.meta)
 
-proc getProperty(c: Compiler, node: Node, k: string,
-      len: int, scope: var seq[ScopeTable], ix: var int): string =
+proc getProperty(c: var Compiler, node: Node, k: string,
+      len: int, scopetables: var seq[ScopeTable], ix: var int): string =
   # Returns `key`:`value pairs representing a CSS property and value
   if likely(c.minify):
     add result, k & ":"
   else:
     add result, spaces(2) & k & ":" & spaces(1)
-  add result,  c.getValue(node.pVal, scope)
+  let high = node.pVal.high
+  for p in 0..high:
+    let v = c.getValue(node.pVal[p], scopetables)
+    notnil v:
+      add result, v.toString()
+      case node.pVal[p].nt
+      of ntSize:
+        add result, $(node.pVal[p].sizeUnit)
+      else: discard
+      if p != high:
+        add result, spaces(1) # todo check value separators
   if ix < len:
     add result, ";"
   add result, c.strNL # adds a `\n` when not minified
   inc ix
 
-proc handleInnerNode(c: Compiler, node, parent: Node,
-      scope: var seq[ScopeTable], len: int, ix: var int) =
+proc walkSubNodes(c: var Compiler, node, parent: Node,
+      scopetables: var seq[ScopeTable], len: int, ix: var int) =
   # Handles nested statements
   case node.nt
   of ntProperty:
-    # Writes CSS properties
     if parent == nil:
       add c.deferredProps,
-        c.getProperty(node, node.pName, len, scope, ix)
+        c.getProperty(node, node.pName, len, scopetables, ix)
     else:
       parent.properties[node.pName] = node
   of cssSelectors:
     # Writes CSS selectors (classes, ids, tag names, pseudo classes)
     if parent == nil:
-      add c.css, c.getSelectorGroup(node, scope)
+      add c.css, c.getSelectorGroup(node, scopetables)
     else:
-      add c.deferred, c.getSelectorGroup(node, scope)
+      add c.deferred, c.getSelectorGroup(node, scopetables)
     if unlikely(node.pseudo.len > 0):
       for k, psNode in node.pseudo:
-        add c.deferred, c.getSelectorGroup(psNode, scope, node)
-  of ntVariable:      c.varDefinition(node, scope, parent)
-  of ntAssign:        c.varAssignment(node, scope, parent)
-  of ntCallFunction:  c.fnCallVoid(node, scope)
-  of ntFunction:   c.fnDefinition(node, scope)
-  of ntCommand:    c.command(node, scope)
+        add c.deferred, c.getSelectorGroup(psNode, scopetables, node)
+  of ntCondStmt:
+    c.innerCondDecl(node, scopetables, parent)
+  of ntCommand:
+    c.commandEval(node, scopetables, parent)
   else: discard
 
-proc getSelectorGroup(c: Compiler, node: Node,
-      scope: var seq[ScopeTable], parent: Node = nil): string =
+proc getSelectorGroup(c: var Compiler, node: Node,
+      scopetables: var seq[ScopeTable], parent: Node = nil): string =
   ## Writes CSS properties inside a CSS selector block
   var ix = 1 # used to keep the CSS semi-colon under control
-  var localScope = ScopeTable()
-  scope.add(localScope)
+  newScope(scopetables)
   if node.innerNodes.len > 0:
     let len = node.innerNodes.len
     for innerKey, innerNode in node.innerNodes:
-      c.handleInnerNode(innerNode, node, scope, len, ix)
+      c.walkSubNodes(innerNode, node, scopetables, len, ix)
   var skipped: bool
-  let len = node.properties.len 
+  let len = node.properties.len
   if len > 0:
-    if node.parents.len > 0:  
-      add result, node.parents.join(" ") & spaces(1) & node.ident
+    if node.parents.len > 0:
+      let h = node.parents.high
+      for p in 0..h:
+        if node.nested:
+          add result, node.parents[p] & node.ident
+        else:
+          add result, node.parents[p] & spaces(1) & node.ident
+        if p != h:
+          add result, ","
     else:
       if node.nt == ntPseudoSelector:
         assert parent != nil
@@ -1110,54 +841,57 @@ proc getSelectorGroup(c: Compiler, node: Node,
     if node.multipleSelectors.len > 0:
       add result, "," & node.multipleSelectors.join(",")
     if node.extendBy.len > 0:
-      # .my, .second, .selector
       add result, "," & node.extendBy.join(", ")
     for concatVar in node.identConcat:
-      var varMod = c.nodeEvaluator(concatVar, scope)
+      var varMod = c.walkNodes(concatVar, scopetables)
       if likely(varMod != nil):
         add result, varMod.toString
       else: break
     add result, c.strCL # {
     for pName in node.properties.keys:
-      add result, c.getProperty(node.properties[pName], pName, len, scope, ix)
+      add result, c.getProperty(node.properties[pName], pName, len, scopetables, ix)
     add result, c.strCR # }
     add result, c.deferred
     setLen c.deferred, 0
-  scope.delete(scope.high) # out of scope
+  clearScope(scopetables)
 
-proc interpret(c: Compiler, node: Node, scope: var seq[ScopeTable]) =
+proc walkNodes(c: var Compiler, node: Node, scope: var seq[ScopeTable]): Node {.discardable.} =
   let
-    compileHandler: CompileHandler =
+    callableHandler: FunctionHandler =
       case node.nt
       of cssSelectors: cssSelector
-      of ntVariable:   varDefinition
-      of ntAssign:     varAssignment
-      of ntCallFunction:  fnCallVoid
-      of ntFunction:   fnDefinition
-      of ntCommand:    command
-      # of ntCondStmt:   ifCondition
+      of ntVariable:   varDecl
+      of ntAssign:     varAssign
+      of ntCondStmt:   condDecl
+      of ntStmtList:   walkStmtList
+      of ntCommand:    commandEval
       of ntImport:     importModule
+      of ntFunction:   fnDecl
+      of ntCallFunction: functionCall
+      of ntForStmt:    loopEval
+      # of ntCallFunction:  fnCallVoid
       of ntComment: nil
-      of ntForStmt:    forBlock
       else:
         echo node.nt
-        nil
-  if likely(compileHandler != nil):
-    compileHandler(c, node, scope)
-
+        compileErrorWithArgs(invalidContext, [$(node.nt)])
+  if likely(callableHandler != nil):
+    discard callableHandler(c, node, scope)
 
 #
 # Public API
 #
+proc getCSS*(c: Compiler): string = c.css
+proc hasErrors*(c: Compiler): bool = c.logger.errorLogs.len > 0
 
-proc getCSS*(c: Compiler): string =
-  result = c.css
-
-proc hasErrors*(c: Compiler): bool =
-  c.logger.errorLogs.len > 0
-
-proc newCompiler*(p: Stylesheet, minify = false, imports: Stylesheets = Stylesheets()): Compiler =
-  var c = Compiler(program: p, minify: minify, stylesheets: imports, globalScope: ScopeTable())
+proc newCompiler*(p: Stylesheet, minify = false,
+    imports: Stylesheets = Stylesheets()): Compiler =
+  var c = Compiler(
+    stylesheet: p,
+    minify: minify,
+    stylesheets: imports,
+    globalScope: ScopeTable()
+  )
+  c.stylesheet.exports = c.globalScope
   when compileOption("app", "console"):
     c.logger = Logger(filePath: p.sourcePath)
   if not minify:
@@ -1166,14 +900,14 @@ proc newCompiler*(p: Stylesheet, minify = false, imports: Stylesheets = Styleshe
   else:
     c.strNL = ""
   var scope = newSeq[ScopeTable]()
-  for i in 0..c.program.nodes.high:
-    c.interpret(c.program.nodes[i], scope)
+  for node in c.stylesheet.nodes:
+    c.walkNodes(node, scope)
   result = c
   if unlikely(c.hasErrors):
     setLen(c.css, 0)
 
 proc len*(c: Compiler): int =
-  c.program.nodes.len
+  c.stylesheet.nodes.len
 
 proc toCSS*(p: Stylesheet, minify = false): string =
   newCompiler(p, minify).getCSS

@@ -4,87 +4,101 @@
 #          Made by Humans from OpenPeeps
 #          https://github.com/openpeeps/bro
 
-proc handleForStmt(c: Compiler, node, parent: Node, scope: ScopeTable) =
-  # Handle `for` statements
-  var
-    ix = 1
-    itemsNode = 
-      if node.inItems.nt in {ntArray, ntObject}:
-        node.inItems
-      elif node.inItems.callNode != nil:
-        if node.inItems.callNode.nt == ntVariable: 
-          node.inItems.callNode.varValue
-        else:
-          node.inItems.callNode
+
+newHandler forBlock:
+  #[
+  Handles `for` block statements
+  ]#
+  var ix = 1
+  var itemsNode =
+    case node.inItems.nt
+    of {ntArray, ntObject}:
+      node.inItems
+    of ntCall:
+      c.nodeEvaluator(node.inItems, scope)
+    of ntCallFunction:
+      c.nodeEvaluator(node.inItems, scope)
+    else: nil
+  if likely(itemsNode != nil):
+    case itemsNode.nt
+    of ntArray:
+      let len = itemsNode.arrayItems.len
+      for item in itemsNode.arrayItems:
+        var forScope = ScopeTable()
+        forScope[node.forItem[0].varName] = node.forItem[0]
+        forScope[node.forItem[0].varName].varMod = item
+        add scope, forScope
+        for innerNode in node.forBody.stmtList:
+          c.handleInnerNode(innerNode, parent, scope, len, ix)
+        scope.delete(scope.high) # out of scope
+    of ntObject:
+      let len = itemsNode.pairsVal.len
+      if likely(node.forItem[1] != nil):
+        # yields all `$k, $v` pairs of the object
+        for k, v in itemsNode.pairsVal:
+          var forScope = ScopeTable()
+          forScope[node.forItem[0].varName] = node.forItem[0]
+          forScope[node.forItem[0].varName].varMod = ast.newString(k)
+          forScope[node.forItem[1].varName] = node.forItem[1]
+          forScope[node.forItem[1].varName].varMod = v
+          add scope, forScope
+          for innerNode in node.forBody.stmtList:
+            c.handleInnerNode(innerNode, parent, scope, len, ix)
+          scope.delete(scope.high)
       else:
-        assert scope != nil
-        scope[node.inItems.callIdent]
-  node.forStorage = ScopeTable()
-  node.forStorage[node.forItem[0].varName] = node.forItem[0]
-  case itemsNode.nt:
-  of ntVariable:
-    # Array or Object iterator via Variable call
-    let items = itemsNode.varValue.arrayItems
-    let len = node.forBody.stmtList.len
-    for item in 0 .. items.high:
-      node.forStorage[node.forItem[0].varName].varValue = items[item]
-      for n in node.forBody.stmtList:
-        c.handleInnerNode(n, parent, node.forStorage, len, ix)
-  of ntArray:
-    # Array iterator
-    let len = node.forBody.stmtList.len
-    for i in 0 .. itemsNode.arrayItems.high:
-      node.forStorage[node.forItem[0].varName].varValue = itemsNode.arrayItems[i]
-      for n in node.forBody.stmtList:
-        c.handleInnerNode(n, parent, node.forStorage, len, ix)
-  of ntObject:
-    # Object iterator
-    node.forStorage[node.forItem[1].varName] = node.forItem[1]
-    echo "todo"
-  of ntStream:
-    # Write JSON/YAML streams
-    case itemsNode.streamContent.kind
-    of JArray:
-      let len = node.forBody.stmtList.len
-      for item in items(itemsNode.streamContent):
-        node.forStorage[node.forItem[0].varName].varValue = newStream item
-        for n in node.forBody.stmtList:
-          c.handleInnerNode(n, parent, node.forStorage, len, ix)
-    of JObject:
-      node.forStorage[node.forItem[1].varName] = node.forItem[1]
-      let len = node.forBody.stmtList.len
-      for k, v in pairs(itemsNode.streamContent):
-        node.forStorage[node.forItem[0].varName].varValue = newString k
-        node.forStorage[node.forItem[1].varName].varValue = newStream v
-        for n in node.forBody.stmtList:
-          c.handleInnerNode(n, parent, node.forStorage, len, ix)
-    else: discard
-  of ntAccessor:
-    var x: Node 
-    if itemsNode.accessorType == ntArray:
-      x = walkAccessorStorage(itemsNode.accessorStorage, itemsNode.accessorKey, scope)
-      let len = node.forBody.stmtList.len
-      for i in 0 .. x.arrayItems.high:
-        node.forStorage[node.forItem[0].varName].varValue = x.arrayItems[i]
-        for nodeBody in node.forBody.stmtList:
-          c.handleInnerNode(nodeBody, parent, node.forStorage, len, ix)
-      return
-    x = walkAccessorStorage(itemsNode.accessorStorage, itemsNode.accessorKey, scope)
-    if x.nt == ntObject:
-      let len = node.forBody.stmtList.len
-      for i, y in x.pairsVal:
-        node.forStorage[node.forItem[0].varName].varValue = y
-        for nodeBody in node.forBody.stmtList:
-          c.handleInnerNode(nodeBody, parent, node.forStorage, len, ix)
-    elif x.nt == ntStream:
-      # let len = node.forBody.stmtList.len
-      # for i, y in x.streamContent:
-      #   node.forStorage[node.forItem.varName].varValue = newStream y
-      #   for nodeBody in node.forBody.stmtList:
-      #     c.handleInnerNode(nodeBody, parent, node.forStorage, len) 
-      let len = node.forBody.stmtList.len
-      for item in items(x.streamContent):
-        node.forStorage[node.forItem[0].varName].varValue = newStream item
-        for n in node.forBody.stmtList:
-          c.handleInnerNode(n, parent, node.forStorage, len, ix)     
-  else: discard
+        # yields all `$k` keys of the object
+        for k in keys(itemsNode.pairsVal):
+          var forScope = ScopeTable()
+          forScope[node.forItem[0].varName] = node.forItem[0]
+          forScope[node.forItem[0].varName].varMod = ast.newString(k)
+          add scope, forScope
+          for innerNode in node.forBody.stmtList:
+            c.handleInnerNode(innerNode, parent, scope, len, ix)
+          scope.delete(scope.high)
+    of ntStream:
+      case itemsNode.streamContent.kind
+      of JArray:
+        if unlikely(node.forItem[1] != nil):
+          compileErrorWithArgs(forInvalidIteration)
+        let len = node.forBody.stmtList.len
+        for item in items(itemsNode.streamContent):
+          var forScope = ScopeTable()
+          forScope[node.forItem[0].varName] = node.forItem[0]
+          forScope[node.forItem[0].varName].varMod =
+            case item.kind
+            of JArray, JObject: newStream(item)
+            else: item.toNode
+          add scope, forScope
+          for innerNode in node.forBody.stmtList:
+            c.handleInnerNode(innerNode, parent, scope, len, ix)
+          scope.delete(scope.high)
+      of JObject:
+        # yields all `$k, $v` pairs of the object
+        let len = node.forBody.stmtList.len
+        if likely(node.forItem[1] != nil):
+          for k, v in pairs(itemsNode.streamContent):
+            var forScope = ScopeTable()
+            forScope[node.forItem[0].varName] = node.forItem[0]
+            forScope[node.forItem[0].varName].varMod = ast.newString(k)
+            forScope[node.forItem[1].varName] = node.forItem[1]
+            forScope[node.forItem[1].varName].varMod =
+              case v.kind
+              of JArray, JObject: newStream(v)
+              else: v.toNode
+            add scope, forScope
+            for innerNode in node.forBody.stmtList:
+              c.handleInnerNode(innerNode, parent, scope, len, ix)
+            scope.delete(scope.high)
+        else:
+          # yields all `$k` keys of the object
+          for k in keys(itemsNode.streamContent):
+            var forScope = ScopeTable()
+            forScope[node.forItem[0].varName] = node.forItem[0]
+            forScope[node.forItem[0].varName].varMod = ast.newString(k)
+            add scope, forScope
+            for innerNode in node.forBody.stmtList:
+              c.handleInnerNode(innerNode, parent, scope, len, ix)
+            scope.delete(scope.high)   
+      else: compileErrorWithArgs(forInvalidIteration, node.meta)
+    else: compileErrorWithArgs(forInvalidIterationGot, [$(itemsNode.nt)], node.meta)
+  else: compileErrorWithArgs(forInvalidIterationGot, ["null"], node.meta)

@@ -5,10 +5,12 @@
 #          https://github.com/openpeeps/bro
 
 proc parseAnoArray(p: var Parser, excludeOnly, includeOnly: set[TokenKind] = {},
-      returnType = ntVoid, isFunctionWrap, isCurlyBlock = false): Node {.gcsafe.}
-
+      returnType = ntVoid, isFunctionWrap, isCurlyBlock = false): Node
 proc parseAnoObject(p: var Parser, excludeOnly, includeOnly: set[TokenKind] = {},
-      returnType = ntVoid, isFunctionWrap, isCurlyBlock = false): Node {.gcsafe.}
+      returnType = ntVoid, isFunctionWrap, isCurlyBlock = false): Node
+
+proc parseArrayAccessor(p: var Parser, accStorage: Node): Node
+proc parseDotExpr(p: var Parser, lhs: Node): Node
 
 const IdentCharsWithHyphen = IdentChars + {'-'}
 proc isValidIdent(s: string): bool =
@@ -18,96 +20,115 @@ proc isValidIdent(s: string): bool =
       if s[i] notin IdentCharsWithHyphen: return false
     return true
 
-# proc parseVarDef(p: var Parser, scope: var seq[ScopeTable],
-#         ident: TokenTuple, varTypeDecl: TokenKind): Node =
-#   # parse a variable definition
-#   let currentScope = p.getScope(ident.value, scope)
-#   if currentScope.st != nil:
-#     let scopedVar = currentScope.st[ident.value]
-#     if unlikely(scopedVar.varImmutable):
-#       errorWithArgs(immutableReassign, ident, [ident.value])
-#     else:
-#       scopedVar.varOverwrite = true
-#       p.mVar.delete(hash(scopedVar.varName & $(currentScope.index)))
-#     return scopedVar
-#   if unlikely(ident is tkVarAssgn):
-#     errorWithArgs(undeclaredVariable, ident, [ident.value])
-#   if likely(varTypeDecl == tkAssign):
-#     result = newVariable(ident)
-#     result.varImmutable = ident.kind == tkConst
-#     return # result
-#   result = newVariableRef(ident)
-
-# proc parseVarDefType(p: var Parser, scope: var seq[ScopeTable]): Node =
-#   # parse a typed variable definition
-#   discard # todo
-
-# proc parseAssignment(p: var Parser, scope: var seq[ScopeTable], ident: TokenTuple, varTypeDecl: TokenKind): Node =
-#   var varDef = p.parseVarDef(scope, ident, varTypeDecl)
-#   if likely(varDef != nil):
-#     let varValue = p.getPrefixOrInfix(scope = scope)
-#     if likely(varValue != nil):
-#       if unlikely(varDef.varOverwrite):
-#         let
-#           varInitType = varDef.varValue.getNodeType()
-#           varReassignType = varValue.getNodeType
-#         if unlikely(varInitType != varReassignType):
-#           errorWithArgs(fnMismatchParam, ident, [varDef.varName, $(varReassignType), $(varInitType)]) 
-#         if likely(varDef.varRef == false):
-#           # result = deepCopy(varDef)
-#           return Node(nt: ntAssign, asgnVar: varDef, asgnVal: Value(node: varValue))
-#         else:
-#           result = varDef
-#       else:
-#         result = varDef
-#       result.varValue = varValue
-#       result.varType = varValue.getNodeType()
-#       return # result
-#     return varDef
-
-proc parseVarDef(p: var Parser, ident: TokenTuple, varTypeDecl: TokenKind): Node =
+proc parseVarDef(p: var Parser, ident: TokenTuple, varType: TokenKind): Node =
   ## Parse a new variable definition
   result = newVariable(ident)
-  result.varImmutable = ident.kind == tkConst
+  result.varImmutable = varType == tkConst
 
-proc parseAssignment(p: var Parser, ident: TokenTuple, varTypeDecl: TokenKind): Node =
+prefixHandle pVarDecl:
+  # parse a variable declaration
+  let tk = p.curr
+  walk p
+  expectNot tkCompOperators + tkMathOperators + {tkUnknown}:
+    result = ast.newVariable(p.curr)
+    result.varImmutable = tk is tkConst
+    walk p
+    case p.curr.kind
+    of tkColon:
+      discard # todo handle typed var declarations
+    of tkAssign:
+      walk p
+      case p.curr.kind
+      of tkAssignable:
+        let varValue = p.getPrefixOrInfix()
+        notnil varValue:
+          result.varValue = varValue
+      else: discard
+    else: discard
+
+proc parseDotExpr(p: var Parser, lhs: Node): Node =
+  # parse dot expression
+  result = ast.newNode(ntDotExpr, p.next)
+  result.lhs = lhs
+  walk p # tkDot
+  if p.isFnCall():
+    result.rhs = p.pFunctionCall()
+  elif p.curr is tkIdentifier:
+    result.rhs = ast.newNode(ntIdent, p.curr)
+    result.rhs.identName = p.curr.value
+    walk p
+  else: return nil
+  while true:
+    case p.curr.kind
+    of tkDot:
+      if p.curr.line == result.meta[0]:
+        result = p.parseDotExpr(result)
+      else: break
+    of tkLB:
+      if p.curr.line == result.meta[0]:
+        result = p.parseArrayAccessor(result)
+      else: break
+    else:
+      break # todo handle infix expressions
+
+proc parseBracketExpr(p: var Parser, lhs: Node): Node =
+  # parse bracket expression
+  result = ast.newNode(ntBracketExpr, p.prev)
+  walk p # tkLB
+  let index = p.getPrefixOrInfix()
+  notnil index:
+    result.bracketIndex = index
+    result.bracketLeft = lhs
+  expectWalk tkRB
+  while true:
+    case p.curr.kind
+    of tkLB:
+      if p.curr.line == result.meta[0]:
+        result = p.parseBracketExpr(result)
+      else: break
+    of tkDot:
+      if p.curr.line == result.meta[0]:
+        result = p.parseDotExpr(result)
+      else: break
+    else:
+      break # todo handle infix expressions
+
+proc parseAssignment(p: var Parser, ident: TokenTuple): Node =
   ## parse a new assignment
-  if ident in {tkVar, tkConst}: # var x / const y definition
-    var varDef = p.parseVarDef(ident, varTypeDecl)
-    if likely(varDef != nil):
-      let varValue = p.getPrefixOrInfix()
-      if likely(varValue != nil):
-        # varDef.varType = varValue.getNodeType
-        varDef.varValue = varValue
-        return varDef      
+  # if ident in {tkVar, tkConst}: # var x / const y definition
+  #   var varDef = p.parseVarDef(ident, varType)
+  #   notnil varDef:
+  #     let varValue = p.getPrefixOrInfix()
+  #     notnil varValue:
+  #       # varDef.varType = varValue.getNodeType
+  #       varDef.varValue = varValue
+  #       return varDef
   let varValue = p.getPrefixOrInfix()
-  if likely(varValue != nil):
-    return newAssignment(ident, varValue)
+  notnil varValue:
+    result = ast.newAssignment(ident, varValue)
 
-newPrefixProc "parseAnoArray":
+prefixHandle parseAnoArray:
   ## parse an anonymous array
   walk p # [
   var anno = newArray()
   while p.curr.kind != tkRB:
     var item = p.getPrefixOrInfix(includeOnly = tkAssignableValue + {tkLB, tkLC})
-    if likely(item != nil):
-      if anno.arrayType == ntVoid:
-        # set type of array
-        anno.arrayType = item.getNodeType
-      elif item.getNodeType != anno.arrayType:
-        discard # error invalid type, expecting `x`
+    notnil item:
+      # if anno.arrayType == ntVoid:
+      #   # set type of array
+      #   anno.arrayType = item.getNodeType
+      # elif item.getNodeType != anno.arrayType:
+      #   discard # error invalid type, expecting `x`
       add anno.arrayItems, item
-    else:
+    do:
       if p.curr is tkLB:
         item = p.parseAnoArray()
-        if likely(item != nil):
+        notnil item:
           add anno.arrayItems, item
-        else: return # todo error multi dimensional array
       elif p.curr is tkLC:
         item = p.parseAnoObject()
-        if likely(item != nil):
+        notnil item:
           add anno.arrayItems, item
-        else: return # todo error object construction
       else: return # todo error
     if p.curr is tkComma:
       walk p
@@ -115,28 +136,26 @@ newPrefixProc "parseAnoArray":
     walk p # ]
   return anno
 
-newPrefixProc "parseAnoObject":
+prefixHandle parseAnoObject:
   ## parse an anonymous object
-  let anno = newObject()
+  let anno = ast.newObject()
   walk p # {
   while p.curr.value.isValidIdent() and p.next.kind == tkColon:
     let fName = p.curr
     walk p, 2
     if likely(anno.pairsVal.hasKey(fName.value) == false):
       var item = p.getPrefixOrInfix(includeOnly = tkAssignableValue + {tkLB, tkLC})
-      if likely(item != nil):
+      notnil item:
         anno.pairsVal[fName.value] = item
-      else:
+      do:
         if p.curr is tkLB:
           item = p.parseAnoArray()
-          if likely(item != nil):
+          notnil item:
             anno.pairsVal[fName.value] = item
-          else: return # todo error multi dimensional array
         elif p.curr is tkLC:
           item = p.parseAnoObject()
-          if likely(item != nil):
+          notnil item:
             anno.pairsVal[fName.value] = item
-          else: return # todo error object construction
         else: return # todo error
     else:
       errorWithArgs(duplicateObjectKey, fName, [fName.value])
@@ -189,31 +208,30 @@ proc parseObjectAccessor(p: var Parser, accStorage: Node): Node =
     return # result
   error(missingRB, p.curr)
 
-proc parseCallAccessor(p: var Parser, accStorage: Node): Node =
-  walk p # tkLB
-  let varCall = p.parseCallCommand()
-  if likely(varCall != nil):
-    case varCall.callNode.varType
-    of ntString:
-      result = newAccessor(ntObject, accStorage)
-      result.accessorKey = varCall
-    of ntInt:
-      result = newAccessor(ntArray, accStorage)
-      result.accessorKey = varCall
-    else:
-      return nil
-  if likely(p.curr is tkRB):
-    walk p # tkRB
+# proc parseCallAccessor(p: var Parser, accStorage: Node): Node =
+#   walk p # tkLB
+#   let varCall = p.pIdentCall()
+#   notnil varCall:
+#     case varCall.identNode.varType
+#     of ntString:
+#       result = newAccessor(ntObject, accStorage)
+#       result.accessorKey = varCall
+#     of ntInt:
+#       result = newAccessor(ntArray, accStorage)
+#       result.accessorKey = varCall
+#     else:
+#       return nil
+#   if likely(p.curr is tkRB):
+#     walk p # tkRB
 
-newPrefixProc "parseAssignment":
+prefixHandle parseAssignment:
   let ident = p.curr
-  let varTypeDecl = p.next.kind
-  walk p, 2
+  walk p
+  expectWalk tkAssign
   result =
     case p.curr.kind:
-    of tkLB:              p.parseArrayAssignment(ident, varTypeDecl)
-    of tkLC:              p.parseObjectAssignment(ident, varTypeDecl)
-    of tkAssignableValue: p.parseAssignment(ident, varTypeDecl)
+    # of tkLB:              p.parseArrayAssignment(ident)
+    # of tkLC:              p.parseObjectAssignment(ident, vartype)
+    of tkAssignableValue:
+      p.parseAssignment(ident)
     else: nil
-  # if likely(p.hasErrors == false and result != nil):
-    # p.stack(result, scope) # add in scope
