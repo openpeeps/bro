@@ -705,6 +705,9 @@ newHandler loopEval:
   of ntBracketExpr:
     let items = c.bracketEvaluator(node.loopItems, scopetables)
     loopEvaluator(node.loopItem, items)
+  of ntCallFunction:
+    let items = c.functionCall(node.loopItems, scopetables)
+    loopEvaluator(node.loopItem, items)
   else: compileErrorWithArgs(invalidIterator)
 
 newHandler commandEval:
