@@ -4,9 +4,7 @@
 #          Made by Humans from OpenPeeps
 #          https://github.com/openpeeps/bro
 
-# import std/[times, os, strutils]
-# import ../bro/[parser, compiler]
 import pkg/kapsis/[runtime, cli]
 
 proc runCommand*(v: Values) =
-  echo "Not implemented"
+  discard

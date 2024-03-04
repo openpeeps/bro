@@ -78,7 +78,7 @@ proc runCommand*(v: Values) =
   let broCommand = execCmdEx("bro " & stylesheetPath & " " & cssPath & " " & cflags.join(" "))
   display(broCommand.output)
   if broCommand.exitCode != 0: QuitFailure.quit
-  startThread(watchoutCallback, watchMain, delay, shouldJoinThread = v.flag("sync") == false)
+  # startThread(watchoutCallback, watchMain, delay, shouldJoinThread = v.flag("sync") == false)
 
   if v.flag("sync"):
     const inlineCSS = """

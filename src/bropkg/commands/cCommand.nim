@@ -38,7 +38,11 @@ proc runCommand*(v: Values) =
 
   let
     t = getMonotime()
-    p = parser.parseStylesheet(readFile(stylesheetPath), stylesheetPath, enableCache = v.flag("cache"))
+    p = parser.parseStylesheet(
+      readFile(stylesheetPath),
+      stylesheetPath,
+      enableCache = v.flag("cache")
+    )
 
   if unlikely(p.logger.warnLogs.len > 0):
     for warning in p.logger.warnings:
@@ -62,6 +66,7 @@ proc runCommand*(v: Values) =
     display(" 👉 " & c.logger.filePath)
     QuitFailure.quit
 
+  let total = $(getMonotime() - t)
   if hasOutput:
     # if v.flag("gzip"):
     #   writeFile(cssPath.changeFileExt(".css.gzip"), compress(c.getCSS, dataFormat = dfGzip))
@@ -70,5 +75,5 @@ proc runCommand*(v: Values) =
   else:
     display(c.getCSS)
   if hasOutput:
-    display("Done in " & $(getMonotime() - t))
+    display("Done in " & total)
   QuitSuccess.quit
