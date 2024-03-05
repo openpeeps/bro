@@ -40,7 +40,8 @@ proc walkSubNodes(c: var Compiler, node, parent: Node,
       scopetables: var seq[ScopeTable], len: int, ix: var int)
 
 proc getValue(c: var Compiler, node: Node,
-    scopetables: var seq[ScopeTable], printError = true): Node
+    scopetables: var seq[ScopeTable], printError = true,
+    toRootvalue = true): Node
 
 proc typeCheck(c: var Compiler, x, node: Node): bool
 proc typeCheck(c: var Compiler, node: Node, expect: NodeType): bool
@@ -64,7 +65,7 @@ proc functionCall(c: var Compiler, node: Node,
 # template errors
 #
 template printTypeMismatch {.dirty.} =
-  compileErrorWithArgs(typeMismatch, [$op, $(ln.nt), $(rn.nt)], rn.meta)
+  compileErrorWithArgs(typeMismatch, [$(rn.nt), $(ln.nt)], rn.meta)
 
 template exploreAst =
     var info =
@@ -256,6 +257,16 @@ proc sizeToString(v: Node): string =
   of ntFloat: $(v.sizeVal.fVal) & $(v.sizeUnit)
   else: "" # todo support for callables
 
+proc toString(node: JsonNode, escape = false): string =
+  result =
+    case node.kind
+    of JString: node.str
+    of JInt:    $node.num
+    of JFloat:  $node.fnum
+    of JBool:   $node.bval
+    of JObject, JArray: $(node)
+    else: "null"
+
 proc toString(node: Node): string =
   result =
     case node.nt
@@ -271,7 +282,8 @@ proc toString(node: Node): string =
     of ntObject:
       fromJson(jsony.toJson(node.pairsVal)).pretty
     of ntStream:
-      fromJson(jsony.toJson(node.streamContent)).pretty
+      node.streamContent.toString
+      # fromJson(jsony.toJson(node.streamContent)).pretty
     else: ""
 
 template print(v: Node) =
@@ -290,7 +302,8 @@ proc getValues(c: var Compiler, node: Node,
   add result, c.getValue(node.infixRight, scopetables)
 
 proc getValue(c: var Compiler, node: Node,
-    scopetables: var seq[ScopeTable], printError = true): Node =
+    scopetables: var seq[ScopeTable],
+    printError = true, toRootvalue = true): Node =
   notnil node:
     case node.nt
     of ntString, ntInt, ntFloat, ntBool,
@@ -311,7 +324,11 @@ proc getValue(c: var Compiler, node: Node,
     of ntDotExpr:
       result = c.dotEvaluator(node, scopetables)
     of ntSize:
-      result = node.sizeVal
+      case toRootvalue:
+      of true:
+        result = node.sizeVal
+      else:
+        result = node
     of ntCallFunction:
       result = c.functionCall(node, scopetables)
     of ntBracketExpr:
@@ -363,14 +380,28 @@ proc walkAccessorStorage(c: var Compiler,
     lhs, rhs: Node, scopetables: var seq[ScopeTable]): Node =
   case lhs.nt
   of ntIdent:
-    let x = c.getValue(lhs, scopetables)
-    notnil x:
-      result = c.walkAccessorStorage(x, rhs, scopetables)
+    let lhs = c.getValue(lhs, scopetables)
+    notnil lhs:
+      case rhs.nt
+      of ntCallFunction:
+        rhs.fnCallArgs.insert(lhs, 0)
+        result = c.functionCall(rhs, scopetables)
+        rhs.fnCallArgs.del(0)
+      else:
+        result = c.walkAccessorStorage(lhs, rhs, scopetables)
   of ntObject:
     case rhs.nt
     of ntIdent:
       try:
         result = lhs.pairsVal[rhs.identName]
+      except KeyError:
+        compileErrorWithArgs(undeclaredField, [rhs.identName], rhs.meta)
+    else: compileErrorWithArgs(invalidAccessorStorage, [rhs.toString, $lhs.nt], rhs.meta)
+  of ntStream:
+    case rhs.nt
+    of ntIdent:
+      try:
+        result = ast.newStream(lhs.streamContent[rhs.identName])
       except KeyError:
         compileErrorWithArgs(undeclaredField, [rhs.identName], rhs.meta)
     else: compileErrorWithArgs(invalidAccessorStorage, [rhs.toString, $lhs.nt], rhs.meta)
@@ -389,7 +420,32 @@ proc walkAccessorStorage(c: var Compiler,
   of ntDotExpr:
     let lhs = c.dotEvaluator(lhs, scopetables)
     notnil lhs:
-      return c.walkAccessorStorage(lhs, rhs, scopetables)
+      case rhs.nt
+      of ntCallFunction:
+        rhs.fnCallArgs.insert(lhs, 0)
+        result = c.functionCall(rhs, scopetables)
+        rhs.fnCallArgs.del(0)
+      else:
+        return c.walkAccessorStorage(lhs, rhs, scopetables)
+  of ntCallFunction:
+    case rhs.nt
+    of ntCallFunction:
+      let lhs = c.functionCall(lhs, scopetables)
+      notnil lhs:
+        rhs.fnCallArgs.insert(lhs, 0)
+        result = c.functionCall(rhs, scopetables)
+        rhs.fnCallArgs.del(0)
+    else:
+      let lhs = c.functionCall(lhs, scopetables)
+      notnil lhs:
+        return c.walkAccessorStorage(lhs, rhs, scopetables)
+  # of ntString, ntInt, ntFloat:
+  #   case rhs.nt
+  #   of ntDotExpr:
+  #     # rhs.fnCallArgs.insert(lhs, 0)
+  #     # result = c.functionCall(rhs, scopetables)
+  #     # rhs.fnCallArgs.del(0)
+  #   else: discard # error? invalid dot expression
   else: discard # todo
 
 proc dotEvaluator(c: var Compiler, node: Node,
@@ -409,6 +465,7 @@ proc infixEvaluator(c: var Compiler, lhs, rhs: Node,
   let
     ln = c.getValue(lhs, scopetables)
     rn = c.getValue(rhs, scopetables)
+  if unlikely(ln == nil or rn == nil): return
   case op
   of EQ:
     case ln.nt
@@ -422,7 +479,7 @@ proc infixEvaluator(c: var Compiler, lhs, rhs: Node,
         if lhs.nt == ntSize and rhs.nt == ntSize:
           return toFloat(ln.iVal) == rn.fVal and lhs.sizeUnit == rhs.sizeUnit
         result = toFloat(ln.iVal) == rn.fVal
-      else: discard
+      else: printTypeMismatch
     of ntFloat:
       case rn.nt
       of ntInt:
@@ -433,7 +490,7 @@ proc infixEvaluator(c: var Compiler, lhs, rhs: Node,
         if lhs.nt == ntSize and rhs.nt == ntSize:
           return ln.fVal == rn.fVal and lhs.sizeUnit == rhs.sizeUnit
         result = ln.fVal == rn.fVal
-      else: discard
+      else: printTypeMismatch
     of ntColor:
       case rn.nt
       of ntColor:
@@ -458,14 +515,14 @@ proc infixEvaluator(c: var Compiler, lhs, rhs: Node,
         result = ln.iVal != rn.iVal
       of ntFloat:
         result = toFloat(ln.iVal) != rn.fVal
-      else: discard
+      else: printTypeMismatch
     of ntFloat:
       case rn.nt
       of ntInt:
         result = toFloat(ln.iVal) != rn.fVal
       of ntFloat:
         result = ln.fVal != rn.fVal
-      else: discard
+      else: printTypeMismatch
     else: discard
   of GT:
     case lhs.nt:
@@ -475,14 +532,14 @@ proc infixEvaluator(c: var Compiler, lhs, rhs: Node,
         result = lhs.iVal > rhs.iVal
       of ntFloat:
         result = toFloat(lhs.iVal) > rhs.fVal
-      else: discard
+      else: printTypeMismatch
     of ntFloat:
       case rhs.nt
       of ntFloat:
         result = lhs.fVal > rhs.fVal
       of ntInt:
         result = lhs.fVal > toFloat(rhs.iVal)
-      else: discard
+      else: printTypeMismatch
     of ntIdent:
       let lhs = c.getValue(lhs, scopetables)
       if likely(lhs != nil):
@@ -496,14 +553,14 @@ proc infixEvaluator(c: var Compiler, lhs, rhs: Node,
         result = lhs.iVal >= rhs.iVal
       of ntFloat:
         result = toFloat(lhs.iVal) >= rhs.fVal
-      else: discard
+      else: printTypeMismatch
     of ntFloat:
       case rhs.nt
       of ntFloat:
         result = lhs.fVal >= rhs.fVal
       of ntInt:
         result = lhs.fVal >= toFloat(rhs.iVal)
-      else: discard
+      else: printTypeMismatch
     of ntIdent:
       let lhs = c.getValue(lhs, scopetables)
       if likely(lhs != nil):
@@ -517,14 +574,14 @@ proc infixEvaluator(c: var Compiler, lhs, rhs: Node,
         result = lhs.iVal < rhs.iVal
       of ntFloat:
         result = toFloat(lhs.iVal) < rhs.fVal
-      else: discard
+      else: printTypeMismatch
     of ntFloat:
       case rhs.nt
       of ntFloat:
         result = lhs.fVal < rhs.fVal
       of ntInt:
         result = lhs.fVal < toFloat(rhs.iVal)
-      else: discard
+      else: printTypeMismatch
     of ntIdent:
       let lhs = c.getValue(lhs, scopetables)
       if likely(lhs != nil):
@@ -538,14 +595,14 @@ proc infixEvaluator(c: var Compiler, lhs, rhs: Node,
         result = lhs.iVal <= rhs.iVal
       of ntFloat:
         result = toFloat(lhs.iVal) <= rhs.fVal
-      else: discard
+      else: printTypeMismatch
     of ntFloat:
       case rhs.nt
       of ntFloat:
         result = lhs.fVal <= rhs.fVal
       of ntInt:
         result = lhs.fVal <= toFloat(rhs.iVal)
-      else: discard
+      else: printTypeMismatch
     of ntIdent:
       let lhs = c.getValue(lhs, scopetables)
       if likely(lhs != nil):
@@ -597,6 +654,8 @@ newHandler varDecl:
       of ntIdent:
         node.varValue = deepCopy(x)
       of ntCallFunction:
+        node.varValue = x
+      of ntDotExpr:
         node.varValue = x
       else: discard
       c.stack(node.varName, node, scopetables)
@@ -728,19 +787,24 @@ newHandler functionCall:
     let fnNode = some.scopeTable[node.fnCallIdentName]
     if fnNode.fnParams.len == node.fnCallArgs.len:
       if fnNode.fnFwdDecl:
-        # echo fnNode
-        # echo node
         let params = fnNode.fnParams.keys.toSeq()
         var args: seq[stdlib.Arg]
         for i in 0..node.fnCallArgs.high:
-          let param = fnNode.fnParams[params[i]]
-          if c.typeCheck(node.fnCallArgs[i], param[1]):
-            add args, (param[0][1..^1], node.fnCallArgs[i])
+          try:
+            let param = fnNode.fnParams[params[i]]
+            let argValue = c.getValue(node.fnCallArgs[i], scopetables, toRootvalue = false)
+            if c.typeCheck(argValue, param[1]):
+              add args, (param[0][1..^1], argValue)
+            else: return # typeCheck returns `typeMismatch`
+          except Defect:
+            compileErrorWithArgs(fnExtraArg, [node.fnCallIdentName, $(params.len), $(node.fnCallArgs.len)])
         try:
           return stdlib.call(fnNode.fnSource, fnNode.fnName, args)
         except SystemModule as e:
           compileErrorWithArgs(internalError, [e.msg, fnNode.fnSource, fnNode.fnName], node.meta)
-    else: discard # todo check optional args
+    else: 
+      # todo check optional args
+      echo "?"
   do:
     compileErrorWithArgs(fnUndeclared, [node.fnCallIdentName], node.meta)
 
@@ -875,7 +939,7 @@ proc walkNodes(c: var Compiler, node: Node, scope: var seq[ScopeTable]): Node {.
       # of ntCallFunction:  fnCallVoid
       of ntComment: nil
       else:
-        echo node.nt
+        # echo node.nt
         compileErrorWithArgs(invalidContext, [$(node.nt)])
   if likely(callableHandler != nil):
     discard callableHandler(c, node, scope)

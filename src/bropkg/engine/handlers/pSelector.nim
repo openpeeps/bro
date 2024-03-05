@@ -96,7 +96,7 @@ prefixHandle parseClass:
       node = tk.newClass(concat = concatNodes)
       p.currentSelector = node
       result = p.parseSelector(node, tk)
-      # p.program.selectors[tk.value] = result
+      p.program.selectors[tk.value] = result
   do:
     if p.program.selectors.hasKey(tk.value):
       reuseDeclaredSelector()
@@ -104,7 +104,7 @@ prefixHandle parseClass:
       node = tk.newClass()
       p.currentSelector = node
       result = p.parseSelector(node, tk, eatIdent = true)
-      # p.program.selectors[tk.value] = result
+      p.program.selectors[tk.value] = result
 
 prefixHandle parseSelectorTag:
   let tk = p.curr

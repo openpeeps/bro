@@ -27,18 +27,15 @@ prefixHandle parseExtend:
   of tkID:
     discard
   else:
-    discard # todo
-  
+    discard # todo  
   let ident = p.curr
   if likely(p.program.selectors.hasKey(ident.value)):
-    # look into the current stylesheet
     let pNode = p.program.selectors[ident.value]
     p.resolveExtended(pNode, p.program)
     if not p.hasErrors:
       walk p
     else: return
     return Node(nt: ntExtend)
-
   # otherwise, look into imported stylesheets
   # for (key, index) in p.stylesheets.keys:
   #   p.stylesheets.withFound(key, index):

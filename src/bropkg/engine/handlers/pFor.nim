@@ -9,10 +9,10 @@ prefixHandle parseFor:
   let tk = p.curr
   if p.next is tkVarCall:
     walk p # tkFor
-    var keyToken = p.curr
-    keyToken.kind = tkConst # be parsed as a const
-    keyToken.value = keyToken.value[1..^1]
-    var keyNode = p.parseVarDef(keyToken, tkAssign)
+    var item = p.curr
+    item.kind = tkConst # be parsed as a const
+    item.value = item.value[1..^1]
+    var keyNode = p.parseVarDef(item, item)
     var valNode: Node
     walk p
     if p.curr is tkIn:
@@ -21,10 +21,10 @@ prefixHandle parseFor:
     elif p.curr is tkComma:
       walk p
       if p.curr is tkVarCall:
-        var valToken = p.curr
-        valToken.kind = tkConst # be parsed as a const
+        var items = p.curr
+        items.kind = tkConst # be parsed as a const
         keyNode.varInitType = ntObject
-        valNode = p.parseVarDef(valToken, tkAssign)
+        valNode = p.parseVarDef(items, items)
         walk p
         if likely(p.curr is tkIn):
           walk p

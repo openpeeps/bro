@@ -9,7 +9,8 @@ import std/[tables, hashes, strutils, json, sequtils]
 import ./critbits
 
 from ./tokens import TokenKind, TokenTuple
-export critbits
+
+export critbits, chroma
 
 when not defined release:
   import std/jsonutils
@@ -621,9 +622,9 @@ proc newCall*(tk: TokenTuple): Node =
   ## Create a new call node
   Node(nt: ntIdent, identName: tk.value, meta: tk.trace)
 
-proc newCall*(id: string, args: seq[Node], types: seq[NodeType]): Node =
+proc newCall*(id: TokenTuple, args: seq[Node], types: seq[NodeType]): Node =
   ## Create a new call node
-  Node(nt: ntCallFunction, fnCallArgs: args, fnCallIdentName: id, fnCallIdent: identify(id, types))
+  Node(nt: ntCallFunction, fnCallArgs: args, fnCallIdentName: id.value, fnCallIdent: identify(id.value, types), meta: id.trace)
 
 proc newFnCall*[N: Node](returnType: NodeType, args: seq[N], ident, name: string): Node =
   Node(nt: ntCallFunction, fnCallArgs: args, fnCallIdent: ident,
@@ -734,13 +735,13 @@ proc newCaseStmt*(caseIdent: Node): Node =
   ## Create a new ntCaseStmt
   Node(nt: ntCaseStmt, caseIdent: caseIdent)
 
-proc newFunction*(tk: TokenTuple): Node =
+proc newFunction*(tk, fn: TokenTuple): Node =
   ## Create a new function (low-level API)
-  Node(nt: ntFunction, fnName: tk.value, meta: [tk.line, tk.pos, tk.col])
+  Node(nt: ntFunction, fnName: tk.value, meta: [fn.line, fn.pos, fn.col])
 
-proc newMixin*(tk: TokenTuple): Node =
+proc newMixin*(tk, fn: TokenTuple): Node =
   ## Create a new mixin (low-level API)
-  Node(nt: ntMixin, fnName: tk.value, meta: [tk.line, tk.pos, tk.col])
+  Node(nt: ntMixin, fnName: tk.value, meta: [fn.line, fn.pos, fn.col])
 
 proc newFunction*(fnName: string): Node =
   ## Create a new function (low-level API)

@@ -67,17 +67,6 @@ prefixHandle pIdentCall:
       notnil result:
         discard
     else: discard # todo
-  #   var accessorNode = p.parseAccessor(newVariable(tk), tk)
-  #   if likely(accessorNode != nil):
-  #     result.identNode = accessorNode
-  #   else: error(invalidAccessorStorage, tk)
-  # elif p.curr is tkDot and p.curr.line == tk.line:
-  #   walk p
-  #   if likely(p.isFnCall()):
-  #     var fnCallNode = p.pFunctionCall()
-  #     fnCallNode.fnCallArgs.insert(result, 0)
-  #     fnCallNode.fnCallIdent = fnCallNode.fnCallIdentName & "|" & $(fnCallNode.fnCallArgs.len)
-  #     return fnCallNode
 
 prefixHandle parseEchoCommand:
   # Parse a new `echo` command

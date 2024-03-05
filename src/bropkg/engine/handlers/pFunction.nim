@@ -26,9 +26,9 @@ prefixHandle parseFn:
   walk p # `fn` / `mix`
   var fnNode =
     if fn is tkMixDef:
-      newMixin(fnName)
+      ast.newMixin(fnName, fn)
     else:
-      newFunction(fnName)
+      ast.newFunction(fnName, fn)
   var exported =
     if p.next is tkMultiply:
       walk p
@@ -57,7 +57,7 @@ prefixHandle parseFn:
             walk p
             # todo support default assignments
           else: return # unexpectedToken
-        else: errorWithArgs(fnAttemptRedefineIdent, pName, [pName.value])
+        else: errorWithArgs(fnRedefineIdent, pName, [pName.value])
       of tkAssign:
         # Set type from implicit value
         if likely(fnNode.fnParams.hasKey(pName.value) == false):
@@ -66,11 +66,8 @@ prefixHandle parseFn:
           if likely(implValNode != nil):
             let nt = implValNode.getNodeType()
             fnNode.fnParams["$" & pName.value] = ("$" & pName.value, nt, implValNode)
-            # fnScope["$" & pName.value] = 
-              # newVariable("$" & pName.value, implValNode, tk = pName, isArg = true)
-            # fnScope["$" & pName.value].varType = nt
             types.add(nt)
-        else: errorWithArgs(fnAttemptRedefineIdent, pName, [pName.value])        
+        else: errorWithArgs(fnRedefineIdent, pName, [pName.value])        
       else: break # unexpectedToken
       if p.curr.kind == tkComma:
         walk p
@@ -121,11 +118,7 @@ prefixHandle parseFn:
     else: discard # todo
 
 prefixHandle pFunctionCall:
-  # Parse function calls with or without arguments,
-  # looking for the following pattern: 
-  # ```bass
-  # fn myfn($a: string, $b: Int = 0): string =
-  # ```
+  # parse a function call
   if p.curr is tkMixCall:
     walk p 
   let ident = p.curr
@@ -142,46 +135,12 @@ prefixHandle pFunctionCall:
     if p.curr is tkComma:
       walk p
   walk p # )
-  result = ast.newCall(ident.value, args, types)
-
-  # now try identify the function call
-  # var fn: Node
-  # let fnIdentName = identify(ident.value, types)
-  # if p.program.getStack.hasKey(fnIdentName):
-  #   fn = p.program.getStack()[fnIdentName]
-  # elif scope.len >= 1:
-  #   if scope[^1].hasKey(fnIdentName):
-  #     fn = scope[^1][fnIdentName]
-  #   else:
-  #     for mName, mIndex in p.stylesheets.keys:
-  #       p.stylesheets.withFound(mName, mIndex):
-  #         if value[].getStack.hasKey(fnIdentName):
-  #           fn = value[].getStack()[fnIdentName]
-  #           p.program.getStack()[fnIdentName] = fn
-  #           break
-  #     if unlikely(fn == nil):
-  #       errorWithArgs(fnUndeclared, ident, [ident.value])
-  # else:
-    # errorWithArgs(fnUndeclared, ident, [ident.value])
-
-  # if likely(args.len <= fn.fnParams.len):
-  #   var i = 0
-  #   for pKey, pDef in fn.fnParams:
-  #     try:
-  #       # echo args[i].getTypedValue()
-  #       if likely(args[i].getTypedValue == pDef[1]):
-  #         use(args[i]) # mark argument as used
-  #       else: errorWithArgs(fnMismatchParam, ident, [pDef[0], $(args[i].getNodeType), $(pDef[1])])
-  #     except IndexDefect:
-  #       error(fnExtraArg, ident)
-  #     inc i
-  #   use(fn) # mark function as used
-  #   # try get a memoized call
-  #   let hashedIdent = hashed(fnIdentName & $(args))
-  #   result = memoized(p.mCall, hashedIdent)
-  #   if result == nil:
-  #     # otherwise, create a new ntCallFunction, then memoize it
-  #     result = newFnCall(fn.fnReturnType, args, fnIdentName, ident.value)
-  #     p.mCall.memoize(hashedIdent, result)
-  # else:
-  #   errorWithArgs(fnExtraArg, ident, [ident.value, $len(fn.fnParams), $len(args)])
+  result = ast.newCall(ident, args, types)
+  # case p.curr.kind
+  # of tkDot:
+  #   if p.curr.line == result.meta[0]:
+  #     # var dotExpr = p.parseDotExpr(nil)
+  #     # dotExpr.lhs = dotExpr.rhs
+  #     # dotExpr.rhs = result
+  #     return p.parseDotExpr(result)
+  # else: discard

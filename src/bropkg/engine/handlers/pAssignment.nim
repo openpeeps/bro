@@ -20,17 +20,17 @@ proc isValidIdent(s: string): bool =
       if s[i] notin IdentCharsWithHyphen: return false
     return true
 
-proc parseVarDef(p: var Parser, ident: TokenTuple, varType: TokenKind): Node =
+proc parseVarDef(p: var Parser, ident, vtype: TokenTuple): Node =
   ## Parse a new variable definition
-  result = newVariable(ident)
-  result.varImmutable = varType == tkConst
+  result = ast.newVariable(ident.value, nil, vtype)
+  result.varImmutable = vtype.kind == tkConst
 
 prefixHandle pVarDecl:
   # parse a variable declaration
   let tk = p.curr
   walk p
   expectNot tkCompOperators + tkMathOperators + {tkUnknown}:
-    result = ast.newVariable(p.curr)
+    result = ast.newVariable(p.curr.value, nil, tk)
     result.varImmutable = tk is tkConst
     walk p
     case p.curr.kind
@@ -70,7 +70,8 @@ proc parseDotExpr(p: var Parser, lhs: Node): Node =
       else: break
     else:
       break # todo handle infix expressions
-
+  # echo result
+  
 proc parseBracketExpr(p: var Parser, lhs: Node): Node =
   # parse bracket expression
   result = ast.newNode(ntBracketExpr, p.prev)
@@ -165,17 +166,17 @@ prefixHandle parseAnoObject:
     walk p
   return anno
 
-proc parseArrayAssignment(p: var Parser, ident: TokenTuple, varTypeDecl: TokenKind): Node =
+proc parseArrayAssignment(p: var Parser, ident, vtype: TokenTuple): Node =
   ## parse array construction using `[]` and assign to a variable  
-  result = p.parseVarDef(ident, varTypeDecl)
+  result = p.parseVarDef(ident, vtype)
   if unlikely(result == nil): return nil
   result.varValue = p.parseAnoArray()
   result.varType = ntArray
   result.varInitType = ntArray
 
-proc parseObjectAssignment(p: var Parser, ident: TokenTuple, varTypeDecl: TokenKind): Node =
+proc parseObjectAssignment(p: var Parser, ident, vtype: TokenTuple): Node =
   ## parse object construction using `{}` and assign to a variable 
-  result = p.parseVarDef(ident, varTypeDecl)
+  result = p.parseVarDef(ident, vtype)
   if unlikely(result == nil): return nil
   result.varValue = p.parseAnoObject()
   result.varType = ntObject
@@ -207,22 +208,6 @@ proc parseObjectAccessor(p: var Parser, accStorage: Node): Node =
     walk p # tkRB
     return # result
   error(missingRB, p.curr)
-
-# proc parseCallAccessor(p: var Parser, accStorage: Node): Node =
-#   walk p # tkLB
-#   let varCall = p.pIdentCall()
-#   notnil varCall:
-#     case varCall.identNode.varType
-#     of ntString:
-#       result = newAccessor(ntObject, accStorage)
-#       result.accessorKey = varCall
-#     of ntInt:
-#       result = newAccessor(ntArray, accStorage)
-#       result.accessorKey = varCall
-#     else:
-#       return nil
-#   if likely(p.curr is tkRB):
-#     walk p # tkRB
 
 prefixHandle parseAssignment:
   let ident = p.curr

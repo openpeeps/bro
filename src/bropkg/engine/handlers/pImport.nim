@@ -72,7 +72,7 @@ proc importer(fpath, dirPath: string, results: ptr Table[string, Stylesheet],
 proc importSystemModule(p: var Parser) =
   ## Make `std/system` available by default
   let sysid = "std/system"
-  var sysImport = newImport()
+  var sysImport = ast.newImport()
   sysImport.modules.add(sysid)
   p.program.nodes.add(sysImport)
   var L = initTicketLock()
@@ -82,7 +82,7 @@ proc importSystemModule(p: var Parser) =
 prefixHandle parseImport:
   # Parse a new `@import x` statement.
   {.gcsafe.}:
-    result = newImport()
+    result = ast.newImport()
     var m = createMaster()
     var importsOrder: seq[string]
     var L = initTicketLock()

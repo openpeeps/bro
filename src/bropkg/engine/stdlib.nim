@@ -9,7 +9,10 @@ import ./critbits, ./ast
 
 # std lib dependencies
 import pkg/[jsony, nyml, chroma]
-import std/[os, math, fenv, strutils, sequtils, random, unicode, json]
+import std/[os, math, fenv, strutils, sequtils,
+  random, unicode, json, base64]
+
+import ./css
 
 type
   Arg* = tuple[name: string, value: Node]
@@ -119,7 +122,15 @@ macro initStandardLibrary() =
       fwd("yaml", ntStream, [(ntString, "path")], wrapper = getAst(systemStreamFunction())),
       fwd("rand", ntInt, [(ntInt, "max")], "random", wrapper = getAst(systemRandomize())),
       fwd("len", ntInt, [(ntString, "x")]),
-      # fwd("inc", ntInt, [(ntMutInt, "x"), (ntInt, "y")], wrapper = getAst(systemInc()))
+      fwd("encode", ntString, [(ntString, "str")], loadFrom = "base64"),
+      fwd("url", ntString, [(ntString, "path")], loadFrom = "css"),
+      fwd("abs", ntString, [(ntInt, "x")], loadFrom = "css"),
+      fwd("acos", ntInt, [(ntInt, "x")], loadFrom = "css"),
+      fwd("asin", ntInt, [(ntInt, "x")], loadFrom = "css"),
+      fwd("atan", ntInt, [(ntInt, "x")], loadFrom = "css"),
+      fwd("atan", ntFloat, [(ntFloat, "x")], loadFrom = "css"),
+      fwd("fitContent", ntString, [(ntSize, "x")], "fit-content", loadFrom = "css"),
+      fwd("conicGradient", ntString, [(ntColor, "a"), (ntColor, "b"), (ntColor, "c")], "conic-gradient", loadFrom = "css")
     ]
 
   let
@@ -288,13 +299,14 @@ macro initStandardLibrary() =
     a
   let
     fnOs = @[
-      fwd("absolutePath", ntString, [(ntString, "path")], "absolute"),
+      fwd("absolutePath", ntString, [(ntString, "path")]),
       fwd("dirExists", ntBool, [(ntString, "path")]),
       fwd("fileExists", ntBool, [(ntString, "path")]),
       fwd("normalizedPath", ntString, [(ntString, "path")], "normalize"),
       # fwd("splitFile", ntTuple, [ntString]),
       fwd("extractFilename", ntString, [(ntString, "path")], "getFilename"),
       fwd("isAbsolute", ntBool, [(ntString, "path")]),
+      fwd("readFile", ntString, [(ntString, "path")], loadFrom="system"),
       fwd("isRelativeTo", ntBool, [(ntString, "path"), (ntString, "base")], "isRelative"),
       fwd("getCurrentDir", ntString),
       fwd("joinPath", ntString, [(ntString, "head"), (ntString, "tail")], "join"),
@@ -312,6 +324,7 @@ macro initStandardLibrary() =
     # ("critbits", fnObjects, "objects"),
     ("os", fnOs, "os")
   ]
+  echo "Generate Standard Library"
   for lib in libs:
     var sourceCode: string
     for fn in lib[1]:
@@ -359,7 +372,10 @@ macro initStandardLibrary() =
             else:
               newCall(newDotExpr(ident(fn.loadFrom), ident(fn.id)))
           else:
-            newCall(ident(fn.id))
+            if fn.loadFrom.len == 0:
+              newCall(newDotExpr(ident("system"), ident(fn.id)))
+            else:
+              newCall(newDotExpr(ident(fn.loadFrom), ident(fn.id)))
         for arg in fn.args:
           let fieldName =
             case arg[0]
@@ -370,9 +386,23 @@ macro initStandardLibrary() =
             of ntArray: "arrayItems"
             of ntObject: "pairsVal"
             of ntColor: "cValue"
+            of ntSize: ""
             else: "None"
-          callableNode.add(
-            newDotExpr(
+          if fieldName.len != 0:
+            callableNode.add(
+              newDotExpr(
+                newDotExpr(
+                  nnkBracketExpr.newTree(
+                    ident("args"),
+                    newLit(i)
+                  ),
+                  ident("value")
+                ),
+                ident(fieldName)
+              )
+            )
+          else:
+            callableNode.add(
               newDotExpr(
                 nnkBracketExpr.newTree(
                   ident("args"),
@@ -380,9 +410,7 @@ macro initStandardLibrary() =
                 ),
                 ident("value")
               ),
-              ident(fieldName)
             )
-          )
           inc i
         callNode = newCall(ident(valNode), callableNode)
       else:
@@ -407,7 +435,8 @@ macro initStandardLibrary() =
           newCall(ident("SourceCode"), newLit(sourceCode))
         )
       )
-    # echo sourceCode
+    echo "std/" & lib[2]
+    echo sourceCode
   # echo result.repr
 
 proc initstdlib*() =
