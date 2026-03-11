@@ -14,7 +14,7 @@ type
     lex: Lexer
     prev, curr, next: TokenTuple
   
-  ParserError* = object of ValueError
+  BroParserError* = object of ValueError
     file: string
     ln, col: int
 
@@ -28,7 +28,7 @@ const
 
 proc error(tk: TokenTuple, msg: string) =
   ## Raise a parsing error on the given node.
-  raise (ref ParserError)(
+  raise (ref BroParserError)(
           # file: node.file,
           ln: tk.line,
           col: tk.col,

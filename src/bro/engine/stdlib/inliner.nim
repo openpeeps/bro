@@ -18,7 +18,7 @@ proc addProc*(script: Script, module: Module, name: string,
   var nodeParams: seq[ProcParam]
   for param in params:
     case param.pKind
-    of tyHtmlElement:
+    of ttyHtmlElement:
       add nodeParams, (
         newIdent(param.pName),
         module.sym(param.pKindIdent),
@@ -67,7 +67,7 @@ proc compileCode*(script: Script, module: Module, filename, code: string) =
   var astProgram: Ast
   try:
     parser.parseScript(astProgram, code, "std/system/inline")
-  except ParserError as e:
+  except BroParserError as e:
     echo e.msg
     quit(1)
   try:

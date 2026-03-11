@@ -25,7 +25,7 @@ proc compileCode*(script: Script, module: Module, filename, code: string) =
   var astProgram: Ast
   try:
     parser.parseScript(astProgram, code, "std/system/inline")
-  except ParserError as e:
+  except BroParserError as e:
     echo e.msg
     quit(1)
   try:
@@ -73,7 +73,7 @@ proc cssCommand*(v: Values) =
   var program: Ast # the AST representation of the script
   try:
     parser.parseScript(program, code, srcPath)
-  except ParserError as e:
+  except BroParserError as e:
     echo e.msg
     quit(1)
 

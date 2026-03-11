@@ -26,7 +26,5 @@ requires "dotenv"
 requires "denim#head"
 requires "voodoo#head"
 
-requires "libffi"
 requires "chroma"
 requires "watchout#head"
-requires "htmlparser"
