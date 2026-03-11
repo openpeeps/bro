@@ -1,8 +1,1 @@
---path:"$projectDir/../src"
---threads:on
---define:useMalloc
---mm:arc
---deepcopy:on
---define:msgpack_obj_to_map
---define:httpxServerName:"BroStyleSync"
---define:nimPreviewHashRef
+switch("path", "$projectDir/../src")

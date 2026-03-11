@@ -1,8 +1,0 @@
-import std/colors
-var someArray = ["red", "green", "blue"]
-for $str in $someArray:
-  var x = parseColor($str)
-  .btn-{$str}
-    background-color: $x
-
-assert parseColor($someArray[0]) == toHex(red)
