@@ -1,5 +1,5 @@
 import std/options
-import pkg/voodoo/language/[chunk, codegen, ast, sym, value]
+import pkg/vancode/interpreter/[chunk, codegen, ast, sym, value]
 import ../parser
 
 type

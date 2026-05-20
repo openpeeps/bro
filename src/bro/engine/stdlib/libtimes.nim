@@ -8,7 +8,7 @@
 #          https://github.com/openpeeps/tim | https://openpeeps.dev/packages/tim
 
 import std/[times, options]
-import pkg/voodoo/language/[chunk, sym, value]
+import pkg/vancode/interpreter/[chunk, ast, sym, value]
 import ./inliner
 
 proc loadTimes*(script: Script, systemModule: Module): Module =
@@ -17,10 +17,10 @@ proc loadTimes*(script: Script, systemModule: Module): Module =
   result.load(systemModule)
 
   script.addProc(result, "now", @[], ttyString,
-    proc (args: StackView): Value =
+    proc (args: StackView, argc: int): Value =
       initValue($(now())))
 
   script.addProc(result, "getCurrentYear", @[], ttyInt,
-    proc (args: StackView): Value =
+    proc (args: StackView, argc: int): Value =
       result = initValue(now().year)
     )

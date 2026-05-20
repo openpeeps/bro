@@ -4,18 +4,17 @@
 #          Made by Humans from OpenPeeps
 #          https://github.com/openpeeps/bro
 
-import std/[os, monotimes, times, strutils, json, options, ropes]
-
-import pkg/[flatty, jsony]
+import std/[os, monotimes, times, strutils, options, ropes]
+import pkg/[flatty, openparser/json]
 import pkg/kapsis/[cli, runtime]
 
 import ../engine/parser
 import ../engine/stdlib/[libsystem, libarrays, libcss]
 
-import pkg/voodoo/language/[ast, codegen, chunk, sym, vm]
-import pkg/voodoo/packagemanager/packager
+import pkg/vancode/interpreter/[ast, codegen, chunk, sym, vm, value, resolver]
+import pkg/vancode/manager/packager
 
-proc parserCallback(astProgram: var Ast, path: string) =
+proc parserCallback(astProgram: var Ast, path: string, resolver: FileResolver) =
   parser.parseScript(astProgram, readFile(path), path)
 
 proc compileCode*(script: Script, module: Module, filename, code: string) =
@@ -36,10 +35,10 @@ proc compileCode*(script: Script, module: Module, filename, code: string) =
     echo e.msg
     quit(1)
 
-proc cssCommand*(v: Values) =
-  ## Build CSS from Bro files
+proc compileCommand*(v: Values) =
+  ## Kapsis command for compiling BASS files to CSS
   var
-    srcPath = $(v.get("in").getPath)
+    srcPath = $(v.get("source").getPath)
     outputPath = if v.has("-o"): v.get("-o").getStr else: ""
 
   if not srcPath.isAbsolute:

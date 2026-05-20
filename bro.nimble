@@ -15,7 +15,7 @@ binDir        = "bin"
 requires "nim >= 2.0.0"
 
 requires "kapsis#head"
-requires "jsony"
+requires "openparser"
 requires "flatty"
 requires "checksums"
 
@@ -24,7 +24,8 @@ requires "semver"
 requires "dotenv"
 
 requires "denim#head"
-requires "voodoo#head"
+requires "voodoo"
+requires "vancode"
 
 requires "chroma"
 requires "watchout#head"

@@ -6,7 +6,7 @@
 
 import std/[strutils, options, base64]
 import pkg/chroma
-import pkg/voodoo/language/[chunk, ast, sym, value]
+import pkg/vancode/interpreter/[chunk, ast, sym, value]
 
 import ./inliner
 
@@ -22,7 +22,7 @@ proc initCSS*(script: Script, systemModule: Module): Module =
   # CSS Functions
   #
   script.addProc(result, "url", @[paramDef("s", ttyString)], ttyString,
-    proc (args: StackView): Value =
+    proc (args: StackView, argc: int): Value =
       if args[0].stringVal[].len > 0:
         args[0]
       else:
@@ -35,18 +35,18 @@ proc initCSS*(script: Script, systemModule: Module): Module =
   # CSS Properties
   #
   script.addProc(result, "background-color", @[paramDef("s", ttyString)], ttyString,
-    proc (args: StackView): Value =
+    proc (args: StackView, argc: int): Value =
       discard parseHtmlColor(args[0].stringVal[])
       args[0]
   )
 
   script.addProc(result, "background-image", @[paramDef("s", ttyString)], ttyString,
-    proc (args: StackView): Value =
+    proc (args: StackView, argc: int): Value =
       args[0]
   )
 
   script.addProc(result, "background-origin", @[paramDef("s", ttyString)], ttyString,
-    proc (args: StackView): Value =
+    proc (args: StackView, argc: int): Value =
       if args[0].stringVal[] in ["border-box", "padding-box", "content-box"] or
           args[0].stringVal[] in defaultGlobalValues:
         args[0]
@@ -56,23 +56,23 @@ proc initCSS*(script: Script, systemModule: Module): Module =
   )
 
   script.addProc(result, "background-position-x", @[paramDef("s", ttyString)], ttyString,
-    proc (args: StackView): Value =
+    proc (args: StackView, argc: int): Value =
       args[0]
   )
 
 
   script.addProc(result, "background-position-y", @[paramDef("s", ttyString)], ttyString,
-    proc (args: StackView): Value =
+    proc (args: StackView, argc: int): Value =
       args[0]
   )
 
   script.addProc(result, "background-position", @[paramDef("x", ttyString), paramDef("y", ttyString)], ttyString,
-    proc (args: StackView): Value =
+    proc (args: StackView, argc: int): Value =
       initValue(args[0].stringVal[] & " " & args[1].stringVal[])
   )
 
   script.addProc(result, "background-repeat", @[paramDef("s", ttyString)], ttyString,
-    proc (args: StackView): Value =
+    proc (args: StackView, argc: int): Value =
       if args[0].stringVal[] in ["repeat", "repeat-x", "repeat-y", "no-repeat"] or
           args[0].stringVal[] in defaultGlobalValues:
         args[0]
@@ -82,7 +82,8 @@ proc initCSS*(script: Script, systemModule: Module): Module =
   )
 
   script.addProc(result, "color", @[paramDef("s", ttyString)], ttyString,
-    proc (args: StackView): Value =
+    proc (args: StackView, argc: int): Value =
       discard parseHtmlColor(args[0].stringVal[])
+      echo "Parsed color: ", args[0].stringVal[]
       args[0]
   )
