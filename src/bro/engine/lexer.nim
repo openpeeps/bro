@@ -12,7 +12,8 @@ type
     tkEOF
     tkIdentifier
     tkCssVar # css custom property, e.g. --my-var
-    tkNumber
+    tkInt
+    tkFloat
     tkString
     tkSemicolon = ";"
     tkColon = ":"
@@ -329,10 +330,21 @@ proc nextToken(lex: var Lexer): TokenTuple =
     result = initToken(lex, move(lex.strbuf), tkString, startLine, startCol, startPos, wsno)
   of '0'..'9':
     lex.strbuf.setLen(0)
+    # integer part
     while lex.current in {'0'..'9'}:
       lex.strbuf.add(lex.current)
       lex.advance()
-    result = initToken(lex, lex.strbuf, tkNumber, startLine, startCol, startPos, wsno)
+    # fractional part?
+    if lex.current == '.' and peek(lex).isDigit():
+      lex.strbuf.add('.')
+      lex.advance() # consume '.'
+      while lex.current in {'0'..'9'}:
+        lex.strbuf.add(lex.current)
+        lex.advance()
+      result = initToken(lex, lex.strbuf, tkFloat, startLine, startCol, startPos, wsno)
+    else:
+      result = initToken(lex, lex.strbuf, tkInt, startLine, startCol, startPos, wsno)
+
   of '$', '_':
     lex.strbuf.setLen(0)
     lex.strbuf.add(lex.current)

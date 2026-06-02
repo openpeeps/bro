@@ -24,7 +24,7 @@ const
   ComparisonOperators = {tkDoubleEqual, tkNotEqual, tkGT, tkGTE, tkLT, tkLTE}
   Operators = ComparisonOperators + MathOperators + {tkAssign}
   Strings = {tkString}
-  Assignables = {tkKeywordTrue, tkKeywordFalse, tkNumber, tkIdentifier} + Strings
+  Assignables = {tkKeywordTrue, tkKeywordFalse, tkInt, tkFloat, tkIdentifier} + Strings
 
 proc error(tk: TokenTuple, msg: string) =
   ## Raise a parsing error on the given node.
@@ -289,20 +289,23 @@ prefixHandle parseBoolLit:
 const unitSizeSuffixes = ["px", "em", "rem", "%", "vh", "vw", "vmin", "vmax"]
 
 prefixHandle parseNumber:
-  # parse a number
+  # parse a number (int or float)
   let num = p.curr
-  result =
-    try:
-      ast.newIntLit(parseInt(num.value.get()))
-    except ValueError:
-      nil
-  if result == nil:
+  if p.curr.kind == tkInt:
+    result =
+      try:
+        ast.newIntLit(parseInt(num.value.get()))
+      except ValueError:
+        nil
+  else:
+    # assume tkFloat
     result =
       try:
         ast.newFloatLit(parseFloat(num.value.get()))
       except ValueError:
         nil
   if result == nil: discard # todo error
+  debugecho result
   if p.next.kind == tkIdentifier and (p.next.line == num.line and p.next.wsno == 0):
     # handle unit suffixes for numbers, e.g., `10px`, `2em`, etc.
     walk p # consume the number token
@@ -689,9 +692,9 @@ prefixHandle parsePseudoSelector:
 prefixHandle parseHash:
   # If followed by an identifier (hex/word) or a number (e.g. #333),
   # combine into a single string literal
-  if p.next.kind in {tkIdentifier, tkNumber}:
+  if p.next.kind in {tkIdentifier, tkInt, tkFloat}:
     let val = "#" & p.next.value.get()
-    walk p, 2 # consume tkHash + tkIdentifier|tkNumber
+    walk p, 2 # consume tkHash + identifier/number
     result = ast.newStringLit(val)
   else:
     # fallback: consume the hash token alone
@@ -709,7 +712,7 @@ proc getPrefixFn(p: var Parser, minPrec: int): PrefixFunction =
     of tkKeywordVar, tkKeywordLet, tkKeywordConst: parseVar
     of tkCssVar: parseIdent
     of tkString: parseString
-    of tkNumber: parseNumber
+    of tkInt, tkFloat: parseNumber
     of tkKeywordTrue, tkKeywordFalse: parseBoolLit
     of tkKeywordFunction: parseFunction
     of tkKeywordIterator: parseIterator

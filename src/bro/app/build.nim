@@ -4,58 +4,93 @@
 #          Made by Humans from OpenPeeps
 #          https://github.com/openpeeps/bro
 
-import std/[os, monotimes, times, strutils, options, ropes]
+import std/[os, monotimes, times, options]
 
 import pkg/watchout
-import pkg/[flatty, openparser/json]
+import pkg/[openparser/json]
 import pkg/kapsis/[cli, runtime, interactive/prompts]
-
-import ../engine/parser
-import ../engine/stdlib/[libsystem, libarrays, libcss]
 
 import pkg/vancode/interpreter/[ast, codegen, chunk, sym, vm, value, resolver]
 import pkg/vancode/manager/packager
 
+import ../engine/parser
+import ../engine/stdlib/[libsystem, libarrays, libcss, libcolors]
+
 proc parserCallback(astProgram: var Ast, path: string, resolver: FileResolver) =
   parser.parseScript(astProgram, readFile(path), path)
 
-proc compileCode*(script: Script, module: Module, filename, code: string) =
-  ## Compile some hayago code to the given script and module.
-  ## Any generated toplevel code is discarded. This should only be used for
-  ## declarations of hayago-side things, eg. iterators.
-  var astProgram: Ast
+proc compileCode(filePath: string,
+          pkgr: Packager, globalData: JsonNode, localData: JsonNode,
+          output: bool = false, outputPath: string = "") =
+  # Compile the BASS code at `filePath` and optionally save the output to `
+  var program: Ast # the AST representation of the script
+  let code = readFile(filePath)
   try:
-    parser.parseScript(astProgram, code, "std/system/inline")
+    parser.parseScript(program, code, filePath)
   except BroParserError as e:
     echo e.msg
     quit(1)
+
+  var mainChunk = newChunk(filePath)
+  var script = newScript(mainChunk)
+  var module = newModule(filePath.extractFilename, some(filePath))
+
+  # load standard library modules
+  let systemModule = libsystem.loadLibrary(script, globalData, localData)
+  module.load(systemModule)
+
+  let cssLib = initCSS(script, systemModule)
+  module.load(cssLib)
+
+  script.stdpos = script.procs.high
+
+  # compile the code and handle any errors
   try:
-    # var codeChunk = newChunk()
-    var gen = initCodeGen(script, module, script.mainChunk)
-    gen.genScript(astProgram, none(string), emitHalt = false)
+    var compiler = initCodeGen(script, module, mainChunk,
+                                  pkgr = pkgr, parserCallback = parserCallback)
+    compiler.genScript(program, none(string))
+    
+    # initialize a Voodoo VM and execute the script
+    let virtualMachine = newVirtualMachine(VMPreferences(
+      enableHotCodeDetection: true,
+      hotProcThreshold: 10,
+      hotChunkThreshold: 100
+    ))
+    if not output:
+      echo(virtualMachine.interpret(script, mainChunk))
+    else:
+      let cssOutput = virtualMachine.interpret(script, mainChunk).stringVal[]
+      let outputFilePath = outputPath.changeFileExt(".css")
+      # if fileExists(outputFilePath):
+      writeFile(outputFilePath, cssOutput)
   except CodeGenError as e:
     echo e.msg
-    quit(1)
 
 var browserSyncWatcher: Watchout
 proc compileCommand*(v: Values) =
   ## Kapsis command for compiling BASS files to CSS
   var srcPath = $(v.get("bass").getPath)
   
-  let outputPath =
-    if v.has("-o"): v.get("-o").getStr
+  var hasOutput: bool
+  var outputPath =
+    if v.has("-o"):
+      hasOutput = true
+      v.get("-o").getFilename
     else: ""
+
   let enabledWatch = v.has("-w")
 
   if not srcPath.isAbsolute:
     srcPath = getCurrentDir() / srcPath
+  
+  if hasOutput and outputPath.isAbsolute:
+    outputPath = getCurrentDir() / outputPath
 
   # init the package manager and load the local packages
   let pkgr = packager.initPackageRemote()
   pkgr.loadPackages()
 
   let
-    code = readFile(srcPath)
     t = getMonotime()
     data =
       if v.has("--data"):
@@ -75,62 +110,27 @@ proc compileCommand*(v: Values) =
         else: newJObject()
       else: newJObject()
 
-  proc compileCode(filePath: string) =
-    var program: Ast # the AST representation of the script
-    try:
-      parser.parseScript(program, code, filePath)
-    except BroParserError as e:
-      echo e.msg
-      quit(1)
-
-    var mainChunk = newChunk(filePath)
-    var script = newScript(mainChunk)
-    var module = newModule(filePath.extractFilename, some(filePath))
-
-    # load standard library modules
-    let systemModule = libsystem.loadLibrary(script, globalData, localData)
-    module.load(systemModule)
-
-    let cssLib = initCSS(script, systemModule)
-    module.load(cssLib)
-
-    script.stdpos = script.procs.high
-
-    # compile the code and handle any errors
-    try:
-      var compiler = initCodeGen(script, module, mainChunk,
-                                   pkgr = pkgr, parserCallback = parserCallback)
-      compiler.genScript(program, none(string))
-      
-      # initialize a Voodoo VM and execute the script
-      let virtualMachine = newVirtualMachine(VMPreferences(
-        enableHotCodeDetection: true,
-        hotProcThreshold: 10,
-        hotChunkThreshold: 100
-      ))
-      echo(virtualMachine.interpret(script, mainChunk))
-    except CodeGenError as e:
-      echo e.msg
-
   # compile the code for the first time
-  compileCode(srcPath)
+  compileCode(srcPath, pkgr, globalData, localData, hasOutput, outputPath)
 
   # initialize the file watcher for browser sync if watch mode is enabled
   if enabledWatch:
-    if outputPath.len != 0:
+    if not hasOutput:
       displayInfo("Watching for file changes...")
     
     # Set up a file watcher to recompile on changes
     browserSyncWatcher = newWatchout(@[srcPath.parentDir], some("*.bass"))
 
     proc onChange(file: watchout.File) =
-      if outputPath.len == 0:
-        compileCode(file.getPath)
+      if not hasOutput:
+        # If no output file is specified, just recompile and print
+        # the resulted CSS in the console
+        compileCode(file.getPath, pkgr, globalData, localData, false, "")
       else:
         let t = cpuTime()
-        compileCode(file.getPath)
-        displaySuccess("File changed: " & file.getPath)
-        displayInfo("Recompiled in " & $((cpuTime() - t)) & "s")
+        compileCode(file.getPath, pkgr, globalData, localData, hasOutput, outputPath)
+        displayInfo("File changed: " & file.getPath)
+        displaySuccess("Recompiled in " & $((cpuTime() - t)) & "s")
 
     proc onDelete(file: watchout.File) = discard
 
