@@ -687,10 +687,11 @@ prefixHandle parsePseudoSelector:
                   ast.newEmpty(), ast.newEmpty(), propsBlock)
 
 prefixHandle parseHash:
-  # If followed by an identifier (hex/word), combine into a single literal
-  if p.next.kind == tkIdentifier:
+  # If followed by an identifier (hex/word) or a number (e.g. #333),
+  # combine into a single string literal
+  if p.next.kind in {tkIdentifier, tkNumber}:
     let val = "#" & p.next.value.get()
-    walk p, 2 # consume tkHash + tkIdentifier
+    walk p, 2 # consume tkHash + tkIdentifier|tkNumber
     result = ast.newStringLit(val)
   else:
     # fallback: consume the hash token alone

@@ -21,15 +21,21 @@ block extendAST:
 block extendCodeGen:
 
   extendModule "vancode" / "interpreter" / "codegen.nim":
-    
-    proc genCssClass*(node: Node): Sym {.codegen.} =
-      ## Generate bytecode for a CSS class selector
-      assert node.kind == nkClassSelector, "Expected nkClassSelector node"
+    proc genSelector*(node: Node): Sym {.codegen.} =
+      ## Generate bytecode for a CSS selector (class, id, or pseudo)
+      assert node.kind in {nkClassSelector, nkIdSelector, nkPseudoSelector}, "Expected selector node"
 
-      # Push the class name
+      let selectorType =
+        case node.kind
+        of nkClassSelector: 0'u16
+        of nkIdSelector: 1'u16
+        of nkPseudoSelector: 2'u16
+        else: 0'u16
+
+      # Push the selector name
       gen.chunk.emit(opcPushSelector)
       gen.chunk.emit(gen.chunk.getString(node[0].ident))
-      gen.chunk.emit(0'u16) # 0 for class selector
+      gen.chunk.emit(selectorType)
 
       # Generate object storage for properties
       result = newType(ttyObject, name = node[0], impl = node)
@@ -39,13 +45,17 @@ block extendCodeGen:
           elif prop[0].kind == nkString: prop[0].stringVal
           else: prop[0].error("Invalid property key: " & $prop[0].kind); ""
 
+        if unlikely(result.objectFields.hasKey(key)):
+          # actually, we should allow duplicate keys as CSS allows that and the last one wins
+          # TODO handle this properly by allowing duplicates and using the last one, instead of just erroring out
+          prop.error("Duplicate property key: " & key)
+
         # Push the key
         gen.chunk.emit(opcPushS)
         gen.chunk.emit(gen.chunk.getString(key))
 
         # Push the value
         let valTy = gen.genExpr(prop[1])
-
         result.objectFields[key] = (
           id: result.objectFields.len,
           name: prop[0],
@@ -59,44 +69,14 @@ block extendCodeGen:
 
       # Emit the CSS
       gen.chunk.emit(opcEmitCSS)
+
+    proc genCssClass*(node: Node): Sym {.codegen.} =
+      ## Generate bytecode for a CSS class selector
+      result = gen.genSelector(node)
 
     proc genPseudoSelector*(node: Node): Sym {.codegen.} =
       ## Generate bytecode for a CSS pseudo-selector
-      assert node.kind == nkPseudoSelector, "Expected nkPseudoSelector node"
-
-      # Push the pseudo-selector name (e.g., ":hover")
-      gen.chunk.emit(opcPushSelector)
-      gen.chunk.emit(gen.chunk.getString(node[0].ident))
-      gen.chunk.emit(2'u16) # Kind 1 for pseudo-selector
-
-      # Generate object storage for properties
-      result = newType(ttyObject, name = node[0], impl = node)
-      for prop in node[3].children:
-        let key =
-          if prop[0].kind == nkIdent: prop[0].ident
-          elif prop[0].kind == nkString: prop[0].stringVal
-          else: prop[0].error("Invalid property key: " & $prop[0].kind); ""
-
-        # Push the key
-        gen.chunk.emit(opcPushS)
-        gen.chunk.emit(gen.chunk.getString(key))
-
-        # Push the value
-        let valTy = gen.genExpr(prop[1])
-
-        result.objectFields[key] = (
-          id: result.objectFields.len,
-          name: prop[0],
-          ty: valTy,
-          implVal: valTy
-        )
-
-      # Emit the object storage for the properties
-      gen.chunk.emit(opcConstrObj)
-      gen.chunk.emit(uint16(result.objectFields.len))
-
-      # Emit the CSS
-      gen.chunk.emit(opcEmitCSS)
+      result = gen.genSelector(node)
 
     proc genCssProperty*(node: Node): Sym {.codegen.} =
       ## Generate bytecode for a CSS property
@@ -118,9 +98,15 @@ block extendCodeGen:
       gen.chunk.emit(opcPushValue)
       gen.chunk.emit(gen.chunk.getString(unitStr))
 
+    proc genExprList*(node: Node): Sym {.codegen.} =
+      ## Generate bytecode for a list of expressions (e.g., multiple properties)
+      assert node.kind == nkExprList, "Expected nkExprList node"
+      debugEcho node
+
   extendCaseStmt "codeGenExpr":
     case node.kind
     of nkUnit: discard gen.genUnit(node)
+    of nkExprList: discard gen.genExprList(node)
 
   extendCaseStmt "codeGenStmt":
     case node.kind
