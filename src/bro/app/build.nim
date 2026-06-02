@@ -5,8 +5,10 @@
 #          https://github.com/openpeeps/bro
 
 import std/[os, monotimes, times, strutils, options, ropes]
+
+import pkg/watchout
 import pkg/[flatty, openparser/json]
-import pkg/kapsis/[cli, runtime]
+import pkg/kapsis/[cli, runtime, interactive/prompts]
 
 import ../engine/parser
 import ../engine/stdlib/[libsystem, libarrays, libcss]
@@ -35,11 +37,15 @@ proc compileCode*(script: Script, module: Module, filename, code: string) =
     echo e.msg
     quit(1)
 
+var browserSyncWatcher: Watchout
 proc compileCommand*(v: Values) =
   ## Kapsis command for compiling BASS files to CSS
-  var
-    srcPath = $(v.get("source").getPath)
-    outputPath = if v.has("-o"): v.get("-o").getStr else: ""
+  var srcPath = $(v.get("bass").getPath)
+  
+  let outputPath =
+    if v.has("-o"): v.get("-o").getStr
+    else: ""
+  let enabledWatch = v.has("-w")
 
   if not srcPath.isAbsolute:
     srcPath = getCurrentDir() / srcPath
@@ -69,50 +75,69 @@ proc compileCommand*(v: Values) =
         else: newJObject()
       else: newJObject()
 
-  var program: Ast # the AST representation of the script
-  try:
-    parser.parseScript(program, code, srcPath)
-  except BroParserError as e:
-    echo e.msg
-    quit(1)
+  proc compileCode(filePath: string) =
+    var program: Ast # the AST representation of the script
+    try:
+      parser.parseScript(program, code, filePath)
+    except BroParserError as e:
+      echo e.msg
+      quit(1)
 
-  var
-    mainChunk = newChunk(srcPath)
-    script = newScript(mainChunk)
-    module = newModule(srcPath.extractFilename, some(srcPath))
+    var mainChunk = newChunk(filePath)
+    var script = newScript(mainChunk)
+    var module = newModule(filePath.extractFilename, some(filePath))
 
-  # load standard library modules
-  let systemModule = libsystem.loadLibrary(script, globalData, localData)
-  # module.load(systemModule)
-  # let systemModule = newModule("system", some"system.timl")
-  # systemModule.initSystemTypes()
-  # script.compileCode(systemModule, "std/system", "")
-  module.load(systemModule)
+    # load standard library modules
+    let systemModule = libsystem.loadLibrary(script, globalData, localData)
+    module.load(systemModule)
 
-  let cssLib = initCSS(script, systemModule)
-  module.load(cssLib)
+    let cssLib = initCSS(script, systemModule)
+    module.load(cssLib)
 
-  script.stdpos = script.procs.high
+    script.stdpos = script.procs.high
 
+    # compile the code and handle any errors
+    try:
+      var compiler = initCodeGen(script, module, mainChunk,
+                                   pkgr = pkgr, parserCallback = parserCallback)
+      compiler.genScript(program, none(string))
+      
+      # initialize a Voodoo VM and execute the script
+      let virtualMachine = newVirtualMachine(VMPreferences(
+        enableHotCodeDetection: true,
+        hotProcThreshold: 10,
+        hotChunkThreshold: 100
+      ))
+      echo(virtualMachine.interpret(script, mainChunk))
+    except CodeGenError as e:
+      echo e.msg
 
-  try:
-    # initalize the code generator and generate code for the script
-    var compiler =
-      codegen.initCodeGen(script, module, mainChunk, pkgr = pkgr,
-                            parserCallback = parserCallback)
-    compiler.genScript(program, none(string))
+  # compile the code for the first time
+  compileCode(srcPath)
+
+  # initialize the file watcher for browser sync if watch mode is enabled
+  if enabledWatch:
+    if outputPath.len != 0:
+      displayInfo("Watching for file changes...")
     
-    # initialize a Voodoo VM and execute the script
-    let vmInstance = newVm()
-    let output = vmInstance.interpret(script, mainChunk)
-    
-    # Bro transpiles to CSS, so we expect the output to be a string of CSS code
-    stdout.write output
+    # Set up a file watcher to recompile on changes
+    browserSyncWatcher = newWatchout(@[srcPath.parentDir], some("*.bass"))
 
-  except CodeGenError as e:
-    echo e.msg
-    quit(1)
+    proc onChange(file: watchout.File) =
+      if outputPath.len == 0:
+        compileCode(file.getPath)
+      else:
+        let t = cpuTime()
+        compileCode(file.getPath)
+        displaySuccess("File changed: " & file.getPath)
+        displayInfo("Recompiled in " & $((cpuTime() - t)) & "s")
 
-  # display the time taken for compilation
-  # if flagBencmarks:
-  #   displayInfo("Done in " & $(getMonotime() - t))
+    proc onDelete(file: watchout.File) = discard
+
+    # Set up file watcher callbacks and start watching for changes
+    browserSyncWatcher.onChange = onChange
+    browserSyncWatcher.onDelete = onDelete
+    browserSyncWatcher.start()
+
+    while true:
+      sleep(1000) # keep the program running to watch for file changes

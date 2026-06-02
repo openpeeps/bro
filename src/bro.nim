@@ -191,5 +191,5 @@ when isMainModule:
   initKapsis do:
     defaultCommand: "compile"
     commands:
-      compile path(source):
+      compile path(bass), ?path("-o"), ?bool("-w"):
         ## Build CSS from BASS files
