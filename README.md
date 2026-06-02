@@ -45,5 +45,5 @@ Once installed, you can use Bro from the command line to transpile BASS (Bro's A
 - 😋 Use Bro in your next awesome project!
 
 ### 🎩 License
-Tim Engine | `LGPLv3` license. [Made by Humans from OpenPeeps](https://github.com/openpeeps).<br>
+Bro | `LGPLv3` license. [Made by Humans from OpenPeeps](https://github.com/openpeeps).<br>
 Copyright &copy; 2026 OpenPeeps & Contributors &mdash; All rights reserved.
