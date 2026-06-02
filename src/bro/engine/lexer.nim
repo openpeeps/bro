@@ -11,6 +11,7 @@ type
     tkUnknown
     tkEOF
     tkIdentifier
+    tkCssVar # css custom property, e.g. --my-var
     tkNumber
     tkString
     tkSemicolon = ";"
@@ -38,6 +39,7 @@ type
     tkGTE = ">="
     tkAnd = "&&"
     tkOr = "||"
+    tkBacktick = "`"
     tkAssign = "="
     tkPlusAssign = "+="
     tkMinusAssign = "-="
@@ -62,6 +64,7 @@ type
     tkKeywordNull = "null"
     tkKeywordUndefined = "undefined"
     tkKeywordImport = "import"
+    tkKeywordIterator = "iterator"
 
     tkComment
     tkDocBlock
@@ -201,12 +204,25 @@ proc nextToken(lex: var Lexer): TokenTuple =
     else:
       result = initToken(lex, tkPlus, startLine, startCol, startPos, wsno)
   of '-':
-    lex.advance()
-    if lex.current == '=':
-      lex.advance()
-      result = initToken(lex, tkMinusAssign, startLine, startCol, startPos, wsno)
+    # CSS custom property: starts with `--`
+    if peek(lex) == '-':
+      # consume both '-' characters
+      lex.advance() # first '-'
+      lex.advance() # second '-'
+      lex.strbuf.setLen(0)
+      # allow letters, digits, underscores and hyphens in the rest of the name
+      while lex.current.isAlphaNumeric() or lex.current in {'_', '-'}:
+        lex.strbuf.add(lex.current)
+        lex.advance()
+      var val = if lex.strbuf.len > 0: "--" & lex.strbuf else: "--"
+      result = initToken(lex, move(val), tkCssVar, startLine, startCol, startPos, wsno)
     else:
-      result = initToken(lex, tkMinus, startLine, startCol, startPos, wsno)
+      lex.advance()
+      if lex.current == '=':
+        lex.advance()
+        result = initToken(lex, tkMinusAssign, startLine, startCol, startPos, wsno)
+      else:
+        result = initToken(lex, tkMinus, startLine, startCol, startPos, wsno)
   of '*':
     lex.advance()
     if lex.current == '=':
@@ -215,10 +231,33 @@ proc nextToken(lex: var Lexer): TokenTuple =
     else:
       result = initToken(lex, tkAsterisk, startLine, startCol, startPos, wsno)
   of '/':
-    lex.advance()
+    # handle divide, assignment, and comments:
+    lex.advance() # moved past '/'
     if lex.current == '=':
       lex.advance()
       result = initToken(lex, tkSlashAssign, startLine, startCol, startPos, wsno)
+    elif lex.current == '/':
+      # single-line comment: '//' ... until newline (don't consume newline here)
+      lex.advance() # move to first char of comment body
+      lex.strbuf.setLen(0)
+      while lex.current != '\n' and lex.current != '\r' and lex.current != '\0':
+        lex.strbuf.add(lex.current)
+        lex.advance()
+      result = initToken(lex, move(lex.strbuf), tkComment, startLine, startCol, startPos, wsno)
+    elif lex.current == '*':
+      # block comment: '/* ... */' and docblock '/** ... */'
+      let isDoc = peek(lex, 1) == '*'
+      # consume the '*' we are currently on, then collect until '*/' or EOF
+      lex.advance()
+      lex.strbuf.setLen(0)
+      while not (lex.current == '*' and peek(lex) == '/') and lex.current != '\0':
+        lex.strbuf.add(lex.current)
+        lex.advance()
+      # consume closing '*/' if present
+      if lex.current == '*' and peek(lex) == '/':
+        lex.advance() # '*'
+        lex.advance() # '/'
+      result = initToken(lex, move(lex.strbuf), if isDoc: tkDocBlock else: tkComment, startLine, startCol, startPos, wsno)
     else:
       result = initToken(lex, tkDivide, startLine, startCol, startPos, wsno)
   of '%':
@@ -302,6 +341,15 @@ proc nextToken(lex: var Lexer): TokenTuple =
       lex.strbuf.add(lex.current)
       lex.advance()
     result = initToken(lex, move(lex.strbuf), tkIdentifier, startLine, startCol, startPos, wsno)
+  of '`':
+    lex.advance()
+    lex.strbuf.setLen(0)
+    while lex.current != '`' and lex.current != '\0' and lex.current != '\n':
+      lex.strbuf.add(lex.current)
+      lex.advance()
+    if lex.current == '`':
+      lex.advance()
+    result = initToken(lex, move(lex.strbuf), tkBacktick, startLine, startCol, startPos, wsno)
   else:
     if lex.current.isAlphaAscii() or lex.current in {'_', '-'}:
       lex.strbuf.setLen(0)
@@ -328,6 +376,8 @@ proc nextToken(lex: var Lexer): TokenTuple =
         of "null": initToken(lex, move(lex.strbuf), tkKeywordNull, startLine, startCol, startPos, wsno)
         of "undefined": initToken(lex, move(lex.strbuf), tkKeywordUndefined, startLine, startCol, startPos, wsno)
         of "import": initToken(lex, move(lex.strbuf), tkKeywordImport, startLine, startCol, startPos, wsno)
+        of "iterator":
+          initToken(lex, move(lex.strbuf), tkKeywordIterator, startLine, startCol, startPos, wsno)
         else: initToken(lex, move(lex.strbuf), tkIdentifier, startLine, startCol, startPos, wsno)
     else:
       lex.advance()

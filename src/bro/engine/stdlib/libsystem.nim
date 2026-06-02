@@ -573,6 +573,6 @@ proc loadLibrary*(script: Script, globalData, localData: JsonNode): Module =
           raise newException(TimRuntime, "Invalid type for comparison with JSON.")
     )
 
-  # var inlineCode = Globals % ["globalData", toJson(globalData), "localData", toJson(localData)]
-  # inlineCode.add(InlineCode)
-  # script.compileCode(result, "system", inlineCode)
+  var inlineCode: string
+  inlineCode.add(InlineCode)
+  script.compileCode(result, "system", inlineCode)

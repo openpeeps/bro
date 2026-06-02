@@ -536,6 +536,7 @@ proc parseSelectorBlock(p: var Parser, indentPos = 0): Node {.rule.} =
   else:
     closingBlock = false
   while p.curr isnot tkEOF:
+    p.skipComments() # skip comments between properties
     if closingBlock and p.curr is tkRBrace:
       walk p; break # tkRBrace
     elif not closingBlock and p.curr.col <= indentPos:
@@ -543,7 +544,7 @@ proc parseSelectorBlock(p: var Parser, indentPos = 0): Node {.rule.} =
     # parse property definitions, which are similar to
     # variable declarations but without the `var` keyword
     case p.curr.kind
-    of tkIdentifier:
+    of tkIdentifier, tkCssVar:
       if p.next.kind == tkColon:
         # parse a CSS property definition, e.g., `color: red;`
         # the semicolon is optional, so we handle it in the
@@ -564,6 +565,16 @@ proc parseSelectorBlock(p: var Parser, indentPos = 0): Node {.rule.} =
         props.add(subNode)
   result = ast.newTree(nkBlock, props)
 
+prefixHandle parseWhile:
+  # parse a while loop
+  let tokenWhile: TokenTuple = p.curr
+  walk p # tkWhile
+  let whileExpr: Node = p.parseExpression()
+  caseNotNil whileExpr:
+    let whileBlock: Node = p.parseBlock(tokenWhile.col)
+    caseNotNil whileBlock:
+      result = ast.newTree(nkWhile, whileExpr, whileBlock)
+
 prefixHandle parseFunction:
   # parse a function definition
   let fnpos = p.curr.col
@@ -574,6 +585,18 @@ prefixHandle parseFunction:
   let fnBlock: Node = p.parseBlock(fnpos, parseFnBlock = true)
   caseNotNil fnBlock:
     result = ast.newTree(nkProc, name, ast.newEmpty(), formalParams, fnBlock)
+
+prefixHandle parseIterator:
+  # parse an iterator
+  let tokenIterator = p.curr.col
+  walk p # tkIterator
+  var name, formalParams: Node
+  parseFunctionHead(p, isAnon = false, name, formalParams)
+  if p.curr in {tkAssign, tkLBrace}:
+    # parse function statement
+    let fnBlock: Node = p.parseBlock(tokenIterator, parseFnBlock = true)
+    caseNotNil fnBlock:
+      result = ast.newTree(nkIterator, name, formalParams, fnBlock)
 
 prefixHandle parseIf:
   # parse an if statement
@@ -651,6 +674,29 @@ prefixHandle parseIdSelector:
       result = ast.newTree(nkIdSelector, selector,
                     ast.newEmpty(), ast.newEmpty(), propsBlock)
 
+prefixHandle parsePseudoSelector:
+  # parse a pseudo selector like `:root`
+  let pos = p.curr.col
+  walk p # tkColon
+  if p.curr.kind == tkIdentifier and p.curr.value.get() == "root":
+    let selector = ast.newIdent(p.curr.value.get())
+    walk p # tkIdentifier
+    let propsBlock: Node = p.parseSelectorBlock(pos)
+    caseNotNil propsBlock:
+      result = ast.newTree(nkPseudoSelector, selector,
+                  ast.newEmpty(), ast.newEmpty(), propsBlock)
+
+prefixHandle parseHash:
+  # If followed by an identifier (hex/word), combine into a single literal
+  if p.next.kind == tkIdentifier:
+    let val = "#" & p.next.value.get()
+    walk p, 2 # consume tkHash + tkIdentifier
+    result = ast.newStringLit(val)
+  else:
+    # fallback: consume the hash token alone
+    walk p
+    result = ast.newStringLit("#")
+
 proc getPrefixFn(p: var Parser, minPrec: int): PrefixFunction =
   # Get the appropriate prefix function based on the current token.
   result = 
@@ -660,17 +706,21 @@ proc getPrefixFn(p: var Parser, minPrec: int): PrefixFunction =
         parseCall
       else: parseIdent
     of tkKeywordVar, tkKeywordLet, tkKeywordConst: parseVar
+    of tkCssVar: parseIdent
     of tkString: parseString
     of tkNumber: parseNumber
     of tkKeywordTrue, tkKeywordFalse: parseBoolLit
     of tkKeywordFunction: parseFunction
+    of tkKeywordIterator: parseIterator
+    of tkKeywordWhile: parseWhile
     of tkKeywordReturn: parseReturn
     of tkKeywordBreak: parseBreak
     of tkKeywordContinue: parseContinue
     of tkKeywordIf: parseIf
     of tkKeywordFor: parseFor
     of tkDot: parseClassSelector
-    of tkHash: parseIdSelector
+    of tkHash: parseHash
+    of tkColon: parsePseudoSelector
     else: nil
 
 proc parseExpression(p: var Parser, minPrec = 0): Node =
@@ -769,9 +819,12 @@ prefixHandle parseStmt:
     case p.curr.kind
     of tkDot: parseClassSelector
     of tkHash: parseIdSelector
+    of tkColon: parsePseudoSelector
     of tkKeywordVar, tkKeywordLet, tkKeywordConst: parseVar
     of tkKeywordFunction: parseFunction
-    of tkIdentifier:
+    of tkKeywordIterator: parseIterator
+    of tkKeywordWhile: parseWhile
+    of tkIdentifier, tkCssVar:
       if p.next.line == p.curr.line and p.next is tkLParen:
         parseCall
       else: parseExpression

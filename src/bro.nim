@@ -12,6 +12,7 @@ block extendAST:
   extendEnum NodeKind:
     nkClassSelector
     nkIdSelector
+    nkPseudoSelector
     nkUnit
     nkExprList
     nkProperty  # Represents a CSS property (e.g., color: red)
@@ -26,8 +27,47 @@ block extendCodeGen:
       assert node.kind == nkClassSelector, "Expected nkClassSelector node"
 
       # Push the class name
-      gen.chunk.emit(opcPushClassSelector)
+      gen.chunk.emit(opcPushSelector)
       gen.chunk.emit(gen.chunk.getString(node[0].ident))
+      gen.chunk.emit(0'u16) # 0 for class selector
+
+      # Generate object storage for properties
+      result = newType(ttyObject, name = node[0], impl = node)
+      for prop in node[3].children:
+        let key =
+          if prop[0].kind == nkIdent: prop[0].ident
+          elif prop[0].kind == nkString: prop[0].stringVal
+          else: prop[0].error("Invalid property key: " & $prop[0].kind); ""
+
+        # Push the key
+        gen.chunk.emit(opcPushS)
+        gen.chunk.emit(gen.chunk.getString(key))
+
+        # Push the value
+        let valTy = gen.genExpr(prop[1])
+
+        result.objectFields[key] = (
+          id: result.objectFields.len,
+          name: prop[0],
+          ty: valTy,
+          implVal: valTy
+        )
+
+      # Emit the object storage for the properties
+      gen.chunk.emit(opcConstrObj)
+      gen.chunk.emit(uint16(result.objectFields.len))
+
+      # Emit the CSS
+      gen.chunk.emit(opcEmitCSS)
+
+    proc genPseudoSelector*(node: Node): Sym {.codegen.} =
+      ## Generate bytecode for a CSS pseudo-selector
+      assert node.kind == nkPseudoSelector, "Expected nkPseudoSelector node"
+
+      # Push the pseudo-selector name (e.g., ":hover")
+      gen.chunk.emit(opcPushSelector)
+      gen.chunk.emit(gen.chunk.getString(node[0].ident))
+      gen.chunk.emit(2'u16) # Kind 1 for pseudo-selector
 
       # Generate object storage for properties
       result = newType(ttyObject, name = node[0], impl = node)
@@ -86,6 +126,8 @@ block extendCodeGen:
     case node.kind
     of nkClassSelector:
       discard gen.genCssClass(node)
+    of nkPseudoSelector:
+      discard gen.genPseudoSelector(node)
     of nkIdSelector:
       discard
     of nkUnit:
@@ -97,7 +139,7 @@ block extendCodeGen:
 
 block extendVM:
   extendEnum Opcode:
-    opcPushClassSelector  # Push a class selector onto the stack
+    opcPushSelector  # Push a class selector onto the stack
     opcPushProperty       # Push a CSS property
     opcPushValue          # Push a CSS value
     opcEmitCSS            # Emit the final CSS
@@ -108,14 +150,21 @@ block extendVM:
 
   extendCaseStmt "vmParseChunkCase":
     case oc:
-    of opcPushClassSelector, opcPushProperty, opcPushValue:
+    of opcPushSelector:
+      # selector op has two args: string id, kind (uint16)
+      let sid = readArg[uint16](pc)
+      let kind = readArg[uint16](pc)
+      addOp(oc, sid.int64, kind.int64, akString)
+    of opcPushProperty, opcPushValue:
       let sid = readArg[uint16](pc)
       addOp(oc, sid.int64, 0, akString)
 
   extendCaseStmt "vmInterpretCase":
     case oc:
-    of opcPushClassSelector:
+    of opcPushSelector:
       let className = co.getArg1Str(pcIdx, currentChunk)
+      let kind = co.arg2[pcIdx].int
+      stack.push(initValue(kind))
       stack.push(initValue(className))
     of opcPushValue:
       let valueStr = co.getArg1Str(pcIdx, currentChunk)
@@ -123,8 +172,15 @@ block extendVM:
     of opcEmitCSS:
       let props = stack.pop().objectVal
       let keys = props.keys
-      let className = stack.pop().stringVal[]
-      result.stringVal[].add("." & className & "{")
+      let selectorName = stack.pop().stringVal[]
+      let kind = stack.pop().intVal
+      let prefix =
+        case kind
+        of 0: "." # class selector
+        of 1: "#" # id selector
+        of 2: ":" # pseudo-selector
+        else: ""
+      result.stringVal[].add(prefix & selectorName & "{")
       for i, key in keys:
         let val =
           case props.fields[i].typeId

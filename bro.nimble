@@ -14,18 +14,13 @@ binDir        = "bin"
 
 requires "nim >= 2.0.0"
 
-requires "kapsis#head"
-requires "openparser"
-requires "flatty"
-requires "checksums"
-
-requires "nyml#head"
-requires "semver"
-requires "dotenv"
-
-requires "denim#head"
-requires "voodoo"
-requires "vancode"
-
-requires "chroma"
-requires "watchout#head"
+requires "kapsis >= 0.3.4"
+requires "openparser >= 0.1.2"
+requires "flatty >= 0.4.0"
+requires "checksums >= 0.2.2"
+requires "semver >= 1.2.3"
+# requires "denim >= 0.1.0"
+requires "voodoo >= 0.1.9"
+requires "vancode >= 0.1.1"
+requires "chroma >= 0.1.0"
+requires "watchout >= 0.2.2"
