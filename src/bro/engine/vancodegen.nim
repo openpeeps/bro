@@ -13,6 +13,7 @@ block extendAST:
     nkClassSelector
     nkIdSelector
     nkPseudoSelector
+    nkElementSelector
     nkUnit
     nkExprList
     nkProperty  # Represents a CSS property (e.g., color: red)
@@ -24,20 +25,31 @@ block extendSym:
 
 block extendCodeGen:
   extendModule "vancode" / "interpreter" / "codegen.nim":
-    proc genSelector*(node: Node): Sym {.codegen.} =
+    proc genSelector*(node: Node): Sym {.codegen, discardable.} =
       ## Generate bytecode for a CSS selector (class, id, or pseudo)
-      assert node.kind in {nkClassSelector, nkIdSelector, nkPseudoSelector}, "Expected selector node"
+      assert node.kind in {nkClassSelector, nkIdSelector, nkPseudoSelector, nkElementSelector}, "Expected selector node"
 
       let selectorType =
         case node.kind
         of nkClassSelector: 0'u16
         of nkIdSelector: 1'u16
         of nkPseudoSelector: 2'u16
+        of nkElementSelector: 3'u16
         else: 0'u16
 
       # Push the selector name
+      var selectorName: string
+      case node[0].kind
+      of nkIdent:
+        selectorName = node[0].ident
+      of nkBracket:
+        for i, id in node[0].children:
+          if id.kind == nkIdent:
+            if i > 0: selectorName.add(",")
+            selectorName.add(id.ident)
+      else: node[0].error("Invalid selector name")
       gen.chunk.emit(opcPushSelector)
-      gen.chunk.emit(gen.chunk.getString(node[0].ident))
+      gen.chunk.emit(gen.chunk.getString(selectorName))
       gen.chunk.emit(selectorType)
 
       # Generate object storage for properties
@@ -127,6 +139,8 @@ block extendCodeGen:
       discard gen.genPseudoSelector(node)
     of nkIdSelector:
       discard
+    of nkElementSelector:
+      gen.genSelector(node)
     of nkUnit:
       discard gen.genUnit(node)
     of nkExprList:

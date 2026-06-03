@@ -20,7 +20,7 @@ type
 
 const
   MathOperators = {tkPlus, tkMinus, tkAsterisk, tkDivide}
-  LogicalOperators = {tkAnd, tkOr}
+  LogicalOperators = {tkAnd, tkOr, tkAndAnd, tkOrOr}
   ComparisonOperators = {tkDoubleEqual, tkNotEqual, tkGT, tkGTE, tkLT, tkLTE}
   Operators = ComparisonOperators + MathOperators + {tkAssign}
   Strings = {tkString}
@@ -36,29 +36,6 @@ proc error(tk: TokenTuple, msg: string) =
 
 
 const
-  infixTokenTable = {
-    tkPlus: "+",
-    tkMinus: "-",
-    tkAsterisk: "*",
-    tkDivide: "/",
-    tkGT: ">",
-    tkGTE: ">=",
-    tkLT: "<",
-    
-    tkLTE: "<=",
-    tkDoubleEqual: "==",
-    tkNotEqual: "!=",
-    tkAnd: "&&",
-    tkAssign: "=",
-    tkDot: ".",
-    tkLBracket: "["
-  }.toTable
-
-  logicalOperators = {
-    tkAnd: "&&",
-    tkOr: "||",
-  }.toTable
-
   OperatorPrecedence = {
     "+": 10, "-": 10,
     "*": 20, "/": 20,
@@ -214,20 +191,43 @@ proc parseIdent(p: var Parser, minPrec = 0): Node
 #
 # Infix Handlers
 #
-proc getPrecedence(op: string): int =
-  # Get the precedence of an operator
-  # Returns 0 if the operator is not found
-  if op in OperatorPrecedence: OperatorPrecedence[op]
+proc getPrecedence(op: string): int {.inline.} =
+  case op
+  of "+", "-": 10
+  of "*", "/": 20
+  of ".": 45
+  of "[": 40
+  of "==", "!=", ">", "<", ">=", "<=": 5
+  of "is", "isnot": 5
+  of "and", "&&": 3
+  of "or", "||": 2
+  of "&": 6
   else: 0
 
-proc isInfix(kind: TokenKind, minPrec = 0): (bool, int, Option[string]) =
-  # Check if the token kind is an infix operator
+proc isInfix(kind: TokenKind, minPrec = 0): (bool, int, Option[string]) {.inline.} =
   var opStr: string
-  if infixTokenTable.hasKey(kind):
-    opStr = infixTokenTable[kind]
-  elif logicalOperators.hasKey(kind):
-    opStr = logicalOperators[kind]
-  else: return # default
+  case kind
+  of tkPlus: opStr = "+"
+  of tkMinus: opStr = "-"
+  of tkAsterisk: opStr = "*"
+  of tkDivide: opStr = "/"
+  of tkGT: opStr = ">"
+  of tkGTE: opStr = ">="
+  of tkLT: opStr = "<"
+  of tkLTE: opStr = "<="
+  of tkDoubleEqual: opStr = "=="
+  of tkNotEqual: opStr = "!="
+  of tkAmp: opStr = "&"
+  of tkAssign: opStr = "="
+  of tkDot: opStr = "."
+  of tkLBracket: opStr = "["
+  of tkAnd: opStr = "and"
+  of tkKeywordIs: opStr = "is"
+  of tkKeywordIsnot: opStr = "isnot"
+  of tkAndAnd: opStr = "&&"
+  of tkOr: opStr = "or"
+  of tkOrOr: opStr = "||"
+  else: return
   let prec = getPrecedence(opStr)
   result = (prec > minPrec, prec, some(opStr))
 
@@ -305,7 +305,6 @@ prefixHandle parseNumber:
       except ValueError:
         nil
   if result == nil: discard # todo error
-  debugecho result
   if p.next.kind == tkIdentifier and (p.next.line == num.line and p.next.wsno == 0):
     # handle unit suffixes for numbers, e.g., `10px`, `2em`, etc.
     walk p # consume the number token
@@ -689,6 +688,44 @@ prefixHandle parsePseudoSelector:
       result = ast.newTree(nkPseudoSelector, selector,
                   ast.newEmpty(), ast.newEmpty(), propsBlock)
 
+prefixHandle parseSelector:
+  # collect raw selector text until we hit the selector block `{`
+  var selBuf = ""
+  var selectors = ast.newNode(nkBracket)
+  var sawAny = false
+  let pos = p.curr.col
+  while p.curr.kind notin {tkLBrace, tkEOF}:
+    # Accumulate token text (identifiers, symbols, combinators, colons, dots, hashes, commas)
+    let txt =
+      if p.curr.value.isSome: p.curr.value.get()
+      else: $p.curr.kind
+    
+    # When we hit a comma, flush current buffer as one selector
+    if p.curr.kind == tkComma:
+      selectors.add(ast.newIdent(selBuf.strip()))
+      selBuf = ""
+      sawAny = true
+      walk p # consume comma
+      continue
+    # Add spacing where tokens were separated by whitespace on the same line
+    if selBuf.len > 0:
+      selBuf &= " "
+    selBuf &= txt
+    sawAny = true
+    walk p
+
+  
+  # Flush last selector if any
+  if selBuf.len > 0:
+    selectors.add(ast.newIdent(selBuf.strip()))
+
+  # Expect a selector block (properties) after selectors
+  let propsBlock: Node = p.parseSelectorBlock(pos)
+  caseNotNil propsBlock:
+    # create selector node with selector strings and the block
+    result = ast.newTree(nkElementSelector, selectors,
+                ast.newEmpty(), ast.newEmpty(), propsBlock)
+
 prefixHandle parseHash:
   # If followed by an identifier (hex/word) or a number (e.g. #333),
   # combine into a single string literal
@@ -708,6 +745,8 @@ proc getPrefixFn(p: var Parser, minPrec: int): PrefixFunction =
     of tkIdentifier:
       if p.next.line == p.curr.line and p.next is tkLParen:
         parseCall
+      elif p.next.kind in {tkLBrace, tkComma, tkGT, tkDot, tkHash, tkColon}:
+        parseSelector
       else: parseIdent
     of tkKeywordVar, tkKeywordLet, tkKeywordConst: parseVar
     of tkCssVar: parseIdent
@@ -736,8 +775,10 @@ proc parseExpression(p: var Parser, minPrec = 0): Node =
       var
         opStr: string
         prec: int
-        isBracket = false
-        isDot = false
+        isBracket: bool
+        isDot: bool
+        isIs: bool
+        isIsnot: bool
       
       if p.curr.line != lhs.ln:
         # if the next token is on a new line,
@@ -751,6 +792,18 @@ proc parseExpression(p: var Parser, minPrec = 0): Node =
         if not inf[0]: break
         opStr = inf[2].get()
         prec = inf[1]
+      of tkKeywordIs:
+        let inf = p.curr.kind.isInfix(minPrec)
+        if not inf[0]: break
+        opStr = inf[2].get()
+        prec = inf[1]
+        isIs = true
+      of tkKeywordIsnot:
+        let inf = p.curr.kind.isInfix(minPrec)
+        if not inf[0]: break
+        opStr = "isnot"
+        prec = inf[1]
+        isIsnot = true
       of tkDot:
         opStr = "."
         prec = getPrecedence(".")
@@ -763,7 +816,7 @@ proc parseExpression(p: var Parser, minPrec = 0): Node =
 
       # Only continue if precedence is high enough
       if prec < minPrec: break
-
+      
       walk p # consume operator
       if isBracket:
         # Parse bracket access: lhs[index]
@@ -780,6 +833,22 @@ proc parseExpression(p: var Parser, minPrec = 0): Node =
             return ast.newCall(ast.newIdent(".."), lhs, rhs)
         let rhs = p.parseExpression(minPrec = prec + 1)
         lhs = ast.newTree(nkDot, lhs, rhs)
+      elif isIs:
+        # desugar `x is z` -> `is(x, z)`
+        let rhs = p.parseExpression(minPrec = prec + 1)
+        caseNotNil rhs:
+          let callNode = ast.newCall(ast.newIdent("is"))
+          callNode.add(lhs)
+          callNode.add(rhs)
+          lhs = callNode
+      elif isIsnot:
+        # desugar `x isnot z` -> `not is(x, z)`
+        let rhs = p.parseExpression(minPrec = prec + 1)
+        caseNotNil rhs:
+          let callNode = ast.newCall(ast.newIdent("isnot"))
+          callNode.add(lhs)
+          callNode.add(rhs)
+          lhs = callNode
       else:
         # Normal infix operator
         let rhs = p.parseExpression(minPrec = prec)

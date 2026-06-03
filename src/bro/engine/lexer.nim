@@ -38,8 +38,13 @@ type
     tkLTE = "<="
     tkGT = ">"
     tkGTE = ">="
-    tkAnd = "&&"
-    tkOr = "||"
+    tkAmp = "&"
+    tkAndAnd = "&&"
+    tkOrOr = "||"
+    tkOr = "or"
+    tkKeywordIs = "is"
+    tkKeywordIsnot = "isnot"
+    tkAnd = "and"
     tkBacktick = "`"
     tkAssign = "="
     tkPlusAssign = "+="
@@ -300,14 +305,14 @@ proc nextToken(lex: var Lexer): TokenTuple =
     lex.advance()
     if lex.current == '&':
       lex.advance()
-      result = initToken(lex, tkAnd, startLine, startCol, startPos, wsno)
+      result = initToken(lex, tkAndAnd, startLine, startCol, startPos, wsno)
     else:
-      result = initToken(lex, tkUnknown, startLine, startCol, startPos, wsno)
+      result = initToken(lex, tkAmp, startLine, startCol, startPos, wsno)
   of '|':
     lex.advance()
     if lex.current == '|':
       lex.advance()
-      result = initToken(lex, tkOr, startLine, startCol, startPos, wsno)
+      result = initToken(lex, tkOrOr, startLine, startCol, startPos, wsno)
     else:
       result = initToken(lex, tkUnknown, startLine, startCol, startPos, wsno)
   of '"':
@@ -380,6 +385,10 @@ proc nextToken(lex: var Lexer): TokenTuple =
         of "while": initToken(lex, move(lex.strbuf), tkKeywordWhile, startLine, startCol, startPos, wsno)
         of "for": initToken(lex, move(lex.strbuf), tkKeywordFor, startLine, startCol, startPos, wsno)
         of "in": initToken(lex, move(lex.strbuf), tkKeywordIn, startLine, startCol, startPos, wsno)
+        of "or": initToken(lex, move(lex.strbuf), tkOr, startLine, startCol, startPos, wsno)
+        of "is": initToken(lex, move(lex.strbuf), tkKeywordIs, startLine, startCol, startPos, wsno)
+        of "isnot": initToken(lex, move(lex.strbuf), tkKeywordIsnot, startLine, startCol, startPos, wsno)
+        of "and": initToken(lex, move(lex.strbuf), tkAnd, startLine, startCol, startPos, wsno)
         of "of": initToken(lex, move(lex.strbuf), tkKeywordOf, startLine, startCol, startPos, wsno)
         of "break": initToken(lex, move(lex.strbuf), tkKeywordBreak, startLine, startCol, startPos, wsno)
         of "continue": initToken(lex, move(lex.strbuf), tkKeywordContinue, startLine, startCol, startPos, wsno)
