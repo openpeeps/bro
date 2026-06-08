@@ -373,7 +373,8 @@ proc parseIdentDefs(p: var Parser): Node {.rule.} =
     result.add(vars)
 
 proc parseVarIdent(p: var Parser): Node {.rule.} =
-  # Parse identifier definitions
+  # parse a variable identifier, which can be suffixed with
+  #an asterisk to mark it as exported (public)
   result = ast.newNode(nkIdentDefs)
   while true:
     let identNode = p.getVarIdent(true)
@@ -604,10 +605,8 @@ prefixHandle parseIf:
   # parse an if statement
   let tk = p.curr
   walk p # tkKeywordIf
-  expectWalk tkLParen
   let ifExpr = p.parseExpression()
   caseNotNil ifExpr:
-    expectWalk tkRParen
     var children = @[ifExpr]
     let ifBlock: Node = p.parseBlock(tk.col)
     caseNotNil ifBlock:
@@ -616,10 +615,8 @@ prefixHandle parseIf:
     while true:
       if p.curr.kind == tkKeywordElse and p.next.kind == tkKeywordIf:
         walk p, 2 # tkKeywordElse, tkKeywordIf
-        expectWalk tkLParen
         let elifExpr = p.parseExpression()
         caseNotNil elifExpr:
-          expectWalk tkRParen
           let elifBlock = p.parseBlock(tk.col)
           caseNotNil elifBlock:
             children.add(@[elifExpr, elifBlock])
