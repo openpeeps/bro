@@ -1,0 +1,3 @@
+nimTitle	libcolors	bro/engine/stdlib/libcolors.html	module bro/engine/stdlib/libcolors		0
+nim	tyColor	bro/engine/stdlib/libcolors.html#tyColor	const tyColor		14
+nim	initColors	bro/engine/stdlib/libcolors.html#initColors,Script,Module	proc initColors(script: Script; systemModule: Module): Module		15

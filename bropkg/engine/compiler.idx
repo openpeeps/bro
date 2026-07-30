@@ -1,5 +1,0 @@
-Warning	bropkg/engine/compiler.html#Warning	compiler: Warning	
-Compiler	bropkg/engine/compiler.html#Compiler	compiler: Compiler	
-getCSS	bropkg/engine/compiler.html#getCSS,Compiler	compiler: getCSS(c: Compiler): string	
-newCompiler	bropkg/engine/compiler.html#newCompiler,Program,string	compiler: newCompiler(p: Program; outputPath: string; minify = false): Compiler	
-newCompilerStr	bropkg/engine/compiler.html#newCompilerStr,Program,string	compiler: newCompilerStr(p: Program; outputPath: string): string	

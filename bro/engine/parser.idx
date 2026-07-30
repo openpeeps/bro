@@ -1,0 +1,5 @@
+nimTitle	parser	bro/engine/parser.html	module bro/engine/parser		0
+nim	Parser	bro/engine/parser.html#Parser	object Parser		13
+nim	BroParserError	bro/engine/parser.html#BroParserError	object BroParserError		17
+nim	PrefixFunction	bro/engine/parser.html#PrefixFunction	type PrefixFunction		86
+nim	parseScript	bro/engine/parser.html#parseScript,Ast,sinkstring,string	proc parseScript(astProgram: var Ast; code: sink string; sourcePath: string)		1071
