@@ -14,7 +14,7 @@ import pkg/vancode/interpreter/[ast, codegen, chunk, sym, vm, value, resolver]
 import pkg/vancode/manager/packager
 
 import ../engine/parser
-import ../engine/stdlib/[libsystem, libarrays, libcss, libcolors]
+import ../engine/stdlib/[libsystem, libarrays, libcolors]
 
 proc parserCallback(astProgram: var Ast, path: string, resolver: FileResolver) =
   parser.parseScript(astProgram, readFile(path), path)
@@ -38,9 +38,6 @@ proc compileCode(filePath: string,
   # load standard library modules
   let systemModule = libsystem.loadLibrary(script, globalData, localData)
   module.load(systemModule)
-
-  let cssLib = initCSS(script, systemModule)
-  module.load(cssLib)
 
   script.stdpos = script.procs.high
 

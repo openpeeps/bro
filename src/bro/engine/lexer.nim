@@ -46,6 +46,7 @@ type
     tkKeywordIsnot = "isnot"
     tkAnd = "and"
     tkBacktick = "`"
+    tkAt = "@"
     tkAssign = "="
     tkPlusAssign = "+="
     tkMinusAssign = "-="
@@ -59,6 +60,7 @@ type
     tkKeywordReturn = "return"
     tkKeywordIf = "if"
     tkKeywordElse = "else"
+    tkKeywordElif = "elif"
     tkKeywordWhile = "while"
     tkKeywordFor = "for"
     tkKeywordIn = "in"
@@ -78,7 +80,7 @@ type
 
   TokenTuple* = tuple
     kind: TokenKind
-    value: Option[string]
+    value: string
     line: int
     col: int
     pos: int
@@ -134,31 +136,32 @@ proc skipWhitespace(lex: var Lexer) =
     lex.advance()
 
 proc initToken(lex: var Lexer, kind: static TokenKind, line, col, pos, wsno: int): TokenTuple =
-  (kind, none(string), line, col, pos, wsno)
+  (kind, "", line, col, pos, wsno)
 
 proc initToken(lex: var Lexer, value: sink string, kind: TokenKind, line, col, pos, wsno: int): TokenTuple =
-  (kind, some(value), line, col, pos, wsno)
+  (kind, value, line, col, pos, wsno)
 
 proc initToken(lex: var Lexer, kind: static TokenKind): TokenTuple =
-  (kind, none(string), lex.line, lex.col, lex.pos, 0)
+  (kind, "", lex.line, lex.col, lex.pos, 0)
 
 proc nextToken(lex: var Lexer): TokenTuple =
   # Retrieve the next token from the input
   var wsno = 0
   while true:
-    while lex.current in {' ', '\t', '\r'}:
+    while lex.current in {' ', '\t'}:
       inc wsno
       lex.advance()
-    if lex.current == '\n' or lex.current == '\r':
+    if lex.current == '\n':
       lex.advance()
       wsno = 0
       continue
     elif lex.current == '\r':
-      if lex.peek() == '\n':
-        lex.advance()
-      inc lex.line
-      lex.col = 0
       lex.advance()
+      if lex.current == '\n':
+        lex.advance()
+      else:
+        inc lex.line
+      lex.col = 0
       wsno = 0
       continue
     break
@@ -367,6 +370,9 @@ proc nextToken(lex: var Lexer): TokenTuple =
     if lex.current == '`':
       lex.advance()
     result = initToken(lex, move(lex.strbuf), tkBacktick, startLine, startCol, startPos, wsno)
+  of '@':
+    lex.advance()
+    result = initToken(lex, tkAt, startLine, startCol, startPos, wsno)
   else:
     if lex.current.isAlphaAscii() or lex.current in {'_', '-'}:
       lex.strbuf.setLen(0)
@@ -382,6 +388,7 @@ proc nextToken(lex: var Lexer): TokenTuple =
         of "return": initToken(lex, move(lex.strbuf), tkKeywordReturn, startLine, startCol, startPos, wsno)
         of "if": initToken(lex, move(lex.strbuf), tkKeywordIf, startLine, startCol, startPos, wsno)
         of "else": initToken(lex, move(lex.strbuf), tkKeywordElse, startLine, startCol, startPos, wsno)
+        of "elif": initToken(lex, move(lex.strbuf), tkKeywordElif, startLine, startCol, startPos, wsno)
         of "while": initToken(lex, move(lex.strbuf), tkKeywordWhile, startLine, startCol, startPos, wsno)
         of "for": initToken(lex, move(lex.strbuf), tkKeywordFor, startLine, startCol, startPos, wsno)
         of "in": initToken(lex, move(lex.strbuf), tkKeywordIn, startLine, startCol, startPos, wsno)

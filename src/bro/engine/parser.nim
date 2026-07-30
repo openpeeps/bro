@@ -129,8 +129,8 @@ proc walkOptSemiColon(p: var Parser) =
   # at the end of a statement.
   if p.curr.kind == tkSemicolon:
     walk(p)
-  # elif p.curr.line == p.prev.line:
-    # p.curr.error(ErrBadIndentation)
+  elif p.curr.line == p.prev.line:
+    p.curr.error("Unexpected token after statement; missing semicolon or newline?")
 
 template expectWalk(k: TokenKind) =
   if likely(p.curr.kind == k):
@@ -201,6 +201,7 @@ proc getPrecedence(op: string): int {.inline.} =
   of "is", "isnot": 5
   of "and", "&&": 3
   of "or", "||": 2
+  of "=": 1
   of "&": 6
   else: 0
 
@@ -236,12 +237,12 @@ proc isInfix(kind: TokenKind, minPrec = 0): (bool, int, Option[string]) {.inline
 #
 prefixHandle parseIdent:
   # parse an identifier
-  result = ast.newIdent(p.curr.value.get())
+  result = ast.newIdent(p.curr.value)
   walk p # tkIdentifier
 
 prefixHandle parseCall:
   # parse a function call
-  result = ast.newCall(ast.newIdent(p.curr.value.get()))
+  result = ast.newCall(ast.newIdent(p.curr.value))
   walk p # tkIdentifier
   # parse function arguments wrapped in parentheses
   # and mark expectRP as true to expect a closing parenthesis
@@ -251,7 +252,7 @@ prefixHandle parseCall:
     while true:
       if p.curr.kind == tkIdentifier and p.next.kind == tkAssign:
         # parse a named argument
-        let name = ast.newIdent(p.curr.value.get())
+        let name = ast.newIdent(p.curr.value)
         walk p # tkIdentifier
         walk p # tkAssign
         let value = p.parseExpression()
@@ -278,7 +279,11 @@ prefixHandle parseCall:
 
 prefixHandle parseString:
   # parse a string
-  result = ast.newStringLit(p.curr.value.get())
+  result = ast.newStringLit(p.curr.value)
+  walk p
+
+prefixHandle parseNullLit:
+  result = ast.newNode(nkNil)
   walk p
 
 prefixHandle parseBoolLit:
@@ -286,7 +291,9 @@ prefixHandle parseBoolLit:
   result = ast.newBoolLit(p.curr.kind == tkKeywordTrue)
   walk p
 
-const unitSizeSuffixes = ["px", "em", "rem", "%", "vh", "vw", "vmin", "vmax"]
+const unitSizeSuffixes = ["px", "em", "rem", "%", "vh", "vw", "vmin", "vmax",
+  "s", "ms", "deg", "rad", "grad", "turn", "dpi", "dpcm", "dppx",
+  "Hz", "kHz", "fr", "ch", "ex", "cm", "mm", "in", "pt", "pc"]
 
 prefixHandle parseNumber:
   # parse a number (int or float)
@@ -294,32 +301,45 @@ prefixHandle parseNumber:
   if p.curr.kind == tkInt:
     result =
       try:
-        ast.newIntLit(parseInt(num.value.get()))
+        ast.newIntLit(parseInt(num.value))
       except ValueError:
         nil
   else:
     # assume tkFloat
     result =
       try:
-        ast.newFloatLit(parseFloat(num.value.get()))
+        ast.newFloatLit(parseFloat(num.value))
       except ValueError:
         nil
   if result == nil: discard # todo error
-  if p.next.kind == tkIdentifier and (p.next.line == num.line and p.next.wsno == 0):
-    # handle unit suffixes for numbers, e.g., `10px`, `2em`, etc.
+  if p.next.line == num.line and p.next.wsno == 0:
+    if p.next.kind == tkIdentifier:
+      # handle unit suffixes for numbers, e.g., `10px`, `2em`, etc.
+      walk p # consume the number token
+      let suffix = p.curr.value
+      if suffix in unitSizeSuffixes:
+        result = ast.newNode(nkUnit).add([result, ast.newIdent(suffix)])
+      walk p # consume the suffix identifier
+    elif p.next.kind == tkPercent:
+      walk p # consume the number token
+      result = ast.newNode(nkUnit).add([result, ast.newIdent("%")])
+      walk p # consume % token
+    else:
+      walk p # consume the number token
+  else:
     walk p # consume the number token
-    let suffix = p.curr.value.get()
-    if suffix in unitSizeSuffixes:
-      result = ast.newNode(nkUnit).add([result, ast.newIdent(suffix)])
-  walk p # consume the number token (or the unit suffix if it exists)
 
 prefixHandle parsePrefix:
   let parseFn = p.getPrefixFn(minPrec)
   if parseFn != nil: 
     return parseFn(p)
 
+proc createNullLit(p: var Parser): Node {.rule.} =
+  result = ast.newNode(nkNil)
+  walk p
+
 proc createIdentNode(p: var Parser): Node {.rule.} = 
-  result = ast.newIdent(p.curr.value.get())
+  result = ast.newIdent(p.curr.value)
   walk p # tkIdentifier
 
 proc getVarIdent(p: var Parser, varIdent: bool): Node {.rule.} =
@@ -353,7 +373,7 @@ proc parseIdentDefs(p: var Parser): Node {.rule.} =
         elif p.curr is tkKeywordVar:
           ty = ast.newNode(nkVarTy)
           if p.next is tkIdentifier:
-            ty.varType = ast.newIdent(p.next.value.get())
+            ty.varType = ast.newIdent(p.next.value)
             walk p, 2
       of tkAssign:
         # parse an implicit assignment
@@ -463,7 +483,7 @@ proc parseCommaIdentList(p: var Parser, start,
 proc parseFunctionHead(p: var Parser, isAnon: bool, name, formalParams: var Node) =
   # parse the function head
   if not isAnon:
-    name = ast.newIdent(p.curr.value.get())
+    name = ast.newIdent(p.curr.value)
     walk p
     if p.curr is tkAsterisk:
       # suffixed with an asterisk marks the function as exported (public)
@@ -502,7 +522,15 @@ proc parseBlock(p: var Parser, indentPos = 0,
     if closingBlock and p.curr is tkRBrace:
       walk p; break # tkRBrace
     elif not closingBlock and p.curr.col <= indentPos: break
-    let subNode = p.parseExpression()
+    let subNode =
+      if p.curr.kind == tkIdentifier and p.next.kind == tkColon and p.next.line == p.curr.line:
+        let propName = ast.newIdent(p.curr.value)
+        walk p, 2 # tkIdentifier > tkColon
+        let propValue = p.parseValueList()
+        p.walkOptSemiColon()
+        ast.newTree(nkColon, propName, propValue)
+      else:
+        p.parseExpression()
     caseNotNil subNode:
       stmts.add(subNode)
   result = ast.newTree(nkBlock, stmts)
@@ -552,7 +580,7 @@ proc parseSelectorBlock(p: var Parser, indentPos = 0): Node {.rule.} =
         # parse a CSS property definition, e.g., `color: red;`
         # the semicolon is optional, so we handle it in the
         # walkOptSemiColon call after parsing the property value
-        let propName = ast.newIdent(p.curr.value.get())
+        let propName = ast.newIdent(p.curr.value)
         walk p, 2 # tkIdentifier > tkColon
         # let propValue = p.parseExpression()
         let propValue = p.parseValueList()
@@ -560,6 +588,32 @@ proc parseSelectorBlock(p: var Parser, indentPos = 0): Node {.rule.} =
           let propNode = ast.newTree(nkColon, propName, propValue)
           props.add(propNode)
         p.walkOptSemiColon() # optional semicolon after each property
+      else:
+        let subNode = p.parseExpression()
+        caseNotNil subNode:
+          props.add(subNode)
+    of tkDot, tkHash, tkColon:
+      let selStartCol = p.curr.col
+      var selBuf = ""
+      let curLine = p.curr.line
+      while p.curr.kind notin {tkLBrace, tkEOF} and p.curr.line == curLine:
+        let txt =
+          if p.curr.value.len > 0: p.curr.value
+          else: $p.curr.kind
+        if p.curr.kind == tkComma:
+          selBuf &= ","
+          walk p
+          continue
+        if selBuf.len > 0 and p.curr.kind notin {tkColon, tkDot, tkHash} and p.prev.kind notin {tkColon, tkDot, tkHash}:
+          selBuf &= " "
+        selBuf &= txt
+        walk p
+      if selBuf.len > 0:
+        let sel = ast.newNode(nkBracket).add(ast.newIdent(selBuf.strip()))
+        let body = p.parseSelectorBlock(selStartCol)
+        if body != nil:
+          props.add(ast.newTree(nkElementSelector, sel,
+            ast.newEmpty(), ast.newEmpty(), body))
     else:
       # we allow for nested CSS selectors and other
       # statements in the selector block, so we parse them as expressions
@@ -595,11 +649,9 @@ prefixHandle parseIterator:
   walk p # tkIterator
   var name, formalParams: Node
   parseFunctionHead(p, isAnon = false, name, formalParams)
-  if p.curr in {tkAssign, tkLBrace}:
-    # parse function statement
-    let fnBlock: Node = p.parseBlock(tokenIterator, parseFnBlock = true)
-    caseNotNil fnBlock:
-      result = ast.newTree(nkIterator, name, formalParams, fnBlock)
+  let fnBlock: Node = p.parseBlock(tokenIterator, parseFnBlock = true)
+  caseNotNil fnBlock:
+    result = ast.newTree(nkIterator, name, formalParams, fnBlock)
 
 prefixHandle parseIf:
   # parse an if statement
@@ -611,16 +663,20 @@ prefixHandle parseIf:
     let ifBlock: Node = p.parseBlock(tk.col)
     caseNotNil ifBlock:
       children.add(ifBlock)
-    # handle elif statements
+    # handle elif and else statements
     while true:
-      if p.curr.kind == tkKeywordElse and p.next.kind == tkKeywordIf:
-        walk p, 2 # tkKeywordElse, tkKeywordIf
+      if p.curr.kind == tkKeywordElif:
+        if p.curr.col != tk.col:
+          break
+        walk p # tkKeywordElif
         let elifExpr = p.parseExpression()
         caseNotNil elifExpr:
           let elifBlock = p.parseBlock(tk.col)
           caseNotNil elifBlock:
             children.add(@[elifExpr, elifBlock])
       elif p.curr.kind == tkKeywordElse:
+        if p.curr.col != tk.col:
+          break
         walk p # tkKeywordElse
         let elseBlock = p.parseBlock(tk.col)
         caseNotNil elseBlock:
@@ -636,11 +692,11 @@ prefixHandle parseFor:
     var itemVar: Node
     if p.next is tkComma:
       itemVar = ast.newTree(nkBracket)
-      itemVar.add(ast.newIdent(p.curr.value.get()))
+      itemVar.add(ast.newIdent(p.curr.value))
       walk p, 2 # tkComma
-      itemVar.add(ast.newIdent(p.curr.value.get()))
+      itemVar.add(ast.newIdent(p.curr.value))
     else:
-      itemVar = ast.newIdent(p.curr.value.get())
+      itemVar = ast.newIdent(p.curr.value)
     walk p
     expectWalk(tkKeywordIn)
     let iterExpr: Node = p.parseExpression() 
@@ -654,8 +710,13 @@ prefixHandle parseClassSelector:
   let pos = p.curr.col
   walk p # tkDot
   if p.curr.kind == tkIdentifier:
-    let selector = ast.newIdent(p.curr.value.get())
+    var selName = p.curr.value
     walk p # tkIdentifier
+    # handle pseudo-classes like :hover, :focus appended to class
+    while p.curr.kind == tkColon and p.next.kind == tkIdentifier and p.next.line == p.curr.line:
+      selName &= ":" & p.next.value
+      walk p, 2 # tkColon, tkIdentifier
+    let selector = ast.newIdent(selName)
     let propsBlock: Node = p.parseSelectorBlock(pos)
     caseNotNil propsBlock:
       result = ast.newTree(nkClassSelector, selector,
@@ -666,7 +727,7 @@ prefixHandle parseIdSelector:
   let pos = p.curr.col
   walk p # tkHash
   if p.curr.kind == tkIdentifier:
-    let selector = ast.newIdent(p.curr.value.get())
+    let selector = ast.newIdent(p.curr.value)
     walk p # tkIdentifier
     let propsBlock: Node = p.parseSelectorBlock(pos)
     caseNotNil propsBlock:
@@ -677,13 +738,94 @@ prefixHandle parsePseudoSelector:
   # parse a pseudo selector like `:root`
   let pos = p.curr.col
   walk p # tkColon
-  if p.curr.kind == tkIdentifier and p.curr.value.get() == "root":
-    let selector = ast.newIdent(p.curr.value.get())
+  if p.curr.kind == tkIdentifier and p.curr.value == "root":
+    let selector = ast.newIdent(p.curr.value)
     walk p # tkIdentifier
     let propsBlock: Node = p.parseSelectorBlock(pos)
     caseNotNil propsBlock:
       result = ast.newTree(nkPseudoSelector, selector,
                   ast.newEmpty(), ast.newEmpty(), propsBlock)
+
+proc parseAtRulePrelude(p: var Parser, atLine: int): string =
+  var prelude = ""
+  while p.curr.kind notin {tkLBrace, tkSemicolon, tkEOF} and p.curr.line == atLine:
+    let txt =
+      if p.curr.value.len > 0: p.curr.value
+      else: $p.curr.kind
+    if prelude.len > 0 and p.curr.wsno > 0:
+      prelude &= " "
+    prelude &= txt
+    walk p
+  result = prelude.strip()
+
+proc parseKeyframeBlock(p: var Parser, indentPos = 0): Node {.rule.} =
+  var closingBlock: bool
+  var stmts = newSeq[Node](0)
+  if p.curr.kind == tkLBrace:
+    closingBlock = true
+    walk p
+  else:
+    closingBlock = false
+  while p.curr.kind notin {tkEOF}:
+    p.skipComments()
+    if closingBlock and p.curr.kind == tkRBrace:
+      walk p; break
+    elif not closingBlock and p.curr.col <= indentPos:
+      break
+    var selectorName = ""
+    let selCol = p.curr.col
+    case p.curr.kind
+    of tkIdentifier:
+      if p.curr.value in ["from", "to"]:
+        selectorName = p.curr.value
+        walk p
+      else:
+        break
+    of tkInt, tkFloat:
+      selectorName = p.curr.value
+      walk p
+      if p.curr.kind == tkPercent:
+        selectorName &= "%"
+        walk p
+    else:
+      break
+    if selectorName.len == 0:
+      break
+    let selBlock = p.parseSelectorBlock(selCol)
+    caseNotNil selBlock:
+      let sel = ast.newNode(nkBracket)
+      sel.add(ast.newIdent(selectorName))
+      let keyframeNode = ast.newTree(nkElementSelector, sel,
+        ast.newEmpty(), ast.newEmpty(), selBlock)
+      stmts.add(keyframeNode)
+  result = ast.newTree(nkBlock, stmts)
+
+prefixHandle parseAtRule:
+  let pos = p.curr.col
+  let atLine = p.curr.line
+  walk p # tkAt
+  let atName =
+    if p.curr.kind == tkIdentifier: p.curr.value
+    elif p.curr.kind == tkKeywordImport: "import"
+    else:
+      p.curr.error("Expected at-rule name after @")
+      return
+  walk p
+  var prelude = p.parseAtRulePrelude(atLine)
+  let nameNode = ast.newIdent(atName)
+  let preludeNode = ast.newStringLit(prelude)
+  if p.curr.kind == tkLBrace or (p.curr.line != atLine and p.curr.col > pos):
+    let body: Node =
+      if atName == "keyframes":
+        p.parseKeyframeBlock(pos)
+      else:
+        p.parseSelectorBlock(pos)
+    caseNotNil body:
+      result = ast.newTree(nkAtRule, nameNode, preludeNode, body)
+  else:
+    if p.curr.kind == tkSemicolon:
+      walk p
+    result = ast.newTree(nkAtRule, nameNode, preludeNode, ast.newTree(nkBlock))
 
 prefixHandle parseSelector:
   # collect raw selector text until we hit the selector block `{`
@@ -694,7 +836,7 @@ prefixHandle parseSelector:
   while p.curr.kind notin {tkLBrace, tkEOF}:
     # Accumulate token text (identifiers, symbols, combinators, colons, dots, hashes, commas)
     let txt =
-      if p.curr.value.isSome: p.curr.value.get()
+      if p.curr.value.len > 0: p.curr.value
       else: $p.curr.kind
     
     # When we hit a comma, flush current buffer as one selector
@@ -705,7 +847,8 @@ prefixHandle parseSelector:
       walk p # consume comma
       continue
     # Add spacing where tokens were separated by whitespace on the same line
-    if selBuf.len > 0:
+    # Skip space before CSS attachment tokens (:, ., #, [, ], (, )) and after them
+    if selBuf.len > 0 and p.curr.kind notin {tkColon, tkDot, tkHash, tkLBracket, tkRBracket, tkLParen, tkRParen} and p.prev.kind notin {tkColon, tkDot, tkHash, tkLParen}:
       selBuf &= " "
     selBuf &= txt
     sawAny = true
@@ -727,7 +870,7 @@ prefixHandle parseHash:
   # If followed by an identifier (hex/word) or a number (e.g. #333),
   # combine into a single string literal
   if p.next.kind in {tkIdentifier, tkInt, tkFloat}:
-    let val = "#" & p.next.value.get()
+    let val = "#" & p.next.value
     walk p, 2 # consume tkHash + identifier/number
     result = ast.newStringLit(val)
   else:
@@ -742,7 +885,7 @@ proc getPrefixFn(p: var Parser, minPrec: int): PrefixFunction =
     of tkIdentifier:
       if p.next.line == p.curr.line and p.next is tkLParen:
         parseCall
-      elif p.next.kind in {tkLBrace, tkComma, tkGT, tkDot, tkHash, tkColon}:
+      elif p.next.kind in {tkLBrace, tkComma, tkDot, tkHash, tkColon} and p.next.line == p.curr.line:
         parseSelector
       else: parseIdent
     of tkKeywordVar, tkKeywordLet, tkKeywordConst: parseVar
@@ -750,6 +893,7 @@ proc getPrefixFn(p: var Parser, minPrec: int): PrefixFunction =
     of tkString: parseString
     of tkInt, tkFloat: parseNumber
     of tkKeywordTrue, tkKeywordFalse: parseBoolLit
+    of tkKeywordNull: parseNullLit
     of tkKeywordFunction: parseFunction
     of tkKeywordIterator: parseIterator
     of tkKeywordWhile: parseWhile
@@ -761,11 +905,14 @@ proc getPrefixFn(p: var Parser, minPrec: int): PrefixFunction =
     of tkDot: parseClassSelector
     of tkHash: parseHash
     of tkColon: parsePseudoSelector
+    of tkAt: parseAtRule
     else: nil
 
 proc parseExpression(p: var Parser, minPrec = 0): Node =
   var lhs = p.parsePrefix(minPrec)
   caseNotNil lhs:
+    let startLn = lhs.ln
+    let startCol = lhs.col
     while true:
       # handle infix operators
       # including dot and bracket access
@@ -820,6 +967,7 @@ proc parseExpression(p: var Parser, minPrec = 0): Node =
         let indexNode = p.parseExpression()
         expectWalk tkRBracket
         lhs = ast.newNode(nkBracket).add([lhs, indexNode])
+        lhs.ln = startLn; lhs.col = startCol
       elif isDot:
         # Parse dot access: lhs.rhs
         if p.curr is tkDot and p.curr.wsno == 0:
@@ -830,6 +978,7 @@ proc parseExpression(p: var Parser, minPrec = 0): Node =
             return ast.newCall(ast.newIdent(".."), lhs, rhs)
         let rhs = p.parseExpression(minPrec = prec + 1)
         lhs = ast.newTree(nkDot, lhs, rhs)
+        lhs.ln = startLn; lhs.col = startCol
       elif isIs:
         # desugar `x is z` -> `is(x, z)`
         let rhs = p.parseExpression(minPrec = prec + 1)
@@ -837,6 +986,7 @@ proc parseExpression(p: var Parser, minPrec = 0): Node =
           let callNode = ast.newCall(ast.newIdent("is"))
           callNode.add(lhs)
           callNode.add(rhs)
+          callNode.ln = startLn; callNode.col = startCol
           lhs = callNode
       elif isIsnot:
         # desugar `x isnot z` -> `not is(x, z)`
@@ -845,11 +995,13 @@ proc parseExpression(p: var Parser, minPrec = 0): Node =
           let callNode = ast.newCall(ast.newIdent("isnot"))
           callNode.add(lhs)
           callNode.add(rhs)
+          callNode.ln = startLn; callNode.col = startCol
           lhs = callNode
       else:
         # Normal infix operator
         let rhs = p.parseExpression(minPrec = prec)
         lhs = ast.newInfix(ast.newIdent(opStr), lhs, rhs)
+        lhs.ln = startLn; lhs.col = startCol
     result = lhs
 
 prefixHandle parseObject:
@@ -857,7 +1009,7 @@ prefixHandle parseObject:
   result = ast.newTree(nkObject)
   if p.next is tkIdentifier:
     walk p # tkLitObject
-    var id = ast.newIdent(p.curr.value.get())
+    var id = ast.newIdent(p.curr.value)
     if p.next is tkAsterisk:
       id = ast.newNode(nkPostfix).add([ast.newIdent("*"), id])
       walk p, 2
@@ -900,6 +1052,15 @@ prefixHandle parseStmt:
       else: parseExpression
     of tkKeywordIf: parseIf
     of tkKeywordFor: parseFor
+    of tkAt: parseAtRule
+    of tkKeywordImport:
+      proc (p: var Parser, minPrec = 0): Node =
+        walk p # tkKeywordImport
+        if p.curr.kind == tkString:
+          result = ast.newTree(nkImport, ast.newStringLit(p.curr.value))
+          walk p # tkString
+        else:
+          p.curr.error("import expects a string literal path")
     else: nil
   if prefixFn != nil:
     return prefixFn(p)
@@ -916,8 +1077,13 @@ proc parseScript*(astProgram: var Ast, code: sink string, sourcePath: string) =
   astProgram = Ast()
   astProgram.sourcePath = sourcePath
   while p.curr.kind != tkEOF:
-    let node: Node = p.parseStmt()
-    caseNotNil node:
-      astProgram.nodes.add(node)
-    do:
-      p.curr.error(ErrUnexpectedToken % $p.curr.kind)
+    try:
+      let node: Node = p.parseStmt()
+      caseNotNil node:
+        astProgram.nodes.add(node)
+      do:
+        p.curr.error(ErrUnexpectedToken % $p.curr.kind)
+    except BroParserError:
+      # skip the bad token and continue from the next one
+      if p.curr.kind notin {tkEOF}:
+        walk(p)

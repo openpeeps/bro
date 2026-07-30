@@ -59,6 +59,9 @@ proc paramDef*(name: string, kind: TypeKind, val: Value = nil,
   ## Create a new parameter definition.
   result = (name, kind, kindStr, sym, mut, isOpt)
 
+proc p*(name: string, kind: TypeKind, mut = false, isOpt = false): TempParamDef {.inline.} =
+  result = (name, kind, "", nil, mut, isOpt)
+
 
 proc compileCode*(script: Script, module: Module, filename, code: string) =
   ## Compile some hayago code to the given script and module.

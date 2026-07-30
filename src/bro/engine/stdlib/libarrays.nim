@@ -22,7 +22,7 @@ proc initArrays*(script: Script, systemModule: Module): Module =
     proc (args: StackView, argc: int): Value =
       # TODO runtime check for type compatibility
       # inside the standard library 
-      args[0].objectVal.fields.add(args[1])
+      args[0].objectVal.fields.add(args[1].toStorage)
     )
     
   script.addProc(result, "delete", @[
@@ -35,7 +35,7 @@ proc initArrays*(script: Script, systemModule: Module): Module =
       paramDef("s", ttyArray), paramDef("item", ttyAny),
       paramDef("offset", ttyInt)], ttyVoid,
     proc (args: StackView, argc: int): Value =
-      insert(args[0].objectVal.fields, args[1], args[2].intVal)
+      insert(args[0].objectVal.fields, args[1].toStorage, args[2].intVal)
   )
 
   script.addProc(result, "join", @[paramDef("s", ttyArray)], ttyString,
@@ -44,7 +44,7 @@ proc initArrays*(script: Script, systemModule: Module): Module =
       for v in args[0].objectVal.fields:
         assert v.typeId == tyString, "join() only works on arrays of strings"
       result = initvalue("")
-      result.stringVal[] = args[0].objectVal.fields.mapIt(it.stringVal[]).join(", ")
+      result.stringVal[] = args[0].objectVal.fields.mapIt(it.refVal.stringVal[]).join(", ")
   )
 
   script.addProc(result, "contains", @[paramDef("arr", ttyArray), paramDef("x", ttyString)], ttyBool,
@@ -62,7 +62,7 @@ proc initArrays*(script: Script, systemModule: Module): Module =
           if v.boolVal == args[1].boolVal:
             return initvalue(true)
         of tyString:
-          if v.stringVal[] == args[1].stringVal[]:
+          if v.refVal.stringVal[] == args[1].stringVal[]:
             return initvalue(true)
         else:
           assert false, "contains() not supported for this type " & $v.typeId
@@ -79,7 +79,7 @@ proc initArrays*(script: Script, systemModule: Module): Module =
           if v.intVal == args[1].intVal:
             result.intVal = i; break
         of tyString:
-          if v.stringVal[] == args[1].stringVal[]:
+          if v.refVal.stringVal[] == args[1].stringVal[]:
             result.intVal = i; break
         of tyFloat:
           if v.floatVal == args[1].floatVal:
@@ -107,7 +107,7 @@ proc initArrays*(script: Script, systemModule: Module): Module =
       var i = 0
       while i < args[0].objectVal.fields.len:
         let v = args[0].objectVal.fields[i]
-        let h = valueHash(v)
+        let h = valueHash(v.toValue)
         if h in seen:
           args[0].objectVal.fields.delete(i)
         else:
