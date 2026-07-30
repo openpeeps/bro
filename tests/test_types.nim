@@ -7,13 +7,12 @@ import ../src/bro/engine/parser
 
 import pkg/vancode/interpreter/[ast, codegen, chunk, sym, vm, value]
 
-import ../src/bro/engine/stdlib/[libsystem, libcss]
+import ../src/bro/engine/stdlib/libsystem
 
 var
   cachedScript: Script
   cachedModule: Module
   cachedSystem: Module
-  cachedCss: Module
   cachedChunk: Chunk
 
 proc ensureStdlib() =
@@ -23,8 +22,6 @@ proc ensureStdlib() =
     cachedModule = newModule("stdlib", some("stdlib"))
     cachedSystem = libsystem.loadLibrary(cachedScript, newJObject(), newJObject())
     cachedModule.load(cachedSystem)
-    cachedCss = initCSS(cachedScript, cachedSystem)
-    cachedModule.load(cachedCss)
     cachedScript.stdpos = cachedScript.procs.high
 
 proc compileExpectSuccess(code: string): string =

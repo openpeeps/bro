@@ -7,7 +7,7 @@ import ../src/bro/engine/parser
 
 import pkg/vancode/interpreter/[ast, codegen, chunk, sym, vm, value]
 
-import ../src/bro/engine/stdlib/[libsystem, libcss]
+import ../src/bro/engine/stdlib/[libsystem]
 
 proc compile(code: string): string =
   var program: Ast
@@ -19,8 +19,6 @@ proc compile(code: string): string =
 
   let systemModule = libsystem.loadLibrary(script, newJObject(), newJObject())
   module.load(systemModule)
-  let cssLib = initCSS(script, systemModule)
-  module.load(cssLib)
   script.stdpos = script.procs.high
 
   var gen = initCodeGen(script, module, mainChunk)
