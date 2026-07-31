@@ -57,6 +57,129 @@ suite "compilation tests":
     let css = compile("h1, btn { color: red; }")
     check css == "h1,btn{color:red;}"
 
+  test "compile element selector followed by rules on same line":
+    let css = compile("a, btn:hover { padding-top: 10px; }.p-0 { padding: 0; }")
+    check css == "a,btn:hover{padding-top:10px;}.p-0{padding:0;}"
+
+  test "compile attribute selector":
+    let css = compile("[data-bs-theme=dark] { color: red; }")
+    check css == "[data-bs-theme=dark]{color:red;}"
+
+  test "compile attribute selector with quoted value":
+    let css = compile("[data-bs-theme=\"dark\"] { color: red; }")
+    check css == "[data-bs-theme=\"dark\"]{color:red;}"
+
+  test "compile attribute selector on class":
+    let css = compile(".dropdown[data-bs-popper] { padding: 0; }")
+    check css == ".dropdown[data-bs-popper]{padding:0;}"
+
+  test "compile attribute selector with caret operator":
+    let css = compile("a[href^=\"http\"] { color: blue; }")
+    check css == "a[href^=\"http\"]{color:blue;}"
+
+  test "compile attribute selector with tilde operator":
+    let css = compile("[data-x~=foo] { display: block; }")
+    check css == "[data-x~=foo]{display:block;}"
+
+  test "compile attribute selector with dollar operator":
+    let css = compile("[data-x$=\"suffix\"] { display: none; }")
+    check css == "[data-x$=\"suffix\"]{display:none;}"
+
+  test "compile attribute selector with pipe operator":
+    let css = compile("[data-x|=en] { width: 10px; }")
+    check css == "[data-x|=en]{width:10px;}"
+
+  test "compile element with attribute and pseudo":
+    let css = compile("input[type=\"checkbox\"]:checked { color: green; }")
+    check css == "input[type=\"checkbox\"]:checked{color:green;}"
+
+  test "compile minified css without spaces":
+    let css = compile("body{color:red}.foo{padding:0}")
+    check css == "body{color:red;}.foo{padding:0;}"
+
+  test "compile hex color starting with digit":
+    let css = compile(".foo{color:#0d6efd}")
+    check css == ".foo{color:#0d6efd;}"
+
+  test "compile leading-dot float":
+    let css = compile(".foo{margin-top:.125rem}")
+    check css == ".foo{margin-top:0.125rem;}"
+
+  test "compile descendant selector after attribute":
+    let css = compile("[data-bs-theme=\"dark\"] .dropdown-menu { color: red; }")
+    check css == "[data-bs-theme=\"dark\"] .dropdown-menu{color:red;}"
+
+  test "compile attribute with comma-separated selectors":
+    let css = compile("a[href^=\"http\"], [data-x^=\"y\"] { color: blue; }")
+    check css == "a[href^=\"http\"],[data-x^=\"y\"]{color:blue;}"
+
+  test "compile adjacent sibling combinator":
+    let css = compile(".btn-check:checked+.btn { color: red; }")
+    check css == ".btn-check:checked+.btn{color:red;}"
+
+  test "compile child combinator":
+    let css = compile(".parent>.child { color: red; }")
+    check css == ".parent>.child{color:red;}"
+
+  test "compile var() css function":
+    let css = compile(".btn { color: var(--bs-btn-hover-color); }")
+    check css == ".btn{color:var(--bs-btn-hover-color);}"
+
+  test "compile css variable declarations":
+    let css = compile(":root { --bs-blue: #0d6efd; --bs-breakpoint-md: 768px; }")
+    check css == ":root{--bs-blue:#0d6efd;--bs-breakpoint-md:768px;}"
+
+  test "compile pseudo-element":
+    let css = compile(".foo::before { display: block; }")
+    check css == ".foo::before{display:block;}"
+
+  test "compile important modifier":
+    let css = compile(".foo { color: red !important; }")
+    check css == ".foo{color:red !important;}"
+
+  test "compile descendant element selectors":
+    let css = compile("""
+  ol ol,
+  ul ul,
+  ol ul,
+  ul ol {
+    margin-bottom: 0;
+  }
+  """)
+    check css == "ol ol,ul ul,ol ul,ul ol{margin-bottom:0;}"
+
+  test "compile nested element selector in at-rule":
+    let css = compile("@media (min-width: 768px) { ol li { color: blue; } }")
+    check css == "@media (min-width: 768px){ol li{color:blue;}}"
+
+  test "compile is() functional pseudo":
+    let css = compile(".table :is(thead,tbody,tfoot)>tr>th,td { padding: .5rem; }")
+    check css == ".table :is(thead,tbody,tfoot)>tr>th,td{padding:0.5rem;}"
+
+  test "compile not() functional pseudo":
+    let css = compile(".visually-hidden:not(caption) { position: absolute; }")
+    check css == ".visually-hidden:not(caption){position:absolute;}"
+
+  test "compile nth-child functional pseudo":
+    let css = compile(".x:nth-child(2n+1) { color: red; }")
+    check css == ".x:nth-child(2n+1){color:red;}"
+
+  test "compile compound class selector":
+    let css = compile(".offcanvas.offcanvas-start { color: red; }")
+    check css == ".offcanvas.offcanvas-start{color:red;}"
+
+  test "compile duplicate property keys (vendor fallback)":
+    let css = compile("th { text-align: inherit; text-align: -webkit-match-parent; }")
+    check css == "th{text-align:inherit;text-align:-webkit-match-parent;}"
+
+  test "compile negative space-separated values":
+    let css = compile(".x { margin: -0.375rem -0.75rem; }")
+    check css == ".x{margin:-0.375rem -0.75rem;}"
+
+  test "compile nested comma-separated values":
+    let css = compile(".x { background-position: right 0.75rem center, center right 2.25rem; }")
+    check css == ".x{background-position:right 0.75rem center, center right 2.25rem;}"
+
   test "compile indent based class selector":
     let css = compile("""
   .foo
@@ -90,7 +213,7 @@ suite "compilation tests":
 
   test "compile string value":
     let css = compile(".c { font-family: \"Arial\"; }")
-    check css == ".c{font-family:Arial;}"
+    check css == ".c{font-family:\"Arial\";}"
 
   test "compile multiple values":
     let css = compile(".pad { margin: 10px 20px; }")
@@ -213,7 +336,7 @@ suite "compilation tests":
     src: url("custom.woff2");
   }
   """)
-    check css == "@font-face{font-family:Custom;src:url(custom.woff2);}"
+    check css == "@font-face{font-family:\"Custom\";src:url(\"custom.woff2\");}"
 
   test "compile @keyframes":
     let css = compile("""
@@ -272,7 +395,7 @@ suite "compilation tests":
 
   test "compile @font-face with single descriptor":
     let css = compile("@font-face { font-family: \"Custom\"; }")
-    check css == "@font-face{font-family:Custom;}"
+    check css == "@font-face{font-family:\"Custom\";}"
 
   test "compile @keyframes brace-delimited":
     let css = compile("@keyframes slide { from { opacity: 0; } to { opacity: 1; } }")

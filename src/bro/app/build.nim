@@ -4,31 +4,72 @@
 #          Made by Humans from OpenPeeps
 #          https://github.com/openpeeps/bro
 
-import std/[os, monotimes, times, options]
+import std/[os, monotimes, times, options, strutils]
 
 import pkg/watchout
-import pkg/[openparser/json]
+import pkg/openparser/json
 import pkg/kapsis/[cli, runtime, interactive/prompts]
 
 import pkg/vancode/interpreter/[ast, codegen, chunk, sym, vm, value, resolver]
 import pkg/vancode/manager/packager
 
 import ../engine/parser
+import ../engine/sourcemap
 import ../engine/stdlib/[libsystem, libarrays, libcolors]
 
 proc parserCallback(astProgram: var Ast, path: string, resolver: FileResolver) =
   parser.parseScript(astProgram, readFile(path), path)
 
+#
+# Compile command
+#
+proc writeSourceMap(vm: Vm, srcPath, code: string, outputFilePath: string) =
+  ## Build and write a v3 source map for the compiled CSS alongside the CSS file.
+  var info = initSourceInfo()
+  info.addContent(srcPath, code)
+  # The VM accumulated segments as `genCol \x03 line \x03 col \x03 file` records,
+  # separated by \x02.
+  let segs = vm.globals.getOrDefault("__bro_sourcemap_segments").stringVal[]
+  for record in segs.split('\x02'):
+    if record.len == 0:
+      continue
+    let parts = record.split('\x03')
+    if parts.len >= 4:
+      let genCol = parseInt(parts[0])
+      let line = parseInt(parts[1]) - 1 # source lines are 0-based in the map
+      let col = parseInt(parts[2])
+      info.addSegment(0, genCol, parts[3], line, col)
+
+  let sm = info.toSourceMap(outputFilePath.extractFilename)
+  let mapNode = newJObject()
+  mapNode["version"] = newJInt(sm.version)
+  mapNode["file"] = newJString(sm.file)
+  let sources = newJArray()
+  for s in sm.sources:
+    sources.add(newJString(s))
+  mapNode["sources"] = sources
+  let contents = newJArray()
+  for c in sm.sourcesContent:
+    contents.add(newJString(c))
+  mapNode["sourcesContent"] = contents
+  let names = newJArray()
+  mapNode["names"] = names
+  mapNode["mappings"] = newJString(sm.mappings)
+
+  let mapPath = outputFilePath.changeFileExt(".css.map")
+  writeFile(mapPath, toJson(mapNode))
+
 proc compileCode(filePath: string,
           pkgr: Packager, globalData: JsonNode, localData: JsonNode,
-          output: bool = false, outputPath: string = "") =
+          output: bool = false, outputPath: string = "",
+          sourceMap: bool = false) =
   # Compile the BASS code at `filePath` and optionally save the output to `
   var program: Ast # the AST representation of the script
   let code = readFile(filePath)
   try:
     parser.parseScript(program, code, filePath)
   except BroParserError as e:
-    echo e.msg
+    displayError(e.msg)
     quit(1)
 
   var mainChunk = newChunk(filePath)
@@ -58,8 +99,13 @@ proc compileCode(filePath: string,
     else:
       let cssOutput = virtualMachine.interpret(script, mainChunk).stringVal[]
       let outputFilePath = outputPath.changeFileExt(".css")
-      # if fileExists(outputFilePath):
-      writeFile(outputFilePath, cssOutput)
+      if sourceMap:
+        writeSourceMap(virtualMachine, filePath, code, outputFilePath)
+        let mapName = outputFilePath.extractFilename.changeFileExt(".css.map")
+        writeFile(outputFilePath, cssOutput & "\n/*# sourceMappingURL=" & mapName & " */")
+      else:
+        # if fileExists(outputFilePath):
+        writeFile(outputFilePath, cssOutput)
   except CodeGenError as e:
     echo e.msg
 
@@ -76,12 +122,17 @@ proc compileCommand*(v: Values) =
     else: ""
 
   let enabledWatch = v.has("-w")
+  let enabledSourceMap = v.has("--sourceMap")
 
   if not srcPath.isAbsolute:
     srcPath = getCurrentDir() / srcPath
   
-  if hasOutput and outputPath.isAbsolute:
+  if hasOutput and not outputPath.isAbsolute:
     outputPath = getCurrentDir() / outputPath
+
+  if enabledSourceMap and not hasOutput:
+    displayError("--sourceMap requires -o <output.css>")
+    quit(1)
 
   # init the package manager and load the local packages
   let pkgr = packager.initPackageRemote()
@@ -108,7 +159,7 @@ proc compileCommand*(v: Values) =
       else: newJObject()
 
   # compile the code for the first time
-  compileCode(srcPath, pkgr, globalData, localData, hasOutput, outputPath)
+  compileCode(srcPath, pkgr, globalData, localData, hasOutput, outputPath, enabledSourceMap)
 
   # initialize the file watcher for browser sync if watch mode is enabled
   if enabledWatch:
@@ -125,7 +176,7 @@ proc compileCommand*(v: Values) =
         compileCode(file.getPath, pkgr, globalData, localData, false, "")
       else:
         let t = cpuTime()
-        compileCode(file.getPath, pkgr, globalData, localData, hasOutput, outputPath)
+        compileCode(file.getPath, pkgr, globalData, localData, hasOutput, outputPath, enabledSourceMap)
         displayInfo("File changed: " & file.getPath)
         displaySuccess("Recompiled in " & $((cpuTime() - t)) & "s")
 
@@ -138,3 +189,26 @@ proc compileCommand*(v: Values) =
 
     while true:
       sleep(1000) # keep the program running to watch for file changes
+
+
+#
+# AST command
+#
+proc astCommand*(v: Values) =
+  ## Generate AST structure from BASS file
+  var hasOutput: bool
+  var program: Ast # the AST representation of the script
+  var srcPath = $(v.get("bass").getPath)
+  var outputPath =
+    if v.has("-o"):
+      hasOutput = true
+      v.get("-o").getFilename
+    else: ""
+  let code = readFile(srcPath)
+  try:
+    parser.parseScript(program, code, srcPath)
+  except BroParserError as e:
+    displayError(e.msg)
+    quit(1)
+  
+  if not hasOutput: echo toJson(program)

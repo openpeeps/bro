@@ -1017,3 +1017,18 @@ suite "parser tests":
     check ast.nodes[0][3].children.len == 1
     check ast.nodes[0][3].children[0].kind == nkAtRule
     check ast.nodes[0][3].children[0][0].ident == "media"
+
+  test "missing closing brace raises error":
+    var ast: Ast
+    expect BroParserError:
+      parser.parseScript(ast, ".p-0{padding:0", "test_missing_brace.css")
+
+  test "missing closing brace in at-rule raises error":
+    var ast: Ast
+    expect BroParserError:
+      parser.parseScript(ast, "@media (max-width: 768px) { .foo { color: red; }", "test_missing_brace.css")
+
+  test "missing closing paren raises error":
+    var ast: Ast
+    expect BroParserError:
+      parser.parseScript(ast, "foo(", "test_missing_paren.css")

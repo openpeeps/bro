@@ -9,13 +9,19 @@
 </p>
 
 ## Key features
-- Super fast compilation speed
-- Small output CSS size
-- CSS-like syntax + powerful features
-- Built-in file watcher for development
+- Compiled, fast, memory efficient!
+- Super fast VM and JIT Compiler
+- AST generator for efficient storing
+- Powerful typed system ~ no bullshit
+- CSS syntax + powerful features
+- Custom type definition
+- Var assignment (`var`, `const`)
+- Control flow (`if`, `elif`, `else`), `for` and `while` loops
+- Powerful Standard Library
+- Functions (function overloading and forward declaration)
+- Built-in package manager and file watcher for development
 - Cross-platform support (Windows, macOS, Linux)
-- Written in Nim language
-
+- Written in 👑 Nim language
 
 ## About this
 Bro is a new stylesheet language that transpiles to CSS. It is designed to be super fast, easy to learn, and powerful enough for real-world projects. Bro is still in early development, but it already has a lot of features that make it a great choice for styling your web projects.

@@ -126,7 +126,7 @@ suite "CSS type system — valid values":
 
   test "font-family: string":
     let css = compileExpectSuccess(".a { font-family: \"Arial\"; }")
-    check css == ".a{font-family:Arial;}"
+    check css == ".a{font-family:\"Arial\";}"
 
   test "font-family: sans-serif keyword":
     let css = compileExpectSuccess(".a { font-family: sans-serif; }")

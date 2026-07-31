@@ -22,6 +22,7 @@ block extendAST:
     nkProperty  # Represents a CSS property (e.g., color: red)
     nkValue     # Represents a CSS value (e.g., 16px, red)
     nkAtRule    # Represents a CSS at-rule (e.g., @media, @supports)
+    nkCommaList # Represents comma-separated CSS values (e.g., 13, 110, 253)
 
 block extendSym:
   extendEnum TypeKind:
@@ -99,7 +100,11 @@ block extendCodeGen:
       of nkIdent: result = node.ident
       of nkInt: result = $node.intVal
       of nkFloat: result = $node.floatVal
-      of nkString: result = node.stringVal
+      of nkString:
+        if node.stringVal.len > 0 and node.stringVal[0] == '#':
+          result = node.stringVal # hex color literal, no quotes
+        else:
+          result = "\"" & node.stringVal & "\"" # string literal
       of nkUnit:
         result = if node[0].kind == nkInt: $node[0].intVal else: $node[0].floatVal
         result &= node[1].ident
@@ -108,6 +113,11 @@ block extendCodeGen:
         for child in node.children:
           parts.add(nodeToCssString(child))
         result = parts.join(" ")
+      of nkCommaList:
+        var cparts: seq[string]
+        for child in node.children:
+          cparts.add(nodeToCssString(child))
+        result = cparts.join(", ")
       of nkCall:
         if node.children.len > 0 and node[0].kind == nkIdent:
           result = node[0].ident & "("
@@ -118,6 +128,9 @@ block extendCodeGen:
       of nkInfix:
         if node.children.len >= 3:
           result = nodeToCssString(node[1]) & " " & nodeToCssString(node[0]) & " " & nodeToCssString(node[2])
+      of nkPostfix:
+        if node.children.len >= 2:
+          result = nodeToCssString(node[1]) & " !" & node[0].ident
       else: result = ""
 
     proc genSelector*(node: Node): Sym {.codegen, discardable.} =
@@ -152,6 +165,7 @@ block extendCodeGen:
       var
         keyIdxes: seq[uint16]
         nestedStmts: seq[Node]
+        hasDuplicate = false
       for child in node[3].children:
         if child.kind != nkColon:
           nestedStmts.add(child)
@@ -162,16 +176,22 @@ block extendCodeGen:
           elif prop[0].kind == nkString: prop[0].stringVal
           else: prop[0].error("Invalid property key: " & $prop[0].kind); ""
 
-        if unlikely(result.objectFields.hasKey(key)):
-          prop.error("Duplicate property key: " & key)
-
+        # Duplicate property keys are allowed (e.g. vendor fallbacks like
+        # `text-align: inherit; text-align: -webkit-match-parent;`).
+        # Duplicates switch emission to raw mode so both declarations appear.
+        if result.objectFields.hasKey(key):
+          hasDuplicate = true
         let isVarRef = prop[1].kind == nkIdent and prop[1].ident.len > 0 and prop[1].ident[0] == '$'
 
         # Validate CSS property value for literal values
-        if not isVarRef and prop[1].kind in {nkIdent, nkInt, nkFloat, nkString, nkUnit, nkExprList, nkCall}:
+        if not isVarRef and prop[1].kind in {nkIdent, nkInt, nkFloat, nkString, nkUnit, nkExprList, nkCommaList, nkCall, nkPostfix}:
           var rawCss = nodeToCssString(prop[1])
           if rawCss.len > 0:
-            discard cssValidateProp(key, rawCss)
+            # Validate the base value when `!important` is a postfix suffix
+            var validateCss =
+              if prop[1].kind == nkPostfix: nodeToCssString(prop[1][1])
+              else: rawCss
+            discard cssValidateProp(key, validateCss)
             let cssType = cssGetPropertySyntax(key)
             let expectedKind =
               if cssType != nil and cssType.kind == skType:
@@ -227,7 +247,7 @@ block extendCodeGen:
         if s.kind == nkAtRule:
           hasNestedAtRule = true
           break
-      if hasNestedAtRule:
+      if hasNestedAtRule or hasDuplicate:
         let prefix =
           case selectorType
           of 0: "."
@@ -237,6 +257,8 @@ block extendCodeGen:
         gen.chunk.emit(opcPushS)
         gen.chunk.emit(gen.chunk.getString(prefix & selectorName & "{"))
         gen.chunk.emit(opcEmitRaw)
+        gen.chunk.emit(uint16(node.ln))
+        gen.chunk.emit(uint16(node.col))
         for child in node[3].children:
           if child.kind == nkColon:
             let key = child[0].ident
@@ -245,18 +267,33 @@ block extendCodeGen:
               gen.chunk.emit(opcPushS)
               gen.chunk.emit(gen.chunk.getString(key & ":" & val & ";"))
               gen.chunk.emit(opcEmitRaw)
+              gen.chunk.emit(uint16(child.ln))
+              gen.chunk.emit(uint16(child.col))
         for stmt in nestedStmts:
           gen.genStmt(stmt)
         gen.chunk.emit(opcPushS)
         gen.chunk.emit(gen.chunk.getString("}"))
         gen.chunk.emit(opcEmitRaw)
+        gen.chunk.emit(uint16(0xFFFF)) # no source mapping for closing brace
+        gen.chunk.emit(uint16(0))
       else:
-        # Emit the parent selector object storage and CSS first
         gen.chunk.emit(opcConstrObj)
         gen.chunk.emit(uint16(result.objectFields.len))
         for kix in keyIdxes:
           gen.chunk.emit(kix)
+        # opcEmitCSS carries: count, then selector (ln,col), then one (ln,col) per property
+        var propCount = 0
+        for child in node[3].children:
+          if child.kind == nkColon:
+            inc propCount
         gen.chunk.emit(opcEmitCSS)
+        gen.chunk.emit(uint16(propCount + 1))
+        gen.chunk.emit(uint16(node.ln))
+        gen.chunk.emit(uint16(node.col))
+        for child in node[3].children:
+          if child.kind == nkColon:
+            gen.chunk.emit(uint16(child.ln))
+            gen.chunk.emit(uint16(child.col))
       # Emit non-at-rule nested selectors at the same level
       for stmt in nestedStmts:
         if stmt.kind != nkAtRule:
@@ -327,6 +364,8 @@ block extendCodeGen:
         gen.chunk.emit(opcPushS)
         gen.chunk.emit(gen.chunk.getString("@" & name & prelude & "{"))
         gen.chunk.emit(opcEmitRaw)
+        gen.chunk.emit(uint16(node.ln))
+        gen.chunk.emit(uint16(node.col))
         for child in node[2].children:
           if child.kind == nkColon:
             let key = child[0].ident
@@ -334,15 +373,21 @@ block extendCodeGen:
             gen.chunk.emit(opcPushS)
             gen.chunk.emit(gen.chunk.getString(key & ":" & val & ";"))
             gen.chunk.emit(opcEmitRaw)
+            gen.chunk.emit(uint16(child.ln))
+            gen.chunk.emit(uint16(child.col))
           else:
             gen.genStmt(child)
         gen.chunk.emit(opcPushS)
         gen.chunk.emit(gen.chunk.getString("}"))
         gen.chunk.emit(opcEmitRaw)
+        gen.chunk.emit(uint16(0xFFFF)) # no source mapping for closing brace
+        gen.chunk.emit(uint16(0))
       else:
         gen.chunk.emit(opcPushS)
         gen.chunk.emit(gen.chunk.getString("@" & name & prelude & ";"))
         gen.chunk.emit(opcEmitRaw)
+        gen.chunk.emit(uint16(node.ln))
+        gen.chunk.emit(uint16(node.col))
 
   extendCaseStmt "codeGenExpr":
     case node.kind
@@ -377,8 +422,10 @@ block extendVM:
     opcEmitRaw            # Emit a raw string directly to the output
 
   injectSnippet "VanCodeVMBeforeMainLoop":
-    # a Voodoo injected snippet to initialize the `result` variable
+    # a Voodoo injected snippet to initialize the `result` variable and the
+    # source map segment accumulator (read back by the CLI after interpret)
     result = initValue("")
+    vm.globals["__bro_sourcemap_segments"] = initValue("")
 
   extendCaseStmt "vmParseChunkCase":
     case oc:
@@ -391,7 +438,20 @@ block extendVM:
       let sid = readArg[uint16](pc)
       addOp(oc, sid.int64, 0, akString)
     of opcEmitRaw:
-      addOp(oc)
+      # carries a source position (line, col) for source maps; 0xFFFF = no mapping
+      let line = readArg[uint16](pc)
+      let col = readArg[uint16](pc)
+      addOp(oc, line.int64, col.int64, akInt)
+    of opcEmitCSS:
+      # carries a count followed by that many (line, col) position pairs,
+      # stored in strKeys. First pair is the selector, rest are its properties.
+      let cnt = readArg[uint16](pc).int
+      addOp(oc, cnt.int64, 0, akInt)
+      var poses: seq[uint16]
+      for i in 0 ..< cnt:
+        poses.add(readArg[uint16](pc))
+        poses.add(readArg[uint16](pc))
+      strKeys[^1] = poses
 
   extendCaseStmt "vmInterpretCase":
     case oc:
@@ -404,9 +464,21 @@ block extendVM:
       let valueStr = co.getArg1Str(pcIdx, currentChunk)
       stack.push(initValue(valueStr))
     of opcEmitRaw:
+      let sl = co.getArg1Int(pcIdx)
+      let sc = co.arg2[pcIdx].int
+      if sl != 0xFFFF: # not a "no mapping" sentinel
+        vm.globals["__bro_sourcemap_segments"].stringVal[].add(
+          $result.stringVal[].len & "\x03" & $sl & "\x03" & $sc & "\x03" & currentChunk.file & "\x02")
       let rawStr = stack.pop().stringVal[]
       result.stringVal[].add(rawStr)
     of opcEmitCSS:
+      let poses = co.strKeys[pcIdx]
+      var pi = 0
+      # selector mapping (first position pair)
+      if poses.len >= 2:
+        vm.globals["__bro_sourcemap_segments"].stringVal[].add(
+          $result.stringVal[].len & "\x03" & $poses[pi] & "\x03" & $poses[pi + 1] & "\x03" & currentChunk.file & "\x02")
+        pi += 2
       let props = stack.pop().objectVal
       let keys = props.keys
       let selectorName = stack.pop().stringVal[]
@@ -419,6 +491,11 @@ block extendVM:
         else: ""
       result.stringVal[].add(prefix & selectorName & "{")
       for i, key in keys:
+        # per-property mapping
+        if pi + 1 < poses.len:
+          vm.globals["__bro_sourcemap_segments"].stringVal[].add(
+            $result.stringVal[].len & "\x03" & $poses[pi] & "\x03" & $poses[pi + 1] & "\x03" & currentChunk.file & "\x02")
+          pi += 2
         let val =
           case props.fields[i].typeId
           of tyString: props.fields[i].refVal.stringVal[]

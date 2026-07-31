@@ -53,6 +53,13 @@ type
     tkAsteriskAssign = "*="
     tkSlashAssign = "/="
     tkPercentAssign = "%="
+    tkBang = "!"
+    tkTilde = "~"
+    tkTildeAssign = "~="
+    tkCaret = "^"
+    tkCaretAssign = "^="
+    tkPipeAssign = "|="
+    tkDollarAssign = "$="
     tkKeywordVar = "var"
     tkKeywordLet = "let"
     tkKeywordConst = "const"
@@ -182,8 +189,18 @@ proc nextToken(lex: var Lexer): TokenTuple =
     lex.advance()
     result = initToken(lex, tkComma, startLine, startCol, startPos, wsno)
   of '.':
-    lex.advance()
-    result = initToken(lex, tkDot, startLine, startCol, startPos, wsno)
+    if peek(lex).isDigit():
+      # leading-dot float: .125, .5rem
+      lex.strbuf.setLen(0)
+      lex.strbuf.add("0.")
+      lex.advance() # consume '.'
+      while lex.current in {'0'..'9'}:
+        lex.strbuf.add(lex.current)
+        lex.advance()
+      result = initToken(lex, lex.strbuf, tkFloat, startLine, startCol, startPos, wsno)
+    else:
+      lex.advance()
+      result = initToken(lex, tkDot, startLine, startCol, startPos, wsno)
   of '#':
     lex.advance()
     result = initToken(lex, tkHash, startLine, startCol, startPos, wsno)
@@ -225,6 +242,32 @@ proc nextToken(lex: var Lexer): TokenTuple =
         lex.advance()
       var val = if lex.strbuf.len > 0: "--" & lex.strbuf else: "--"
       result = initToken(lex, move(val), tkCssVar, startLine, startCol, startPos, wsno)
+    elif peek(lex).isAlphaAscii():
+      # vendor-prefixed identifier: -webkit-..., -moz-..., -ms-...
+      lex.strbuf.setLen(0)
+      lex.strbuf.add('-')
+      lex.advance() # consume '-'
+      while lex.current.isAlphaNumeric() or lex.current in {'_', '-'}:
+        lex.strbuf.add(lex.current)
+        lex.advance()
+      result = initToken(lex, move(lex.strbuf), tkIdentifier, startLine, startCol, startPos, wsno)
+    elif peek(lex).isDigit():
+      # negative number: -0.375, -5, -50%  (single token so `-0.375rem -0.75rem` are two values)
+      lex.strbuf.setLen(0)
+      lex.strbuf.add('-')
+      lex.advance() # consume '-'
+      while lex.current in {'0'..'9'}:
+        lex.strbuf.add(lex.current)
+        lex.advance()
+      if lex.current == '.' and peek(lex).isDigit():
+        lex.strbuf.add('.')
+        lex.advance() # consume '.'
+        while lex.current in {'0'..'9'}:
+          lex.strbuf.add(lex.current)
+          lex.advance()
+        result = initToken(lex, lex.strbuf, tkFloat, startLine, startCol, startPos, wsno)
+      else:
+        result = initToken(lex, lex.strbuf, tkInt, startLine, startCol, startPos, wsno)
     else:
       lex.advance()
       if lex.current == '=':
@@ -289,7 +332,7 @@ proc nextToken(lex: var Lexer): TokenTuple =
       lex.advance()
       result = initToken(lex, tkNotEqual, startLine, startCol, startPos, wsno)
     else:
-      result = initToken(lex, tkUnknown, startLine, startCol, startPos, wsno)
+      result = initToken(lex, tkBang, startLine, startCol, startPos, wsno)
   of '<':
     lex.advance()
     if lex.current == '=':
@@ -316,6 +359,9 @@ proc nextToken(lex: var Lexer): TokenTuple =
     if lex.current == '|':
       lex.advance()
       result = initToken(lex, tkOrOr, startLine, startCol, startPos, wsno)
+    elif lex.current == '=':
+      lex.advance()
+      result = initToken(lex, tkPipeAssign, startLine, startCol, startPos, wsno)
     else:
       result = initToken(lex, tkUnknown, startLine, startCol, startPos, wsno)
   of '"':
@@ -353,7 +399,20 @@ proc nextToken(lex: var Lexer): TokenTuple =
     else:
       result = initToken(lex, lex.strbuf, tkInt, startLine, startCol, startPos, wsno)
 
-  of '$', '_':
+  of '$':
+    if peek(lex) == '=':
+      lex.advance()
+      lex.advance()
+      result = initToken(lex, tkDollarAssign, startLine, startCol, startPos, wsno)
+    else:
+      lex.strbuf.setLen(0)
+      lex.strbuf.add(lex.current)
+      lex.advance() # skip first char
+      while lex.current.isAlphaNumeric() or lex.current in {'_', '-'}:
+        lex.strbuf.add(lex.current)
+        lex.advance()
+      result = initToken(lex, move(lex.strbuf), tkIdentifier, startLine, startCol, startPos, wsno)
+  of '_':
     lex.strbuf.setLen(0)
     lex.strbuf.add(lex.current)
     lex.advance() # skip first char
@@ -361,6 +420,20 @@ proc nextToken(lex: var Lexer): TokenTuple =
       lex.strbuf.add(lex.current)
       lex.advance()
     result = initToken(lex, move(lex.strbuf), tkIdentifier, startLine, startCol, startPos, wsno)
+  of '~':
+    lex.advance()
+    if lex.current == '=':
+      lex.advance()
+      result = initToken(lex, tkTildeAssign, startLine, startCol, startPos, wsno)
+    else:
+      result = initToken(lex, tkTilde, startLine, startCol, startPos, wsno)
+  of '^':
+    lex.advance()
+    if lex.current == '=':
+      lex.advance()
+      result = initToken(lex, tkCaretAssign, startLine, startCol, startPos, wsno)
+    else:
+      result = initToken(lex, tkCaret, startLine, startCol, startPos, wsno)
   of '`':
     lex.advance()
     lex.strbuf.setLen(0)
