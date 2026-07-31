@@ -163,7 +163,7 @@ proc compileCommand*(v: Values) =
 
   # initialize the file watcher for browser sync if watch mode is enabled
   if enabledWatch:
-    if not hasOutput:
+    if hasOutput:
       displayInfo("Watching for file changes...")
     
     # Set up a file watcher to recompile on changes
