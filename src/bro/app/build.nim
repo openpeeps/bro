@@ -110,7 +110,7 @@ proc compileCode(filePath: string,
     echo e.msg
 
 var browserSyncWatcher: Watchout
-proc compileCommand*(v: Values) =
+proc cCommand*(v: Values) =
   ## Kapsis command for compiling BASS files to CSS
   var srcPath = $(v.get("bass").getPath)
   

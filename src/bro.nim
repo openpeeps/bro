@@ -14,7 +14,7 @@ when isMainModule:
   initKapsis do:
     defaultCommand: "compile"
     commands:
-      compile path(bass), ?filename("-o"), ?bool("-w"), ?bool("--sourceMap"):
+      c path(bass), ?filename("-o"), ?bool("-w"), ?bool("--sourceMap"):
         ## Build CSS from BASS files
       ast path(bass), ?filename("-o"):
         ## Build AST from BASS files
