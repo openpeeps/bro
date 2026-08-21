@@ -108,6 +108,10 @@ proc compileCode(filePath: string,
         writeFile(outputFilePath, cssOutput)
   except CodeGenError as e:
     echo e.msg
+  except CatchableError as e:
+    # Safety net: catch any unhandled validation errors from the codegen
+    displayError("internal error: " & e.msg)
+    quit(1)
 
 var browserSyncWatcher: Watchout
 proc cCommand*(v: Values) =

@@ -356,6 +356,37 @@ prefixHandle parseMinus:
     caseNotNil operand:
       result = ast.newInfix(ast.newIdent("-"), ast.newIntLit(0), operand)
 
+prefixHandle parseUnaryPlus:
+  # unary plus: +5px, +.5, +10 — the sign is dropped in CSS output.
+  # Only fires when `+` starts an expression (infix `a + b` is unaffected).
+  if p.next.kind in {tkInt, tkFloat}:
+    walk p # tkPlus
+    result = p.parseNumber()
+  else:
+    result = nil
+
+proc collectRawCall(p: var Parser, minPrec = 0): Node =
+  ## Collect a CSS function call as raw source text preserving internal spacing
+  ## verbatim: `rgb(13 110 253 / 50%)`, `linear-gradient(to right, red, blue)`.
+  ## Assumes `p.curr` is the function name identifier.
+  let startPos = p.curr.pos
+  var depth = 0
+  while p.curr.kind notin {tkEOF}:
+    case p.curr.kind
+    of tkLParen: inc depth
+    of tkRParen:
+      dec depth
+      if depth <= 0:
+        break
+    else: discard
+    walk p
+  if p.curr.kind == tkRParen:
+    let endPos = p.curr.pos
+    walk p # tkRParen
+    result = ast.newIdent(p.lex.input[startPos .. endPos])
+  else:
+    p.curr.error("expected closing ')' for function call", fatal = true)
+
 prefixHandle parsePrefix:
   let parseFn = p.getPrefixFn(minPrec)
   if parseFn != nil: 
@@ -602,15 +633,29 @@ proc parseValueList(p: var Parser): Node =
         values = @[]
       walk p
       continue
-    let exprNode = p.parseExpression()
+    # Collect the next value node
+    var exprNode: Node
+    # CSS function calls (rgb, var, calc, linear-gradient, url, etc.)
+    # are collected as opaque raw text to preserve internal spacing
+    # verbatim for modern CSS syntax like `rgb(13 110 253 / 50%)`.
+    if p.curr.kind == tkIdentifier and
+        p.next.kind == tkLParen and p.next.line == p.curr.line and p.next.wsno == 0:
+      exprNode = p.collectRawCall()
+    elif p.curr.kind == tkKeywordVar and p.next.kind == tkLParen and p.next.line == p.curr.line:
+      exprNode = p.collectRawCall()
+    # In value context, true/false/null are rendered as text, not evaluated.
+    # e.g. `inherits: true` → `inherits:true;`, `content: null` → `content:null;`
+    elif p.inValue and p.curr.kind in {tkKeywordTrue, tkKeywordFalse, tkKeywordNull}:
+      exprNode = ast.newIdent(p.curr.value)
+      walk p
+    else:
+      exprNode = p.parseExpression()
     caseNotNil exprNode:
       values.add(exprNode)
-
     # Stop if next token is semicolon, block end, or newline
     case p.curr.kind
     of tkSemicolon, tkRBrace, tkEOF: break
     else: discard
-
     # If next token is on a new line, stop (CSS style)
     if p.curr.line != p.prev.line: break
     # Otherwise, continue parsing next value (space-separated)
@@ -634,6 +679,9 @@ proc collectAttributeSelector(p: var Parser): string =
   result = "["
   walk p # tkLBracket
   while p.curr.kind notin {tkRBracket, tkEOF}:
+    # preserve whitespace (e.g. `[data-x~=foo i]` — the space before the flag)
+    if result.len > 1 and p.curr.wsno > 0 and result[^1] notin {'[', ' '}: # not at start or after [
+      result &= " "
     case p.curr.kind
     of tkIdentifier, tkInt, tkFloat: result &= p.curr.value
     of tkString: result &= "\"" & p.curr.value & "\""
@@ -753,6 +801,10 @@ proc parseSelectorBlock(p: var Parser, indentPos = 0): Node {.rule.} =
       walk p; closed = true; break # tkRBrace
     elif not closingBlock and p.curr.col <= indentPos:
       break
+    # stray statement terminators between statements (e.g. `mixin();`)
+    if p.curr.kind == tkSemicolon:
+      walk p
+      continue
     # parse property definitions, which are similar to
     # variable declarations but without the `var` keyword
     case p.curr.kind
@@ -782,10 +834,60 @@ proc parseSelectorBlock(p: var Parser, indentPos = 0): Node {.rule.} =
         let subNode = p.parseExpression()
         caseNotNil subNode:
           props.add(subNode)
-    of tkDot, tkHash, tkColon, tkLBracket:
+    of tkDot, tkHash, tkColon, tkLBracket, tkAmp:
       let subNode = p.parseBlockSelector(p.curr.col)
       caseNotNil subNode:
         props.add(subNode)
+    of tkAsterisk:
+      # universal selector in nested context
+      let subNode = p.parseBlockSelector(p.curr.col)
+      caseNotNil subNode:
+        props.add(subNode)
+    of tkAt:
+      # `@name(args)` — mixin include. An identifier directly attached to a
+      # paren (no whitespace, same line) is an include; anything else is an
+      # at-rule and is handed back to the regular at-rule parser.
+      let saved = p
+      let atLine = p.curr.line
+      walk p # tkAt
+      var isInclude = false
+      var incName = ""
+      if p.curr.kind == tkIdentifier and p.curr.line == atLine:
+        incName = p.curr.value
+        walk p
+        isInclude = p.curr.kind == tkLParen and p.curr.wsno == 0 and p.curr.line == atLine
+      if isInclude:
+        let callNode = ast.newCall(ast.newIdent(incName))
+        walk p # tkLParen
+        if p.curr.kind != tkRParen:
+          while true:
+            case p.curr.kind
+            of tkEOF:
+              p.curr.error("expected closing ')' for mixin call", fatal = true)
+            of tkRParen:
+              walk p
+              break
+            of tkComma:
+              walk p
+            else:
+              if p.curr.kind == tkIdentifier and p.next.kind == tkAssign:
+                # named argument: `$name = value`
+                let nm = ast.newIdent(p.curr.value)
+                walk p, 2
+                callNode.add(ast.newTree(nkColon, nm, p.parseExpression()))
+              else:
+                let arg = p.parseExpression()
+                caseNotNil arg:
+                  callNode.add(arg)
+              continue
+        else:
+          walk p # tkRParen — empty argument list
+        props.add(callNode)
+      else:
+        p = saved
+        let subNode = p.parseExpression()
+        caseNotNil subNode:
+          props.add(subNode)
     else:
       # we allow for nested CSS selectors and other
       # statements in the selector block, so we parse them as expressions
@@ -826,6 +928,25 @@ prefixHandle parseIterator:
   let fnBlock: Node = p.parseBlock(tokenIterator, parseFnBlock = true)
   caseNotNil fnBlock:
     result = ast.newTree(nkIterator, name, formalParams, fnBlock)
+
+prefixHandle parseMixin:
+  # parse a mixin definition: a reusable block of CSS declarations
+  # spliced into rule bodies at call sites (Sass-style `@mixin`/`@include`)
+  let mixpos = p.curr.col
+  walk p # tkKeywordMixin
+  if p.curr.kind != tkIdentifier:
+    p.curr.error("expected mixin name after 'mixin'", fatal = true)
+    return
+  let name = ast.newIdent(p.curr.value)
+  walk p
+  var formalParams = newTree(nkFormalParams, newEmpty())
+  if p.curr is tkLParen:
+    var params: seq[Node]
+    if p.parseCommaIdentList(tkLParen, tkRParen, params):
+      formalParams.add(params)
+  let body: Node = p.parseBlock(mixpos, parseFnBlock = true)
+  caseNotNil body:
+    result = ast.newTree(nkMixinDef, name, formalParams, body)
 
 prefixHandle parseIf:
   # parse an if statement
@@ -888,13 +1009,46 @@ prefixHandle parseClassSelector:
     walk p # tkIdentifier
     while p.curr.kind == tkColon and p.curr.line == p.prev.line and p.curr.wsno == 0:
       selName &= p.collectPseudoSuffix()
-    # handle attribute selectors like [data-x="y"] appended to class
     while p.curr.kind == tkLBracket and p.curr.line == p.prev.line:
       selName &= p.collectAttributeSelector()
-    # Compound classes (.foo.bar), combinators, or descendants collect as raw text
-    if p.curr.kind in {tkPlus, tkGT, tkTilde, tkComma} or
-       (p.curr.kind == tkDot and p.curr.wsno == 0) or
-       (p.curr.line == p.prev.line and p.curr.wsno > 0 and p.curr.kind in {tkIdentifier, tkDot, tkHash, tkLBracket, tkColon, tkAsterisk}):
+    # Collect comma-separated selectors: `.a, .b, .c`
+    var selList: seq[string]
+    while p.curr.kind == tkComma and p.curr.line == p.prev.line:
+      walk p # tkComma
+      var extra = ""
+      if p.curr.kind == tkDot and p.curr.line == p.prev.line:
+        walk p # tkDot
+        if p.curr.kind == tkIdentifier:
+          extra = "." & p.curr.value
+          walk p
+          while p.curr.kind == tkColon and p.curr.line == p.prev.line and p.curr.wsno == 0:
+            extra &= p.collectPseudoSuffix()
+          while p.curr.kind == tkLBracket and p.curr.line == p.prev.line:
+            extra &= p.collectAttributeSelector()
+      elif p.curr.kind == tkHash and p.curr.line == p.prev.line:
+        walk p
+        if p.curr.kind == tkIdentifier:
+          extra = "#" & p.curr.value
+          walk p
+      elif p.curr.kind == tkIdentifier and p.curr.line == p.prev.line:
+        extra = p.curr.value
+        walk p
+      if extra.len > 0:
+        selList.add(extra)
+    if selList.len > 0:
+      # Comma-separated — build nkBracket with all selectors
+      let sel = ast.newNode(nkBracket)
+      sel.add(ast.newIdent("." & selName))
+      for s in selList:
+        sel.add(ast.newIdent(s))
+      let propsBlock: Node = p.parseSelectorBlock(pos)
+      caseNotNil propsBlock:
+        result = ast.newTree(nkElementSelector, sel,
+          ast.newEmpty(), ast.newEmpty(), propsBlock)
+    elif p.curr.kind in {tkPlus, tkGT, tkTilde} or
+         (p.curr.kind == tkDot and p.curr.wsno == 0) or
+         (p.curr.line == p.prev.line and p.curr.wsno > 0 and p.curr.kind in {tkIdentifier, tkDot, tkHash, tkLBracket, tkColon, tkAsterisk}):
+      # Compound/combinator — collect as raw text
       var rawSel = "." & selName
       while p.curr.kind notin {tkLBrace, tkEOF}:
         if p.curr.kind == tkLBracket:
@@ -913,11 +1067,12 @@ prefixHandle parseClassSelector:
         result = ast.newTree(nkElementSelector, sel,
           ast.newEmpty(), ast.newEmpty(), propsBlock)
     else:
+      # Single class selector — use nkClassSelector for AST compatibility
       let selector = ast.newIdent(selName)
       let propsBlock: Node = p.parseSelectorBlock(pos)
       caseNotNil propsBlock:
         result = ast.newTree(nkClassSelector, selector,
-                    ast.newEmpty(), ast.newEmpty(), propsBlock)
+          ast.newEmpty(), ast.newEmpty(), propsBlock)
   
 prefixHandle parseIdSelector:
   # parse an ID selector, which is a hash followed by an identifier
@@ -930,7 +1085,7 @@ prefixHandle parseIdSelector:
     while p.curr.kind == tkLBracket and p.curr.line == p.prev.line:
       selName &= p.collectAttributeSelector()
     # Compound selectors (.foo.bar), combinators, or descendants collect as raw text
-    if p.curr.kind in {tkPlus, tkGT, tkTilde, tkComma} or
+    if p.curr.kind in {tkPlus, tkGT, tkTilde} or
        (p.curr.kind == tkDot and p.curr.wsno == 0) or
        (p.curr.line == p.prev.line and p.curr.wsno > 0 and p.curr.kind in {tkIdentifier, tkDot, tkHash, tkLBracket, tkColon, tkAsterisk}):
       var rawSel = "#" & selName
@@ -967,7 +1122,7 @@ prefixHandle parsePseudoSelector:
     # handle attribute selectors like [data-x] appended to pseudo
     while p.curr.kind == tkLBracket and p.curr.line == p.prev.line:
       selName &= p.collectAttributeSelector()
-    if p.curr.kind in {tkPlus, tkGT, tkTilde, tkComma} or
+    if p.curr.kind in {tkPlus, tkGT, tkTilde} or
        (p.curr.kind == tkDot and p.curr.wsno == 0) or
        (p.curr.line == p.prev.line and p.curr.wsno > 0 and p.curr.kind in {tkIdentifier, tkDot, tkHash, tkLBracket, tkColon, tkAsterisk}):
       var rawSel = ":" & selName
@@ -998,7 +1153,9 @@ proc parseAtRulePrelude(p: var Parser, atLine: int): string =
   var prelude = ""
   while p.curr.kind notin {tkLBrace, tkSemicolon, tkEOF} and p.curr.line == atLine:
     let txt =
-      if p.curr.value.len > 0: p.curr.value
+      if p.curr.kind == tkString:
+        "\"" & p.curr.value & "\""  # preserve quotes in at-rule preludes
+      elif p.curr.value.len > 0: p.curr.value
       else: $p.curr.kind
     if prelude.len > 0 and p.curr.wsno > 0:
       prelude &= " "
@@ -1024,27 +1181,33 @@ proc parseKeyframeBlock(p: var Parser, indentPos = 0): Node {.rule.} =
       break
     var selectorName = ""
     let selCol = p.curr.col
-    case p.curr.kind
-    of tkIdentifier:
-      if p.curr.value in ["from", "to"]:
-        selectorName = p.curr.value
+    var selectorNames: seq[string]
+    # collect comma-separated keyframe selectors: `20%, 30%`
+    while true:
+      case p.curr.kind
+      of tkIdentifier:
+        if p.curr.value in ["from", "to"]:
+          selectorNames.add(p.curr.value)
+          walk p
+        else: break
+      of tkInt, tkFloat:
+        var name = p.curr.value
         walk p
-      else:
-        break
-    of tkInt, tkFloat:
-      selectorName = p.curr.value
-      walk p
-      if p.curr.kind == tkPercent:
-        selectorName &= "%"
-        walk p
-    else:
-      break
-    if selectorName.len == 0:
-      break
+        if p.curr.kind == tkPercent:
+          name &= "%"
+          walk p
+        selectorNames.add(name)
+      else: break
+      if selectorNames.len == 0: break
+      if p.curr.kind == tkComma and p.curr.line == p.prev.line:
+        walk p # tkComma — parse next selector
+      else: break
+    if selectorNames.len == 0: break
     let selBlock = p.parseSelectorBlock(selCol)
     caseNotNil selBlock:
       let sel = ast.newNode(nkBracket)
-      sel.add(ast.newIdent(selectorName))
+      for sname in selectorNames:
+        sel.add(ast.newIdent(sname))
       let keyframeNode = ast.newTree(nkElementSelector, sel,
         ast.newEmpty(), ast.newEmpty(), selBlock)
       stmts.add(keyframeNode)
@@ -1129,6 +1292,55 @@ prefixHandle parseSelector:
     result = ast.newTree(nkElementSelector, selectors,
                 ast.newEmpty(), ast.newEmpty(), propsBlock)
 
+prefixHandle parseUniversalSelector:
+  # parse the universal selector `*`, optionally followed by a compound
+  # or descendant (e.g. `* html`, `* > .child`).
+  let pos = p.curr.col
+  walk p # tkAsterisk
+  var selName = "*"
+  while p.curr.kind notin {tkLBrace, tkEOF}:
+    # compound-class continuation (no space): `*.foo`
+    if p.curr.kind == tkDot and p.curr.wsno == 0:
+      var rawSel = "*"
+      while p.curr.kind notin {tkLBrace, tkEOF}:
+        if p.curr.kind == tkLBracket:
+          rawSel &= p.collectAttributeSelector()
+          continue
+        if rawSel.len > 0 and p.curr.wsno > 0:
+          rawSel &= " "
+        let txt =
+          if p.curr.value.len > 0: p.curr.value
+          else: $p.curr.kind
+        rawSel &= txt
+        walk p
+      selName = rawSel
+      break
+    # descendant/combinator/other continuation: collect as raw
+    if p.curr.kind in {tkPlus, tkGT, tkTilde, tkComma} or
+       (p.curr.kind == tkDot and p.curr.wsno == 0) or
+       (p.curr.line == p.prev.line and p.curr.wsno > 0 and
+        p.curr.kind in {tkIdentifier, tkDot, tkHash, tkLBracket, tkColon, tkAsterisk}):
+      var rawSel = "*"
+      while p.curr.kind notin {tkLBrace, tkEOF}:
+        if p.curr.kind == tkLBracket:
+          rawSel &= p.collectAttributeSelector()
+          continue
+        if rawSel.len > 0 and p.curr.wsno > 0:
+          rawSel &= " "
+        let txt =
+          if p.curr.value.len > 0: p.curr.value
+          else: $p.curr.kind
+        rawSel &= txt
+        walk p
+      selName = rawSel.strip()
+      break
+    break
+  let selector = ast.newIdent(selName)
+  let propsBlock: Node = p.parseSelectorBlock(pos)
+  caseNotNil propsBlock:
+    result = ast.newTree(nkElementSelector, selector,
+                ast.newEmpty(), ast.newEmpty(), propsBlock)
+
 prefixHandle parseHash:
   # Collect a hex color: #fff, #0d6efd, #123 (all attached tokens)
   var val = "#"
@@ -1151,9 +1363,9 @@ proc getPrefixFn(p: var Parser, minPrec: int): PrefixFunction =
         parseSelector
       else: parseIdent
     of tkKeywordVar:
-      # `var(...)` in CSS property values is a function call, not a declaration
+      # `var(...)` in CSS property values is a CSS function, not a declaration
       if p.next.kind == tkLParen and p.next.line == p.curr.line:
-        parseCall
+        collectRawCall
       else:
         parseVar
     of tkKeywordLet, tkKeywordConst: parseVar
@@ -1161,6 +1373,7 @@ proc getPrefixFn(p: var Parser, minPrec: int): PrefixFunction =
     of tkString: parseString
     of tkInt, tkFloat: parseNumber
     of tkMinus: parseMinus
+    of tkPlus: parseUnaryPlus
     of tkKeywordTrue, tkKeywordFalse: parseBoolLit
     of tkKeywordNull: parseNullLit
     of tkKeywordFunction: parseFunction
@@ -1314,11 +1527,13 @@ prefixHandle parseStmt:
     case p.curr.kind
     of tkDot: parseClassSelector
     of tkHash: parseIdSelector
+    of tkAsterisk: parseUniversalSelector
     of tkColon: parsePseudoSelector
     of tkLBracket: parseSelector
     of tkKeywordVar, tkKeywordLet, tkKeywordConst: parseVar
     of tkKeywordFunction: parseFunction
     of tkKeywordIterator: parseIterator
+    of tkKeywordMixin: parseMixin
     of tkKeywordWhile: parseWhile
     of tkIdentifier, tkCssVar:
       if p.next.line == p.curr.line and p.next is tkLParen:

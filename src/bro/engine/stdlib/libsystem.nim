@@ -89,6 +89,14 @@ proc loadLibrary*(script: Script, globalData, localData: JsonNode): Module =
   result.initSystemTypes()
   script.initSystemOps(result)
 
+  # range(lo, hi) — iterable for `for x in range(a, b)` loops.
+  # vancode's genFor inlines known-constant int bounds into pure bytecode,
+  # so this stub is never invoked at runtime; it only satisfies symbol
+  # resolution during codegen (splitCall → lookup).
+  script.addProc(result, "range", @[p("lo", ttyInt), p("hi", ttyInt)], ttyInt,
+    proc (args: StackView, argc: int): Value =
+      result = initValue(args[0].intVal))
+
   # string operators
   script.addProc(result, "==", @[p("a", ttyString), p("b", ttyString)], ttyBool,
     proc (args: StackView, argc: int): Value =

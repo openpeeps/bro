@@ -80,6 +80,7 @@ type
     tkKeywordUndefined = "undefined"
     tkKeywordImport = "import"
     tkKeywordIterator = "iterator"
+    tkKeywordMixin = "mixin"
 
     tkComment
     tkDocBlock
@@ -151,6 +152,24 @@ proc initToken(lex: var Lexer, value: sink string, kind: TokenKind, line, col, p
 proc initToken(lex: var Lexer, kind: static TokenKind): TokenTuple =
   (kind, "", lex.line, lex.col, lex.pos, 0)
 
+proc tryLexExponent(lex: var Lexer): bool =
+  ## Consume a scientific-notation exponent (`e10`, `E+5`, `e-2`) into strbuf
+  ## when one follows the mantissa. Returns true if an exponent was consumed.
+  if lex.current notin {'e', 'E'}:
+    return false
+  let c1 = peek(lex, 1)
+  if not (c1.isDigit() or (c1 in {'+', '-'} and peek(lex, 2).isDigit())):
+    return false
+  lex.strbuf.add(lex.current)
+  lex.advance() # consume 'e'/'E'
+  if lex.current in {'+', '-'}:
+    lex.strbuf.add(lex.current)
+    lex.advance()
+  while lex.current.isDigit():
+    lex.strbuf.add(lex.current)
+    lex.advance()
+  result = true
+
 proc nextToken(lex: var Lexer): TokenTuple =
   # Retrieve the next token from the input
   var wsno = 0
@@ -190,13 +209,14 @@ proc nextToken(lex: var Lexer): TokenTuple =
     result = initToken(lex, tkComma, startLine, startCol, startPos, wsno)
   of '.':
     if peek(lex).isDigit():
-      # leading-dot float: .125, .5rem
+      # leading-dot float: .125, .5rem, .5e2
       lex.strbuf.setLen(0)
       lex.strbuf.add("0.")
       lex.advance() # consume '.'
       while lex.current in {'0'..'9'}:
         lex.strbuf.add(lex.current)
         lex.advance()
+      discard tryLexExponent(lex)
       result = initToken(lex, lex.strbuf, tkFloat, startLine, startCol, startPos, wsno)
     else:
       lex.advance()
@@ -252,19 +272,24 @@ proc nextToken(lex: var Lexer): TokenTuple =
         lex.advance()
       result = initToken(lex, move(lex.strbuf), tkIdentifier, startLine, startCol, startPos, wsno)
     elif peek(lex).isDigit():
-      # negative number: -0.375, -5, -50%  (single token so `-0.375rem -0.75rem` are two values)
+      # negative number: -0.375, -5, -1e2  (single token so `-0.375rem -0.75rem` are two values)
       lex.strbuf.setLen(0)
       lex.strbuf.add('-')
       lex.advance() # consume '-'
       while lex.current in {'0'..'9'}:
         lex.strbuf.add(lex.current)
         lex.advance()
+      var isFloat = false
       if lex.current == '.' and peek(lex).isDigit():
         lex.strbuf.add('.')
         lex.advance() # consume '.'
         while lex.current in {'0'..'9'}:
           lex.strbuf.add(lex.current)
           lex.advance()
+        isFloat = true
+      if tryLexExponent(lex):
+        isFloat = true
+      if isFloat:
         result = initToken(lex, lex.strbuf, tkFloat, startLine, startCol, startPos, wsno)
       else:
         result = initToken(lex, lex.strbuf, tkInt, startLine, startCol, startPos, wsno)
@@ -376,7 +401,11 @@ proc nextToken(lex: var Lexer): TokenTuple =
         of 'r': lex.strbuf.add('\r')
         of '"': lex.strbuf.add('"')
         of '\\': lex.strbuf.add('\\')
-        else: lex.strbuf.add(lex.current)
+        else:
+          # CSS strings: preserve the backslash for unrecognized escapes
+          # e.g. `\201E` → `\201E`, `\3B` → `\3B`
+          lex.strbuf.add('\\')
+          lex.strbuf.add(lex.current)
       else:
         lex.strbuf.add(lex.current)
       lex.advance()
@@ -388,6 +417,7 @@ proc nextToken(lex: var Lexer): TokenTuple =
     while lex.current in {'0'..'9'}:
       lex.strbuf.add(lex.current)
       lex.advance()
+    var isFloat = false
     # fractional part?
     if lex.current == '.' and peek(lex).isDigit():
       lex.strbuf.add('.')
@@ -395,6 +425,11 @@ proc nextToken(lex: var Lexer): TokenTuple =
       while lex.current in {'0'..'9'}:
         lex.strbuf.add(lex.current)
         lex.advance()
+      isFloat = true
+    # scientific notation? e.g. 1e3, 2.5E-2
+    if tryLexExponent(lex):
+      isFloat = true
+    if isFloat:
       result = initToken(lex, lex.strbuf, tkFloat, startLine, startCol, startPos, wsno)
     else:
       result = initToken(lex, lex.strbuf, tkInt, startLine, startCol, startPos, wsno)
@@ -455,9 +490,11 @@ proc nextToken(lex: var Lexer): TokenTuple =
       result =
         case lex.strbuf
         of "var": initToken(lex, move(lex.strbuf), tkKeywordVar, startLine, startCol, startPos, wsno)
+        of "fn", "func", "function":
+          # `fn` / `func` are canonical aliases for `function`
+          initToken(lex, move(lex.strbuf), tkKeywordFunction, startLine, startCol, startPos, wsno)
         of "let": initToken(lex, move(lex.strbuf), tkKeywordLet, startLine, startCol, startPos, wsno)
         of "const": initToken(lex, move(lex.strbuf), tkKeywordConst, startLine, startCol, startPos, wsno)
-        of "function": initToken(lex, move(lex.strbuf), tkKeywordFunction, startLine, startCol, startPos, wsno)
         of "return": initToken(lex, move(lex.strbuf), tkKeywordReturn, startLine, startCol, startPos, wsno)
         of "if": initToken(lex, move(lex.strbuf), tkKeywordIf, startLine, startCol, startPos, wsno)
         of "else": initToken(lex, move(lex.strbuf), tkKeywordElse, startLine, startCol, startPos, wsno)
@@ -479,6 +516,8 @@ proc nextToken(lex: var Lexer): TokenTuple =
         of "import": initToken(lex, move(lex.strbuf), tkKeywordImport, startLine, startCol, startPos, wsno)
         of "iterator":
           initToken(lex, move(lex.strbuf), tkKeywordIterator, startLine, startCol, startPos, wsno)
+        of "mixin":
+          initToken(lex, move(lex.strbuf), tkKeywordMixin, startLine, startCol, startPos, wsno)
         else: initToken(lex, move(lex.strbuf), tkIdentifier, startLine, startCol, startPos, wsno)
     else:
       lex.advance()

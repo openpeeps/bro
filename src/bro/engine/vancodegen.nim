@@ -4,7 +4,7 @@
 #          Made by Humans from OpenPeeps
 #          https://github.com/openpeeps/bro
 
-import std/os
+import std/[os, strutils, tables]
 import pkg/voodoo/extensibles
 import pkg/openparser/json
 import pkg/openparser/css
@@ -23,6 +23,7 @@ block extendAST:
     nkValue     # Represents a CSS value (e.g., 16px, red)
     nkAtRule    # Represents a CSS at-rule (e.g., @media, @supports)
     nkCommaList # Represents comma-separated CSS values (e.g., 13, 110, 253)
+    nkMixinDef  # Represents a mixin definition (reusable declaration block)
 
 block extendSym:
   extendEnum TypeKind:
@@ -40,6 +41,9 @@ block extendCodeGen:
   extendModule "vancode" / "interpreter" / "codegen.nim":
     import pkg/openparser/css as cssmod
 
+    var nestingParent: string = "" ## Sass-style nesting: parent selector context for & substitution
+    var mixinTable = initTable[string, Node]() ## registered mixin definitions (name -> nkMixinDef)
+    var rawPropMode = false ## when true, properties emit as raw text (for if/for inside rules)
     let cssData = cssmod.loadCssData()
 
     proc parseCssValues(raw: string): seq[cssmod.CssValue] =
@@ -93,20 +97,28 @@ block extendCodeGen:
       of "string": ttyCssString
       else: ttyKeyword
 
+    proc cssFloatStr(f: float): string =
+      ## Render a float for CSS output — strips a trailing ".0" so integral
+      ## values emit as "1000" instead of "1000.0" (e.g. scientific notation).
+      result = $f
+      if result.endsWith(".0"):
+        result.setLen(result.len - 2)
+
     proc nodeToCssString(node: Node): string
 
     proc nodeToCssString(node: Node): string =
       case node.kind
       of nkIdent: result = node.ident
       of nkInt: result = $node.intVal
-      of nkFloat: result = $node.floatVal
+      of nkFloat: result = cssFloatStr(node.floatVal)
       of nkString:
         if node.stringVal.len > 0 and node.stringVal[0] == '#':
           result = node.stringVal # hex color literal, no quotes
         else:
-          result = "\"" & node.stringVal & "\"" # string literal
+          # Re-escape double quotes for valid CSS string output
+          result = "\"" & node.stringVal.replace("\"", "\\\"") & "\""
       of nkUnit:
-        result = if node[0].kind == nkInt: $node[0].intVal else: $node[0].floatVal
+        result = if node[0].kind == nkInt: $node[0].intVal else: cssFloatStr(node[0].floatVal)
         result &= node[1].ident
       of nkExprList:
         var parts: seq[string]
@@ -133,6 +145,172 @@ block extendCodeGen:
           result = nodeToCssString(node[1]) & " !" & node[0].ident
       else: result = ""
 
+    proc splitSelector(text: string): seq[string] =
+      ## Split a comma-separated selector text into individual selectors.
+      for part in text.split(','):
+        let s = part.strip()
+        if s.len > 0:
+          result.add(s)
+
+    proc selectorText(node: Node): string =
+      ## Extract the raw selector text from a selector node.
+      case node[0].kind
+      of nkIdent: result = node[0].ident
+      of nkBracket:
+        var parts: seq[string]
+        for id in node[0].children:
+          if id.kind == nkIdent:
+            parts.add(id.ident)
+        result = parts.join(",")
+      else: result = ""
+
+    proc applyParent(childText, parentText: string): seq[string] =
+      ## Sass-style selector combination.
+      ## If child contains `&`, replace `&` with parent (compound, no space).
+      ## If child doesn't contain `&`, prepend parent with space (descendant).
+      var childParts = splitSelector(childText)
+      var parentParts = splitSelector(parentText)
+      result = @[]
+      for parent in parentParts:
+        for child in childParts:
+          if '&' in child:
+            result.add(child.replace("&", parent))
+          else:
+            result.add(parent & " " & child)
+
+    proc expandValue(n: Node, pm: Table[string, Node]): Node =
+      ## Recursively substitute mixin parameters (`$name`) in an expression tree.
+      case n.kind
+      of nkIdent:
+        if n.ident in pm: pm[n.ident] else: n
+      of nkExprList, nkCommaList, nkInfix, nkPostfix, nkCall, nkBracket:
+        let r = ast.newNode(n.kind)
+        for c in n.children:
+          r.add(expandValue(c, pm))
+        r.ln = n.ln; r.col = n.col
+        r
+      else: n # leaves (nkInt, nkFloat, nkString, nkUnit...) pass through
+
+    proc substStmt(n: Node, pm: Table[string, Node]): Node =
+      ## Recursively substitute mixin parameters within a statement node.
+      case n.kind
+      of nkColon:
+        # property: key stays, value substitutes. Keep source position so
+        # sourcemaps point at the mixin definition (Sass behavior).
+        let r = ast.newTree(nkColon, n[0], expandValue(n[1], pm))
+        r.ln = n.ln; r.col = n.col
+        r
+      of nkClassSelector, nkIdSelector, nkPseudoSelector, nkElementSelector:
+        var blk = ast.newNode(nkBlock)
+        for c in n[3].children:
+          blk.add(substStmt(c, pm))
+        let r = ast.newTree(n.kind, n[0], n[1], n[2], blk)
+        r.ln = n.ln; r.col = n.col
+        r
+      of nkAtRule:
+        var blk = ast.newNode(nkBlock)
+        for c in n[2].children:
+          blk.add(substStmt(c, pm))
+        let r = ast.newTree(nkAtRule, n[0], n[1], blk)
+        r.ln = n.ln; r.col = n.col
+        r
+      of nkIf:
+        let r = ast.newNode(nkIf)
+        var i = 0
+        while i < n.len:
+          if i mod 2 == 0 and (i + 1 < n.len or n.len mod 2 == 0):
+            r.add(expandValue(n[i], pm)) # condition
+          else:
+            var blk = ast.newNode(nkBlock)
+            for c in n[i].children:
+              blk.add(substStmt(c, pm))
+            r.add(blk)
+          inc i
+        r.ln = n.ln; r.col = n.col
+        r
+      of nkWhile:
+        var blk = ast.newNode(nkBlock)
+        for c in n[1].children:
+          blk.add(substStmt(c, pm))
+        let r = ast.newTree(nkWhile, expandValue(n[0], pm), blk)
+        r.ln = n.ln; r.col = n.col
+        r
+      of nkFor:
+        var blk = ast.newNode(nkBlock)
+        for c in n[2].children:
+          blk.add(substStmt(c, pm))
+        let r = ast.newTree(nkFor, n[0], expandValue(n[1], pm), blk)
+        r.ln = n.ln; r.col = n.col
+        r
+      else: n
+
+    proc paramNames(m: Node): seq[string] =
+      ## Extract parameter names from a mixin's nkFormalParams node.
+      ## Note: parseIdentDefs merges comma-separated params into a single
+      ## nkIdentDefs whose leading children are the identifiers.
+      let fp = m[1]
+      for i in 1 ..< fp.len:
+        let pd = fp[i]
+        if pd.kind == nkIdentDefs and pd.len >= 3:
+          for j in 0 ..< pd.len - 2:
+            if pd[j].kind == nkIdent:
+              result.add(pd[j].ident)
+        elif pd.kind == nkIdent:
+          result.add(pd.ident)
+
+    proc paramDefault(m: Node, name: string): Node =
+      ## Return the default value node for a parameter, or nil.
+      let fp = m[1]
+      for i in 1 ..< fp.len:
+        let pd = fp[i]
+        if pd.kind == nkIdentDefs and pd.len >= 3:
+          var inGroup = false
+          for j in 0 ..< pd.len - 2:
+            if pd[j].kind == nkIdent and pd[j].ident == name:
+              inGroup = true
+          if inGroup:
+            let dv = pd[pd.len - 1]
+            if dv.kind != nkEmpty:
+              return dv
+      return nil
+
+    proc paramKey(name: string): string =
+      ## Body references use the `$name` form; signature params are bare
+      ## (`mixin btn(color: color)`). Normalize either spelling to `$name`.
+      if name.len > 0 and name[0] == '$': name else: "$" & name
+
+    proc expandMixin(call: Node): seq[Node] =
+      ## Expand a mixin call into spliced body statements with args substituted.
+      let callee = call[0].ident
+      if not mixinTable.hasKey(callee):
+        call.error("unknown mixin '" & callee & "'")
+      let m = mixinTable[callee]
+      let pnames = paramNames(m)
+      var pm = initTable[string, Node]()
+      # set of normalized parameter keys for membership checks
+      var pkeys: seq[string]
+      for pn in pnames:
+        pkeys.add(paramKey(pn))
+      var posIdx = 0
+      for i in 1 ..< call.len:
+        let a = call[i]
+        if a.kind == nkColon and a[0].kind == nkIdent and paramKey(a[0].ident) in pkeys:
+          pm[paramKey(a[0].ident)] = a[1] # named argument ($h = 5px or h = 5px)
+        else:
+          if posIdx >= pnames.len:
+            call.error("too many arguments for mixin '" & callee & "'")
+          pm[paramKey(pnames[posIdx])] = a
+          inc posIdx
+      for pn in pnames:
+        if paramKey(pn) notin pm:
+          let dv = paramDefault(m, pn)
+          if dv != nil:
+            pm[paramKey(pn)] = dv
+          else:
+            call.error("missing argument '" & pn & "' for mixin '" & callee & "'")
+      for child in m[2].children:
+        result.add(substStmt(child, pm))
+
     proc genSelector*(node: Node): Sym {.codegen, discardable.} =
       ## Generate bytecode for a CSS selector (class, id, or pseudo)
       assert node.kind in {nkClassSelector, nkIdSelector, nkPseudoSelector, nkElementSelector}, "Expected selector node"
@@ -145,7 +323,7 @@ block extendCodeGen:
         of nkElementSelector: 3'u16
         else: 0'u16
 
-      # Push the selector name
+      # Extract selector name from AST
       var selectorName: string
       case node[0].kind
       of nkIdent:
@@ -156,19 +334,170 @@ block extendCodeGen:
             if i > 0: selectorName.add(",")
             selectorName.add(id.ident)
       else: node[0].error("Invalid selector name")
-      gen.chunk.emit(opcPushSelector)
-      gen.chunk.emit(gen.chunk.getString(selectorName))
-      gen.chunk.emit(selectorType)
 
-      # Generate object storage for properties
-      result = newType(ttyObject, name = node[0], impl = node)
-      var
-        keyIdxes: seq[uint16]
-        nestedStmts: seq[Node]
-        hasDuplicate = false
+      # Compute full selector text (with parent nesting context via & substitution)
+      let prefix =
+        case selectorType
+        of 0: "."
+        of 1: "#"
+        of 2: ":"
+        else: ""
+      let fullText = if nestingParent.len > 0:
+        # include the kind prefix (.foo / #foo / :foo) so spliced mixin
+        # selectors (nkClassSelector etc.) keep their sigil when combined
+        applyParent(prefix & selectorName, nestingParent).join(", ")
+      else:
+        prefix & selectorName
+      let hasParent = nestingParent.len > 0
+
+      # Phase 0: expand mixin calls among body children
+      var bodyChildren: seq[Node]
       for child in node[3].children:
-        if child.kind != nkColon:
+        if child.kind == nkCall and child.len > 0 and child[0].kind == nkIdent:
+          if mixinTable.hasKey(child[0].ident):
+            for spilled in expandMixin(child):
+              bodyChildren.add(spilled)
+          else:
+            # Not a known mixin — keep as-is (may be handled elsewhere);
+            # warn so silent drops are visible.
+            stderr.write("[warn] " & gen.chunk.file & ":" & $child.ln & ":" & $child.col &
+              " unknown mixin '" & child[0].ident & "' (mixin must be defined before use)\n")
+            bodyChildren.add(child)
+        else:
+          bodyChildren.add(child)
+
+      # Phase 1: scan body to separate properties from nested children
+      var
+        nestedStmts: seq[Node]
+        propCount = 0
+      for child in bodyChildren:
+        if child.kind == nkColon:
+          inc propCount
+        else:
           nestedStmts.add(child)
+
+      # Detect nested selectors (Sass-style nesting)
+      var hasNestedSelectors = false
+      var hasNestedAtRule = false
+      var hasControlFlow = false
+      var hasDuplicate = false
+      for s in nestedStmts:
+        case s.kind
+        of nkClassSelector, nkIdSelector, nkPseudoSelector, nkElementSelector:
+          hasNestedSelectors = true
+        of nkAtRule:
+          hasNestedAtRule = true
+        of nkIf, nkWhile, nkFor:
+          hasControlFlow = true
+        else: discard
+      # Check for duplicate property keys in this block
+      var seenKeys: seq[string]
+      for child in bodyChildren:
+        if child.kind == nkColon:
+          let k = if child[0].kind == nkIdent: child[0].ident
+                  elif child[0].kind == nkString: child[0].stringVal
+                  else: ""
+          if k.len > 0 and k in seenKeys:
+            hasDuplicate = true
+          seenKeys.add(k)
+
+      result = newType(ttyObject, name = node[0], impl = node)
+
+      # ── NESTING PATH: Sass-style ──────────────────────────────
+      if hasNestedSelectors:
+        # Emit parent properties as raw text (no stack pollution)
+        if propCount > 0:
+          gen.chunk.emit(opcPushS)
+          gen.chunk.emit(gen.chunk.getString(fullText & "{"))
+          gen.chunk.emit(opcEmitRaw)
+          gen.chunk.emit(uint16(node.ln))
+          gen.chunk.emit(uint16(node.col))
+          for child in bodyChildren:
+            if child.kind == nkColon:
+              let key = child[0].ident
+              let val = nodeToCssString(child[1])
+              if val.len > 0:
+                gen.chunk.emit(opcPushS)
+                gen.chunk.emit(gen.chunk.getString(key & ":" & val & ";"))
+                gen.chunk.emit(opcEmitRaw)
+                gen.chunk.emit(uint16(child.ln))
+                gen.chunk.emit(uint16(child.col))
+          gen.chunk.emit(opcPushS)
+          gen.chunk.emit(gen.chunk.getString("}"))
+          gen.chunk.emit(opcEmitRaw)
+          gen.chunk.emit(uint16(0xFFFF))
+          gen.chunk.emit(uint16(0))
+        # Flatten nested selectors with this selector as parent context
+        let savedParent = nestingParent
+        nestingParent = fullText
+        for stmt in nestedStmts:
+          case stmt.kind
+          of nkIf, nkWhile, nkFor:
+            rawPropMode = true
+            gen.genStmt(stmt)
+            rawPropMode = false
+          else:
+            gen.genStmt(stmt)
+        nestingParent = savedParent
+        return
+
+      # ── RAW MODE: at-rules, duplicates, or control flow ───────
+      # Control flow needs raw emission so VM-time conditions can decide
+      # which declarations appear inside the rule block.
+      if hasNestedAtRule or hasDuplicate or hasControlFlow:
+        gen.chunk.emit(opcPushS)
+        gen.chunk.emit(gen.chunk.getString(fullText & "{"))
+        gen.chunk.emit(opcEmitRaw)
+        gen.chunk.emit(uint16(node.ln))
+        gen.chunk.emit(uint16(node.col))
+        # Declarations & control flow in source order
+        for child in bodyChildren:
+          case child.kind
+          of nkColon:
+            let key = child[0].ident
+            let val = nodeToCssString(child[1])
+            if val.len > 0:
+              gen.chunk.emit(opcPushS)
+              gen.chunk.emit(gen.chunk.getString(key & ":" & val & ";"))
+              gen.chunk.emit(opcEmitRaw)
+              gen.chunk.emit(uint16(child.ln))
+              gen.chunk.emit(uint16(child.col))
+          of nkIf, nkWhile, nkFor:
+            rawPropMode = true
+            gen.genStmt(child)
+            rawPropMode = false
+          else: discard
+        # At-rules nest INSIDE the rule block
+        for stmt in nestedStmts:
+          if stmt.kind == nkAtRule:
+            gen.genStmt(stmt)
+        gen.chunk.emit(opcPushS)
+        gen.chunk.emit(gen.chunk.getString("}"))
+        gen.chunk.emit(opcEmitRaw)
+        gen.chunk.emit(uint16(0xFFFF))
+        gen.chunk.emit(uint16(0))
+        # Spliced nested selectors flatten with this rule as parent
+        let savedParent = nestingParent
+        nestingParent = fullText
+        for stmt in nestedStmts:
+          if stmt.kind != nkAtRule:
+            gen.genStmt(stmt)
+        nestingParent = savedParent
+        return
+
+      # ── NORMAL PATH: flat selector ────────────────────────────
+      gen.chunk.emit(opcPushSelector)
+      if hasParent:
+        # Nested child: fullText includes parent context, use element type (no VM prefix)
+        gen.chunk.emit(gen.chunk.getString(fullText))
+        gen.chunk.emit(3'u16)
+      else:
+        gen.chunk.emit(gen.chunk.getString(selectorName))
+        gen.chunk.emit(selectorType)
+
+      var keyIdxes: seq[uint16]
+      for child in bodyChildren:
+        if child.kind != nkColon:
           continue
         let prop = child
         let key =
@@ -176,9 +505,6 @@ block extendCodeGen:
           elif prop[0].kind == nkString: prop[0].stringVal
           else: prop[0].error("Invalid property key: " & $prop[0].kind); ""
 
-        # Duplicate property keys are allowed (e.g. vendor fallbacks like
-        # `text-align: inherit; text-align: -webkit-match-parent;`).
-        # Duplicates switch emission to raw mode so both declarations appear.
         if result.objectFields.hasKey(key):
           hasDuplicate = true
         let isVarRef = prop[1].kind == nkIdent and prop[1].ident.len > 0 and prop[1].ident[0] == '$'
@@ -187,11 +513,14 @@ block extendCodeGen:
         if not isVarRef and prop[1].kind in {nkIdent, nkInt, nkFloat, nkString, nkUnit, nkExprList, nkCommaList, nkCall, nkPostfix}:
           var rawCss = nodeToCssString(prop[1])
           if rawCss.len > 0:
-            # Validate the base value when `!important` is a postfix suffix
             var validateCss =
               if prop[1].kind == nkPostfix: nodeToCssString(prop[1][1])
               else: rawCss
-            discard cssValidateProp(key, validateCss)
+            try:
+              discard cssValidateProp(key, validateCss)
+            except CatchableError:
+              stderr.write("[warn] " & gen.chunk.file & ":" & $prop.ln & ":" & $prop.col &
+                " " & key & ": " & getCurrentExceptionMsg() & "\n")
             let cssType = cssGetPropertySyntax(key)
             let expectedKind =
               if cssType != nil and cssType.kind == skType:
@@ -226,7 +555,7 @@ block extendCodeGen:
               newType(ttyString, name = prop[1])
             of nkFloat:
               gen.chunk.emit(opcPushS)
-              gen.chunk.emit(gen.chunk.getString($prop[1].floatVal))
+              gen.chunk.emit(gen.chunk.getString(cssFloatStr(prop[1].floatVal)))
               newType(ttyString, name = prop[1])
             of nkString:
               gen.chunk.emit(opcPushS)
@@ -241,63 +570,18 @@ block extendCodeGen:
           implVal: valTy
         )
 
-      # Only use raw nesting for at-rules (plain selectors stay at same level)
-      var hasNestedAtRule = false
-      for s in nestedStmts:
-        if s.kind == nkAtRule:
-          hasNestedAtRule = true
-          break
-      if hasNestedAtRule or hasDuplicate:
-        let prefix =
-          case selectorType
-          of 0: "."
-          of 1: "#"
-          of 2: ":"
-          else: ""
-        gen.chunk.emit(opcPushS)
-        gen.chunk.emit(gen.chunk.getString(prefix & selectorName & "{"))
-        gen.chunk.emit(opcEmitRaw)
-        gen.chunk.emit(uint16(node.ln))
-        gen.chunk.emit(uint16(node.col))
-        for child in node[3].children:
-          if child.kind == nkColon:
-            let key = child[0].ident
-            let val = nodeToCssString(child[1])
-            if val.len > 0:
-              gen.chunk.emit(opcPushS)
-              gen.chunk.emit(gen.chunk.getString(key & ":" & val & ";"))
-              gen.chunk.emit(opcEmitRaw)
-              gen.chunk.emit(uint16(child.ln))
-              gen.chunk.emit(uint16(child.col))
-        for stmt in nestedStmts:
-          gen.genStmt(stmt)
-        gen.chunk.emit(opcPushS)
-        gen.chunk.emit(gen.chunk.getString("}"))
-        gen.chunk.emit(opcEmitRaw)
-        gen.chunk.emit(uint16(0xFFFF)) # no source mapping for closing brace
-        gen.chunk.emit(uint16(0))
-      else:
-        gen.chunk.emit(opcConstrObj)
-        gen.chunk.emit(uint16(result.objectFields.len))
-        for kix in keyIdxes:
-          gen.chunk.emit(kix)
-        # opcEmitCSS carries: count, then selector (ln,col), then one (ln,col) per property
-        var propCount = 0
-        for child in node[3].children:
-          if child.kind == nkColon:
-            inc propCount
-        gen.chunk.emit(opcEmitCSS)
-        gen.chunk.emit(uint16(propCount + 1))
-        gen.chunk.emit(uint16(node.ln))
-        gen.chunk.emit(uint16(node.col))
-        for child in node[3].children:
-          if child.kind == nkColon:
-            gen.chunk.emit(uint16(child.ln))
-            gen.chunk.emit(uint16(child.col))
-      # Emit non-at-rule nested selectors at the same level
-      for stmt in nestedStmts:
-        if stmt.kind != nkAtRule:
-          gen.genStmt(stmt)
+      gen.chunk.emit(opcConstrObj)
+      gen.chunk.emit(uint16(result.objectFields.len))
+      for kix in keyIdxes:
+        gen.chunk.emit(kix)
+      gen.chunk.emit(opcEmitCSS)
+      gen.chunk.emit(uint16(propCount + 1))
+      gen.chunk.emit(uint16(node.ln))
+      gen.chunk.emit(uint16(node.col))
+      for child in bodyChildren:
+        if child.kind == nkColon:
+          gen.chunk.emit(uint16(child.ln))
+          gen.chunk.emit(uint16(child.col))
 
     proc genCssClass*(node: Node): Sym {.codegen.} =
       ## Generate bytecode for a CSS class selector
@@ -310,6 +594,37 @@ block extendCodeGen:
     proc genCssProperty*(node: Node): Sym {.codegen.} =
       ## Generate bytecode for a CSS property
       assert node.kind == nkColon, "Expected nkColon node"
+
+      if rawPropMode:
+        # Inside control flow (if/for/while) within a rule body: emit the
+        # declaration as raw text so VM-time conditions can include it.
+        let key = node[0].ident
+        let v = node[1]
+        let isVarRef = v.kind == nkIdent and v.ident.len > 0 and v.ident[0] == '$'
+        if isVarRef or v.kind notin {nkIdent, nkInt, nkFloat, nkString, nkUnit, nkExprList, nkCommaList, nkCall, nkPostfix}:
+          # VM-evaluated value: `key:` + value + `;` as three raw emissions
+          gen.chunk.emit(opcPushS)
+          gen.chunk.emit(gen.chunk.getString(key & ":"))
+          gen.chunk.emit(opcEmitRaw)
+          gen.chunk.emit(uint16(node.ln))
+          gen.chunk.emit(uint16(node.col))
+          discard gen.genExpr(v)
+          gen.chunk.emit(opcEmitRaw)
+          gen.chunk.emit(uint16(0xFFFF))
+          gen.chunk.emit(uint16(0))
+          gen.chunk.emit(opcPushS)
+          gen.chunk.emit(gen.chunk.getString(";"))
+          gen.chunk.emit(opcEmitRaw)
+          gen.chunk.emit(uint16(0xFFFF))
+          gen.chunk.emit(uint16(0))
+        else:
+          let val = nodeToCssString(v)
+          gen.chunk.emit(opcPushS)
+          gen.chunk.emit(gen.chunk.getString(key & ":" & val & ";"))
+          gen.chunk.emit(opcEmitRaw)
+          gen.chunk.emit(uint16(node.ln))
+          gen.chunk.emit(uint16(node.col))
+        return nil
 
       # Push the property name
       gen.chunk.emit(opcPushProperty)
@@ -328,7 +643,7 @@ block extendCodeGen:
         of nkInt:
           size = $(node[0].intVal)
         of nkFloat:
-          size = $(node[0].floatVal)
+          size = cssFloatStr(node[0].floatVal)
         else: node[0].error("Invalid unit value")
 
       let unitStr = size & node[1].ident
@@ -343,10 +658,10 @@ block extendCodeGen:
         case child.kind
         of nkIdent: parts.add(child.ident)
         of nkInt: parts.add($child.intVal)
-        of nkFloat: parts.add($child.floatVal)
+        of nkFloat: parts.add(cssFloatStr(child.floatVal))
         of nkString: parts.add(child.stringVal)
         of nkUnit:
-          var v = if child[0].kind == nkInt: $child[0].intVal else: $child[0].floatVal
+          var v = if child[0].kind == nkInt: $child[0].intVal else: cssFloatStr(child[0].floatVal)
           parts.add(v & child[1].ident)
         else: parts.add("<value>")
       let combined = parts.join(" ")
@@ -412,6 +727,10 @@ block extendCodeGen:
       discard gen.genCssProperty(node)
     of nkAtRule:
       discard gen.genAtRule(node)
+    of nkMixinDef:
+      # Register the mixin for later expansion; definitions emit no CSS.
+      if node[0].kind == nkIdent:
+        mixinTable[node[0].ident] = node
 
 block extendVM:
   extendEnum Opcode:
@@ -469,7 +788,21 @@ block extendVM:
       if sl != 0xFFFF: # not a "no mapping" sentinel
         vm.globals["__bro_sourcemap_segments"].stringVal[].add(
           $result.stringVal[].len & "\x03" & $sl & "\x03" & $sc & "\x03" & currentChunk.file & "\x02")
-      let rawStr = stack.pop().stringVal[]
+      # Type-tolerant pop: raw emissions may carry VM-evaluated values
+      # (ints, floats, bools) from control-flow property values.
+      let sv = stack.pop()
+      let rawStr =
+        case sv.typeId
+        of tyString: sv.stringVal[]
+        of tyInt: $sv.intVal
+        of tyFloat:
+          var fs = $sv.floatVal
+          let fn = fs.len
+          if fn > 2 and fs[fn - 2] == '.' and fs[fn - 1] == '0':
+            fs.setLen(fn - 2)
+          fs
+        of tyBool: $sv.boolVal
+        else: ""
       result.stringVal[].add(rawStr)
     of opcEmitCSS:
       let poses = co.strKeys[pcIdx]
@@ -502,7 +835,11 @@ block extendVM:
           of tyInt:
             $(props.fields[i].intVal)
           of tyFloat:
-            $(props.fields[i].floatVal)
+            var fs = $(props.fields[i].floatVal)
+            let fn = fs.len
+            if fn > 2 and fs[fn - 2] == '.' and fs[fn - 1] == '0':
+              fs.setLen(fn - 2) # integral float: "1000.0" → "1000"
+            fs
           of tyBool:
             $(props.fields[i].boolVal)
           else: "<value>"
