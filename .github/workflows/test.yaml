@@ -1,29 +1,7 @@
 name: test
-on:
-  push:
-    paths-ignore:
-      - LICENSE
-      - README.*
-      - examples
-  pull_request:
-    paths-ignore:
-      - LICENSE
-      - README.*
-      - examples
+on: [push, pull_request]
 jobs:
   test:
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        nim-version:
-          - 'stable'
-    steps:
-      - uses: actions/checkout@v3
-      - uses: jiro4989/setup-nim-action@v1
-        with:
-          nim-version: ${{ matrix.nim-version }}
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-      - run: nimble install -Y
-      - run: nimble build -d:release
-      - run: './benchmarks/bench.sh'
-      - run: nimble test
+    uses: nimbase/setup-nim-action/.github/workflows/test_clue.yml@main
+    with:
+      nim-version: stable
