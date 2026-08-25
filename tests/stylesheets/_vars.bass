@@ -1,0 +1,4 @@
+let $accent* = #0d6efd
+let $radius* = 4px
+.base
+  color: gray

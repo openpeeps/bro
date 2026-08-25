@@ -1,0 +1,4 @@
+import "./_vars.bass"
+.a
+  color: $accent
+  border-radius: $radius
