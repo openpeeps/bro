@@ -879,6 +879,7 @@ proc parseSelectorBlock(p: var Parser, indentPos = 0): Node {.rule.} =
       # at-rule and is handed back to the regular at-rule parser.
       let saved = p
       let atLine = p.curr.line
+      let atCol = p.curr.col
       walk p # tkAt
       var isInclude = false
       var incName = ""
@@ -888,6 +889,8 @@ proc parseSelectorBlock(p: var Parser, indentPos = 0): Node {.rule.} =
         isInclude = p.curr.kind == tkLParen and p.curr.wsno == 0 and p.curr.line == atLine
       if isInclude:
         let callNode = ast.newCall(ast.newIdent(incName))
+        callNode.ln = atLine
+        callNode.col = atCol
         walk p # tkLParen
         if p.curr.kind != tkRParen:
           while true:

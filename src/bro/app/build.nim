@@ -13,17 +13,11 @@ import pkg/vancode/interpreter/[ast, codegen, chunk, sym, vm, value, resolver]
 import pkg/vancode/manager/packager
 
 import ../engine/parser
-import ../engine/vancodegen
 import ../engine/sourcemap
 import ../engine/stdlib/[libsystem, libarrays, libcolors]
 
 proc parserCallback(astProgram: var Ast, path: string, resolver: FileResolver) =
   parser.parseScript(astProgram, readFile(path), path)
-
-# Route engine warnings (unknown mixins, invalid declarations) through
-# kapsis so they render consistently with other CLI diagnostics.
-vancodegen.warnHandler = proc(msg: string) =
-  displayWarning(msg)
 
 #
 # Compile command
