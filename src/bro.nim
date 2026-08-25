@@ -14,7 +14,7 @@ when isMainModule:
   initKapsis do:
     defaultCommand: "compile"
     commands:
-      c path(bass), ?filename("-o"), ?bool("-w"), ?bool("--sourceMap"):
-        ## Build CSS from BASS files
+      c path(bass), ?filename("-o"), ?bool("-w"), ?bool("--sourceMap"), ?bool("--pretty"):
+        ## Compile BASS to CSS with optional source map
       ast path(bass), ?filename("-o"):
-        ## Build AST from BASS files
+        ## Generate binary AST from BASS/CSS

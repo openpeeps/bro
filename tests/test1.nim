@@ -839,19 +839,15 @@ suite "parser tests":
     assert ast.nodes[0].kind == nkIf
     assert ast.nodes[1].kind == nkIf
 
-  test "error recovery skips bad statement":
+  test "invalid statement is a fatal error (no silent recovery)":
     let sample = """
   .good { color: red; }
   @@invalid@@
   .also-good { color: blue; }
   """
     var ast: Ast
-    parser.parseScript(ast, sample, "test_recovery.css")
-    assert ast.nodes.len == 3
-    # .good, invalid (valid identifier parsed as nkIdent), .also-good
-    assert ast.nodes[0].kind == nkClassSelector
-    assert ast.nodes[1].kind == nkIdent
-    assert ast.nodes[2].kind == nkClassSelector
+    expect BroParserError:
+      parser.parseScript(ast, sample, "test_recovery.css")
 
   test "parse null literal":
     let sample = """
@@ -1032,3 +1028,34 @@ suite "parser tests":
     var ast: Ast
     expect BroParserError:
       parser.parseScript(ast, "foo(", "test_missing_paren.css")
+
+suite "strict error handling":
+  test "selector without body (dedent) raises error":
+    var ast: Ast
+    expect BroParserError:
+      parser.parseScript(ast, ".a\n.b\n  color: red\n", "strict1.css")
+
+  test "selector at EOF without body raises error":
+    var ast: Ast
+    expect BroParserError:
+      parser.parseScript(ast, ".a", "strict2.css")
+
+  test "selector followed by same-column property raises error":
+    var ast: Ast
+    expect BroParserError:
+      parser.parseScript(ast, ".a\ncolor: red\n", "strict3.css")
+
+  test "brace-style empty rule is still valid":
+    var ast: Ast
+    parser.parseScript(ast, ".empty { }\n", "strict4.css")
+    check ast.nodes.len == 1
+
+  test "garbage statement raises instead of being skipped":
+    var ast: Ast
+    expect BroParserError:
+      parser.parseScript(ast, "$$$\n.a { color: red }\n", "strict5.css")
+
+  test "valid document still parses after strict checks":
+    var ast: Ast
+    parser.parseScript(ast, ".a\n  color: red\n  &:hover\n    color: blue\n.b { margin: 0 }\n", "strict6.css")
+    check ast.nodes.len == 2

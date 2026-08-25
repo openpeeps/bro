@@ -24,6 +24,7 @@ block extendAST:
     nkAtRule    # Represents a CSS at-rule (e.g., @media, @supports)
     nkCommaList # Represents comma-separated CSS values (e.g., 13, 110, 253)
     nkMixinDef  # Represents a mixin definition (reusable declaration block)
+    nkCssComment # Preserved doc-block comment (/*! ... */ or /** ... */)
 
 block extendSym:
   extendEnum TypeKind:
@@ -44,6 +45,18 @@ block extendCodeGen:
     var nestingParent: string = "" ## Sass-style nesting: parent selector context for & substitution
     var mixinTable = initTable[string, Node]() ## registered mixin definitions (name -> nkMixinDef)
     var rawPropMode = false ## when true, properties emit as raw text (for if/for inside rules)
+    ## Optional hook for reporting non-fatal codegen warnings; when unset,
+    ## warnings go to stderr with a `[warn]` prefix. The CLI layer installs
+    ## a handler that routes messages through kapsis `displayWarning`.
+    var warnHandler*: proc(msg: string) {.gcsafe.}
+
+    proc codegenWarn(file: string, ln, col: int, msg: string) =
+      let full = file & ":" & $ln & ":" & $col & " " & msg
+      if warnHandler != nil:
+        warnHandler(full)
+      else:
+        stderr.write("[warn] " & full & "\n")
+
     let cssData = cssmod.loadCssData()
 
     proc parseCssValues(raw: string): seq[cssmod.CssValue] =
@@ -360,8 +373,8 @@ block extendCodeGen:
           else:
             # Not a known mixin — keep as-is (may be handled elsewhere);
             # warn so silent drops are visible.
-            stderr.write("[warn] " & gen.chunk.file & ":" & $child.ln & ":" & $child.col &
-              " unknown mixin '" & child[0].ident & "' (mixin must be defined before use)\n")
+            codegenWarn(gen.chunk.file, child.ln, child.col,
+              "unknown mixin '" & child[0].ident & "' (mixin must be defined before use)")
             bodyChildren.add(child)
         else:
           bodyChildren.add(child)
@@ -369,9 +382,13 @@ block extendCodeGen:
       # Phase 1: scan body to separate properties from nested children
       var
         nestedStmts: seq[Node]
+        pendingComments: seq[Node]
         propCount = 0
       for child in bodyChildren:
-        if child.kind == nkColon:
+        case child.kind
+        of nkCssComment:
+          pendingComments.add(child) # emitted before this rule's block
+        of nkColon:
           inc propCount
         else:
           nestedStmts.add(child)
@@ -402,6 +419,10 @@ block extendCodeGen:
           seenKeys.add(k)
 
       result = newType(ttyObject, name = node[0], impl = node)
+
+      # Doc-block banners precede this rule in every emission path
+      for cnode in pendingComments:
+        gen.genStmt(cnode)
 
       # ── NESTING PATH: Sass-style ──────────────────────────────
       if hasNestedSelectors:
@@ -519,8 +540,8 @@ block extendCodeGen:
             try:
               discard cssValidateProp(key, validateCss)
             except CatchableError:
-              stderr.write("[warn] " & gen.chunk.file & ":" & $prop.ln & ":" & $prop.col &
-                " " & key & ": " & getCurrentExceptionMsg() & "\n")
+              codegenWarn(gen.chunk.file, prop.ln, prop.col,
+                key & ": " & getCurrentExceptionMsg())
             let cssType = cssGetPropertySyntax(key)
             let expectedKind =
               if cssType != nil and cssType.kind == skType:
@@ -560,6 +581,11 @@ block extendCodeGen:
             of nkString:
               gen.chunk.emit(opcPushS)
               gen.chunk.emit(gen.chunk.getString(prop[1].stringVal))
+              newType(ttyString, name = prop[1])
+            of nkCommaList, nkExprList:
+              # multi-segment CSS values (`a, b, c`) render as verbatim text
+              gen.chunk.emit(opcPushS)
+              gen.chunk.emit(gen.chunk.getString(nodeToCssString(prop[1])))
               newType(ttyString, name = prop[1])
             else:
               gen.genExpr(prop[1])
@@ -731,6 +757,16 @@ block extendCodeGen:
       # Register the mixin for later expansion; definitions emit no CSS.
       if node[0].kind == nkIdent:
         mixinTable[node[0].ident] = node
+    of nkCssComment:
+      # Preserve doc-block banners (/*! */ and /** */) — the parser stores
+      # the fully-wrapped CSS text, so emission is a verbatim raw chunk.
+      # A trailing newline keeps the following rule readable in minified mode.
+      if node.len > 0 and node[0].kind == nkString:
+        gen.chunk.emit(opcPushS)
+        gen.chunk.emit(gen.chunk.getString(node[0].stringVal & "\n"))
+        gen.chunk.emit(opcEmitRaw)
+        gen.chunk.emit(uint16(0xFFFF))
+        gen.chunk.emit(uint16(0))
 
 block extendVM:
   extendEnum Opcode:
@@ -745,6 +781,19 @@ block extendVM:
     # source map segment accumulator (read back by the CLI after interpret)
     result = initValue("")
     vm.globals["__bro_sourcemap_segments"] = initValue("")
+    # pretty-printing state lives in vm.globals because extended case
+    # branches cannot capture snippet locals. Depth tracks rule nesting so
+    # raw and structured emissions interleave correctly.
+    if not vm.globals.hasKey("__bro_pretty"):
+      vm.globals["__bro_pretty"] = initValue(false)
+    vm.globals["__bro_depth"] = initValue(0'i64)
+    # Pretty-layout cursor state (avoids scanning the output buffer):
+    # __bro_atline — cursor sits at a logical line start (a '\n' is already
+    #                in place, possibly followed by pending auto-indent);
+    # __bro_indw   — width of the pending auto-indent written on this line,
+    #                so closing braces can truncate it without inspection.
+    vm.globals["__bro_atline"] = initValue(true)
+    vm.globals["__bro_indw"] = initValue(0'i64)
 
   extendCaseStmt "vmParseChunkCase":
     case oc:
@@ -803,7 +852,57 @@ block extendVM:
           fs
         of tyBool: $sv.boolVal
         else: ""
-      result.stringVal[].add(rawStr)
+      let prettyNow = vm.globals["__bro_pretty"].boolVal
+      let depthNow = vm.globals["__bro_depth"].intVal.int
+      if not prettyNow or rawStr.len == 0:
+        result.stringVal[].add(rawStr)
+      elif rawStr == "}":
+        # closing brace: drop pending auto-indent (its leading '\n' survives),
+        # or open a fresh line when the previous chunk left none
+        let indW = vm.globals["__bro_indw"].intVal.int
+        if indW > 0:
+          result.stringVal[].setLen(result.stringVal[].len - indW)
+        else:
+          result.stringVal[].add('\n')
+        vm.globals["__bro_depth"] = initValue((depthNow - 1).int64)
+        for _ in 1 .. (depthNow - 1) * 2:
+          result.stringVal[].add(' ')
+        result.stringVal[].add(rawStr)
+        result.stringVal[].add('\n')
+        for _ in 1 .. (depthNow - 1) * 2:
+          result.stringVal[].add(' ')
+        vm.globals["__bro_indw"] = initValue(((depthNow - 1) * 2).int64)
+        vm.globals["__bro_atline"] = initValue(true)
+      elif rawStr[^1] == '{':
+        # opener: header line, then descend
+        if not vm.globals["__bro_atline"].boolVal:
+          result.stringVal[].add('\n')
+          for _ in 1 .. depthNow * 2:
+            result.stringVal[].add(' ')
+          vm.globals["__bro_indw"] = initValue((depthNow * 2).int64)
+        result.stringVal[].add(rawStr)
+        vm.globals["__bro_indw"] = initValue(0'i64) # header content landed
+        vm.globals["__bro_depth"] = initValue((depthNow + 1).int64)
+        result.stringVal[].add('\n')
+        for _ in 1 .. (depthNow + 1) * 2:
+          result.stringVal[].add(' ')
+        vm.globals["__bro_indw"] = initValue(((depthNow + 1) * 2).int64)
+        vm.globals["__bro_atline"] = initValue(true)
+      else:
+        # declaration / statement chunk — own line at current depth
+        if not vm.globals["__bro_atline"].boolVal:
+          result.stringVal[].add('\n')
+          for _ in 1 .. depthNow * 2:
+            result.stringVal[].add(' ')
+        result.stringVal[].add(rawStr)
+        vm.globals["__bro_indw"] = initValue(0'i64) # content landed
+        if rawStr[^1] != '\n':
+          # self-terminated chunks (doc-block banners) keep their own newline
+          result.stringVal[].add('\n')
+        for _ in 1 .. depthNow * 2:
+          result.stringVal[].add(' ')
+        vm.globals["__bro_indw"] = initValue((depthNow * 2).int64)
+        vm.globals["__bro_atline"] = initValue(true)
     of opcEmitCSS:
       let poses = co.strKeys[pcIdx]
       var pi = 0
@@ -823,6 +922,17 @@ block extendVM:
         of 2: ":" # pseudo-selector
         else: ""
       result.stringVal[].add(prefix & selectorName & "{")
+      let prettyNow = vm.globals["__bro_pretty"].boolVal
+      if prettyNow:
+        # header content landed — clear pending indent before descending
+        vm.globals["__bro_indw"] = initValue(0'i64)
+        # structured rule: descend for declarations, matching raw-path layout
+        vm.globals["__bro_depth"] = initValue((vm.globals["__bro_depth"].intVal + 1).int64)
+        result.stringVal[].add('\n')
+        for _ in 1 .. vm.globals["__bro_depth"].intVal.int * 2:
+          result.stringVal[].add(' ')
+        vm.globals["__bro_indw"] = initValue((vm.globals["__bro_depth"].intVal.int * 2).int64)
+        vm.globals["__bro_atline"] = initValue(true)
       for i, key in keys:
         # per-property mapping
         if pi + 1 < poses.len:
@@ -844,5 +954,32 @@ block extendVM:
             $(props.fields[i].boolVal)
           else: "<value>"
 
+        if prettyNow and i > 0:
+          # first declaration sits on the opener's fresh line; rest get their own
+          result.stringVal[].add('\n')
+          for _ in 1 .. vm.globals["__bro_depth"].intVal.int * 2:
+            result.stringVal[].add(' ')
         result.stringVal[].add(key & ":" & val & ";")
+        if prettyNow:
+          vm.globals["__bro_atline"] = initValue(false)
+          vm.globals["__bro_indw"] = initValue(0'i64) # declaration content landed
+      if prettyNow:
+        # drop pending auto-indent, dedent, place closing brace at parent level
+        let indW = vm.globals["__bro_indw"].intVal.int
+        if indW > 0:
+          result.stringVal[].setLen(result.stringVal[].len - indW)
+        if not vm.globals["__bro_atline"].boolVal:
+          result.stringVal[].add('\n')
+        elif indW > 0:
+          discard # truncated indent left the '\n' from the opener in place
+        vm.globals["__bro_depth"] = initValue((vm.globals["__bro_depth"].intVal - 1).int64)
+        for _ in 1 .. vm.globals["__bro_depth"].intVal.int * 2:
+          result.stringVal[].add(' ')
       result.stringVal[].add("}")
+      if prettyNow:
+        # leave the cursor at a fresh line for the next sibling rule
+        result.stringVal[].add('\n')
+        for _ in 1 .. vm.globals["__bro_depth"].intVal.int * 2:
+          result.stringVal[].add(' ')
+        vm.globals["__bro_indw"] = initValue((vm.globals["__bro_depth"].intVal.int * 2).int64)
+        vm.globals["__bro_atline"] = initValue(true)

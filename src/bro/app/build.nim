@@ -9,16 +9,21 @@ import std/[os, monotimes, times, options, strutils]
 import pkg/watchout
 import pkg/openparser/json
 import pkg/kapsis/[cli, runtime, interactive/prompts]
-
 import pkg/vancode/interpreter/[ast, codegen, chunk, sym, vm, value, resolver]
 import pkg/vancode/manager/packager
 
 import ../engine/parser
+import ../engine/vancodegen
 import ../engine/sourcemap
 import ../engine/stdlib/[libsystem, libarrays, libcolors]
 
 proc parserCallback(astProgram: var Ast, path: string, resolver: FileResolver) =
   parser.parseScript(astProgram, readFile(path), path)
+
+# Route engine warnings (unknown mixins, invalid declarations) through
+# kapsis so they render consistently with other CLI diagnostics.
+vancodegen.warnHandler = proc(msg: string) =
+  displayWarning(msg)
 
 #
 # Compile command
@@ -28,8 +33,10 @@ proc writeSourceMap(vm: Vm, srcPath, code: string, outputFilePath: string) =
   var info = initSourceInfo()
   info.addContent(srcPath, code)
   # The VM accumulated segments as `genCol \x03 line \x03 col \x03 file` records,
-  # separated by \x02.
+  # separated by \x02. Each record's file is the chunk it was emitted from,
+  # so imported modules are attributed to their own source files.
   let segs = vm.globals.getOrDefault("__bro_sourcemap_segments").stringVal[]
+  var seenFiles: seq[string]
   for record in segs.split('\x02'):
     if record.len == 0:
       continue
@@ -38,7 +45,15 @@ proc writeSourceMap(vm: Vm, srcPath, code: string, outputFilePath: string) =
       let genCol = parseInt(parts[0])
       let line = parseInt(parts[1]) - 1 # source lines are 0-based in the map
       let col = parseInt(parts[2])
-      info.addSegment(0, genCol, parts[3], line, col)
+      let segFile = parts[3]
+      info.addSegment(0, genCol, segFile, line, col)
+      # Embed the raw source of every contributing file (imported modules too)
+      if segFile notin seenFiles:
+        seenFiles.add(segFile)
+        try:
+          info.addContent(segFile, readFile(segFile))
+        except CatchableError:
+          discard # unreadable file — sourcesContent stays empty for it
 
   let sm = info.toSourceMap(outputFilePath.extractFilename)
   let mapNode = newJObject()
@@ -62,7 +77,7 @@ proc writeSourceMap(vm: Vm, srcPath, code: string, outputFilePath: string) =
 proc compileCode(filePath: string,
           pkgr: Packager, globalData: JsonNode, localData: JsonNode,
           output: bool = false, outputPath: string = "",
-          sourceMap: bool = false) =
+          sourceMap: bool = false, pretty: bool = false) =
   # Compile the BASS code at `filePath` and optionally save the output to `
   var program: Ast # the AST representation of the script
   let code = readFile(filePath)
@@ -94,12 +109,16 @@ proc compileCode(filePath: string,
       hotProcThreshold: 10,
       hotChunkThreshold: 100
     ))
+    if pretty:
+      virtualMachine.globals["__bro_pretty"] = initValue(true)
     if not output:
       echo(virtualMachine.interpret(script, mainChunk))
     else:
       let cssOutput = virtualMachine.interpret(script, mainChunk).stringVal[]
       let outputFilePath = outputPath.changeFileExt(".css")
       if sourceMap:
+        if pretty:
+          displayInfo("--pretty output keeps minified-layout source map mappings")
         writeSourceMap(virtualMachine, filePath, code, outputFilePath)
         let mapName = outputFilePath.extractFilename.changeFileExt(".css.map")
         writeFile(outputFilePath, cssOutput & "\n/*# sourceMappingURL=" & mapName & " */")
@@ -107,7 +126,7 @@ proc compileCode(filePath: string,
         # if fileExists(outputFilePath):
         writeFile(outputFilePath, cssOutput)
   except CodeGenError as e:
-    echo e.msg
+    displayError(e.msg)
   except CatchableError as e:
     # Safety net: catch any unhandled validation errors from the codegen
     displayError("internal error: " & e.msg)
@@ -127,6 +146,7 @@ proc cCommand*(v: Values) =
 
   let enabledWatch = v.has("-w")
   let enabledSourceMap = v.has("--sourceMap")
+  let enabledPretty = v.has("--pretty")
 
   if not srcPath.isAbsolute:
     srcPath = getCurrentDir() / srcPath
@@ -163,7 +183,8 @@ proc cCommand*(v: Values) =
       else: newJObject()
 
   # compile the code for the first time
-  compileCode(srcPath, pkgr, globalData, localData, hasOutput, outputPath, enabledSourceMap)
+  compileCode(srcPath, pkgr, globalData, localData, hasOutput, outputPath,
+      enabledSourceMap, enabledPretty)
 
   # initialize the file watcher for browser sync if watch mode is enabled
   if enabledWatch:
@@ -180,7 +201,8 @@ proc cCommand*(v: Values) =
         compileCode(file.getPath, pkgr, globalData, localData, false, "")
       else:
         let t = cpuTime()
-        compileCode(file.getPath, pkgr, globalData, localData, hasOutput, outputPath, enabledSourceMap)
+        compileCode(file.getPath, pkgr, globalData, localData, hasOutput,
+            outputPath, enabledSourceMap, enabledPretty)
         displayInfo("File changed: " & file.getPath)
         displaySuccess("Recompiled in " & $((cpuTime() - t)) & "s")
 

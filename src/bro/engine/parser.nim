@@ -610,6 +610,9 @@ proc parseValueList(p: var Parser): Node =
   var segments: seq[seq[Node]]
   var values: seq[Node]
   while true:
+    # Empty value (e.g. `--x: ;` — valid custom-property reset): stop at once
+    if p.curr.kind in {tkSemicolon, tkRBrace, tkEOF}:
+      break
     # Handle `!important` suffix before trying to parse another value
     if p.curr.kind == tkBang and p.next.kind == tkIdentifier and p.next.value == "important":
       walk p, 2 # tkBang, tkIdentifier
@@ -715,7 +718,7 @@ proc parseBlockSelector(p: var Parser, indentPos: int): Node {.rule.} =
   var selBuf = ""
   var selList: seq[string]
   var parenDepth = 0
-  let curLine = p.curr.line
+  var curLine = p.curr.line
   while p.curr.kind notin {tkLBrace, tkEOF} and p.curr.line == curLine:
     let txt =
       if p.curr.value.len > 0: p.curr.value
@@ -728,6 +731,9 @@ proc parseBlockSelector(p: var Parser, indentPos: int): Node {.rule.} =
       selList.add(selBuf.strip())
       selBuf = ""
       walk p
+      # allow wrapped selector lists: `.a,\n.b { ... }`
+      if p.curr.line == curLine + 1 and p.curr.kind notin {tkLBrace, tkEOF}:
+        curLine = p.curr.line
       continue
     if p.curr.kind == tkLBracket:
       selBuf &= p.collectAttributeSelector()
@@ -784,6 +790,26 @@ proc collectPseudoSuffix(p: var Parser): string =
           result &= txt
           walk p
 
+proc newCssComment(p: var Parser): Node =
+  ## Wrap a doc-block token into an nkCssComment node, reconstructing its
+  ## original delimiters so the stored text is fully-wrapped CSS.
+  ## The lexer's buffer retains the flavor char ('!' or the second '*'),
+  ## so it is stripped here before re-wrapping.
+  var inner = p.curr.value
+  case p.curr.kind
+  of tkDocBlockBang:
+    if inner.len > 0 and inner[0] == '!': inner = inner[1 ..< inner.len]
+    inner = "/*!" & inner & "*/"
+  of tkDocBlock:
+    if inner.len > 0 and inner[0] == '*': inner = inner[1 ..< inner.len]
+    inner = "/**" & inner & "*/"
+  else:
+    inner = ""
+  result = ast.newTree(nkCssComment, ast.newStringLit(inner))
+  result.ln = p.curr.line
+  result.col = p.curr.col
+  walk p
+
 proc parseSelectorBlock(p: var Parser, indentPos = 0): Node {.rule.} =
   # parse a block of properties for a class selector
   var
@@ -796,6 +822,10 @@ proc parseSelectorBlock(p: var Parser, indentPos = 0): Node {.rule.} =
   else:
     closingBlock = false
   while p.curr isnot tkEOF:
+    # preserve doc-block banners inside rule bodies
+    if p.curr.kind in {tkDocBlock, tkDocBlockBang}:
+      props.add(p.newCssComment())
+      continue
     p.skipComments() # skip comments between properties
     if closingBlock and p.curr is tkRBrace:
       walk p; closed = true; break # tkRBrace
@@ -825,8 +855,8 @@ proc parseSelectorBlock(p: var Parser, indentPos = 0): Node {.rule.} =
           propNode.col = propC
           props.add(propNode)
         p.walkOptSemiColon() # optional semicolon after each property
-      elif p.next.line == p.curr.line and p.next.kind == tkIdentifier and p.next.wsno > 0:
-        # element selector with descendant, e.g. `ol li`
+      elif p.next.kind in {tkIdentifier, tkComma} and p.next.line == p.curr.line:
+        # element selector with descendant (`ol li`) or comma list (`h1, .h1`)
         let subNode = p.parseBlockSelector(p.curr.col)
         caseNotNil subNode:
           props.add(subNode)
@@ -896,6 +926,10 @@ proc parseSelectorBlock(p: var Parser, indentPos = 0): Node {.rule.} =
         props.add(subNode)
   if closingBlock and not closed:
     p.curr.error("expected closing '}' for block", fatal = true)
+  if not closingBlock and props.len == 0:
+    # indent-style body absent: selector followed by a dedented line, EOF,
+    # or garbage — never silently emit an empty rule
+    p.curr.error("expected '{' or an indented block after selector", fatal = true)
   result = ast.newTree(nkBlock, props)
 
 prefixHandle parseWhile:
@@ -1012,11 +1046,13 @@ prefixHandle parseClassSelector:
     while p.curr.kind == tkLBracket and p.curr.line == p.prev.line:
       selName &= p.collectAttributeSelector()
     # Collect comma-separated selectors: `.a, .b, .c`
+    # A selector may also start on the line after a trailing comma
     var selList: seq[string]
     while p.curr.kind == tkComma and p.curr.line == p.prev.line:
+      let cline = p.curr.line
       walk p # tkComma
       var extra = ""
-      if p.curr.kind == tkDot and p.curr.line == p.prev.line:
+      if p.curr.kind == tkDot and p.curr.line in {cline, cline + 1}:
         walk p # tkDot
         if p.curr.kind == tkIdentifier:
           extra = "." & p.curr.value
@@ -1025,13 +1061,36 @@ prefixHandle parseClassSelector:
             extra &= p.collectPseudoSuffix()
           while p.curr.kind == tkLBracket and p.curr.line == p.prev.line:
             extra &= p.collectAttributeSelector()
-      elif p.curr.kind == tkHash and p.curr.line == p.prev.line:
-        walk p
+      elif p.curr.kind == tkHash and p.curr.line in {cline, cline + 1}:
+        walk p # tkHash
         if p.curr.kind == tkIdentifier:
           extra = "#" & p.curr.value
           walk p
-      elif p.curr.kind == tkIdentifier and p.curr.line == p.prev.line:
+      elif p.curr.kind == tkIdentifier and p.curr.line in {cline, cline + 1}:
         extra = p.curr.value
+        walk p
+      # absorb compound/combinator tail on the extra's own line
+      # (e.g. `.btn-group-lg > .btn` or `.b[size]:not(x)` as list entries)
+      var tailDepth = 0
+      while p.curr.kind notin {tkLBrace, tkEOF} and
+            p.curr.line == p.prev.line:
+        case p.curr.kind
+        of tkLParen: inc tailDepth
+        of tkRParen: dec tailDepth
+        else: discard
+        if p.curr.kind == tkComma and tailDepth <= 0:
+          break # next list entry — handled by the outer loop
+        if p.curr.kind notin {tkIdentifier, tkDot, tkHash, tkColon, tkLBracket, tkPlus, tkGT, tkTilde, tkAsterisk, tkLParen, tkRParen}:
+          break
+        if p.curr.kind == tkLBracket:
+          extra &= p.collectAttributeSelector()
+          continue
+        let txt =
+          if p.curr.value.len > 0: p.curr.value
+          else: $p.curr.kind
+        if extra.len > 0 and p.curr.wsno > 0:
+          extra &= " "
+        extra &= txt
         walk p
       if extra.len > 0:
         selList.add(extra)
@@ -1046,13 +1105,29 @@ prefixHandle parseClassSelector:
         result = ast.newTree(nkElementSelector, sel,
           ast.newEmpty(), ast.newEmpty(), propsBlock)
     elif p.curr.kind in {tkPlus, tkGT, tkTilde} or
-         (p.curr.kind == tkDot and p.curr.wsno == 0) or
+         (p.curr.kind == tkDot and p.curr.wsno == 0 and p.curr.line == p.prev.line) or
          (p.curr.line == p.prev.line and p.curr.wsno > 0 and p.curr.kind in {tkIdentifier, tkDot, tkHash, tkLBracket, tkColon, tkAsterisk}):
-      # Compound/combinator — collect as raw text
+      # Compound/combinator — collect as raw text, splitting wrapped
+      # comma lists (`.form-floating > .form-control,\n.form-floating > …`)
       var rawSel = "." & selName
-      while p.curr.kind notin {tkLBrace, tkEOF}:
+      var selLn = p.curr.line
+      var parts: seq[string]
+      var partDepth = 0
+      while p.curr.kind notin {tkLBrace, tkEOF} and p.curr.line == selLn:
+        case p.curr.kind
+        of tkLParen: inc partDepth
+        of tkRParen: dec partDepth
+        else: discard
         if p.curr.kind == tkLBracket:
           rawSel &= p.collectAttributeSelector()
+          continue
+        if p.curr.kind == tkComma and partDepth <= 0:
+          parts.add(rawSel.strip())
+          rawSel = ""
+          walk p
+          # allow the next selector to start on the following line
+          if p.curr.line == selLn + 1 and p.curr.kind notin {tkLBrace, tkEOF}:
+            inc selLn
           continue
         let txt =
           if p.curr.value.len > 0: p.curr.value
@@ -1061,7 +1136,11 @@ prefixHandle parseClassSelector:
           rawSel &= " "
         rawSel &= txt
         walk p
-      let sel = ast.newNode(nkBracket).add(ast.newIdent(rawSel.strip()))
+      if rawSel.strip().len > 0:
+        parts.add(rawSel.strip())
+      let sel = ast.newNode(nkBracket)
+      for part in parts:
+        sel.add(ast.newIdent(part))
       let propsBlock: Node = p.parseSelectorBlock(pos)
       caseNotNil propsBlock:
         result = ast.newTree(nkElementSelector, sel,
@@ -1113,19 +1192,82 @@ prefixHandle parseIdSelector:
                       ast.newEmpty(), ast.newEmpty(), propsBlock)
 
 prefixHandle parsePseudoSelector:
-  # parse a pseudo selector like `:root`
+  # parse a pseudo selector like `:root`, `:focus-visible`, `::before`,
+  # or vendor pseudo-elements like `::-moz-focus-inner`
   let pos = p.curr.col
   walk p # tkColon
-  if p.curr.kind == tkIdentifier and p.curr.value == "root":
+  var dcolon = false
+  if p.curr.kind == tkColon:
+    dcolon = true
+    walk p # second colon of pseudo-element syntax
+  if p.curr.kind == tkIdentifier:
     var selName = p.curr.value
     walk p # tkIdentifier
     # handle attribute selectors like [data-x] appended to pseudo
     while p.curr.kind == tkLBracket and p.curr.line == p.prev.line:
       selName &= p.collectAttributeSelector()
-    if p.curr.kind in {tkPlus, tkGT, tkTilde} or
+    # Collect comma-separated selectors: `:root, [data-x], .cls`
+    # A selector may also start on the line after a trailing comma
+    var selList: seq[string]
+    while p.curr.kind == tkComma and p.curr.line == p.prev.line:
+      let cline = p.curr.line
+      walk p # tkComma
+      var extra = ""
+      if p.curr.kind == tkDot and p.curr.line in {cline, cline + 1}:
+        walk p # tkDot
+        if p.curr.kind == tkIdentifier:
+          extra = "." & p.curr.value
+          walk p
+          while p.curr.kind == tkColon and p.curr.line == p.prev.line and p.curr.wsno == 0:
+            extra &= p.collectPseudoSuffix()
+          while p.curr.kind == tkLBracket and p.curr.line == p.prev.line:
+            extra &= p.collectAttributeSelector()
+      elif p.curr.kind == tkHash and p.curr.line in {cline, cline + 1}:
+        walk p # tkHash
+        if p.curr.kind == tkIdentifier:
+          extra = "#" & p.curr.value
+          walk p
+      elif p.curr.kind == tkColon and p.curr.wsno == 0 and p.curr.line in {cline, cline + 1}:
+        extra = p.collectPseudoSuffix()
+        while p.curr.kind == tkLBracket and p.curr.line == p.prev.line:
+          extra &= p.collectAttributeSelector()
+      elif p.curr.kind == tkLBracket and p.curr.line in {cline, cline + 1}:
+        extra = p.collectAttributeSelector()
+      elif p.curr.kind == tkIdentifier and p.curr.line in {cline, cline + 1}:
+        extra = p.curr.value
+        walk p
+      # absorb compound/combinator tail on the extra's own line
+      # (e.g. `.btn-group-lg > .btn` as an entry of a comma list)
+      while p.curr.kind notin {tkLBrace, tkComma, tkEOF} and
+            p.curr.line == p.prev.line and
+            p.curr.kind in {tkIdentifier, tkDot, tkHash, tkColon, tkLBracket, tkPlus, tkGT, tkTilde, tkAsterisk}:
+        if p.curr.kind == tkLBracket:
+          extra &= p.collectAttributeSelector()
+          continue
+        let txt =
+          if p.curr.value.len > 0: p.curr.value
+          else: $p.curr.kind
+        if extra.len > 0 and p.curr.wsno > 0:
+          extra &= " "
+        extra &= txt
+        walk p
+      if extra.len > 0:
+        selList.add(extra)
+    let sigil = if dcolon: "::" else: ":"
+    if selList.len > 0:
+      # Comma-separated — build nkBracket with all selectors
+      let sel = ast.newNode(nkBracket)
+      sel.add(ast.newIdent(sigil & selName))
+      for s in selList:
+        sel.add(ast.newIdent(s))
+      let propsBlock: Node = p.parseSelectorBlock(pos)
+      caseNotNil propsBlock:
+        result = ast.newTree(nkElementSelector, sel,
+          ast.newEmpty(), ast.newEmpty(), propsBlock)
+    elif p.curr.kind in {tkPlus, tkGT, tkTilde} or
        (p.curr.kind == tkDot and p.curr.wsno == 0) or
        (p.curr.line == p.prev.line and p.curr.wsno > 0 and p.curr.kind in {tkIdentifier, tkDot, tkHash, tkLBracket, tkColon, tkAsterisk}):
-      var rawSel = ":" & selName
+      var rawSel = sigil & selName
       while p.curr.kind notin {tkLBrace, tkEOF}:
         if p.curr.kind == tkLBracket:
           rawSel &= p.collectAttributeSelector()
@@ -1138,6 +1280,14 @@ prefixHandle parsePseudoSelector:
         rawSel &= txt
         walk p
       let sel = ast.newNode(nkBracket).add(ast.newIdent(rawSel.strip()))
+      let propsBlock: Node = p.parseSelectorBlock(pos)
+      caseNotNil propsBlock:
+        result = ast.newTree(nkElementSelector, sel,
+          ast.newEmpty(), ast.newEmpty(), propsBlock)
+    elif dcolon:
+      # plain pseudo-element (`::before`) — emit via element path so the
+      # double colon survives (nkPseudoSelector only adds a single colon)
+      let sel = ast.newNode(nkBracket).add(ast.newIdent(sigil & selName))
       let propsBlock: Node = p.parseSelectorBlock(pos)
       caseNotNil propsBlock:
         result = ast.newTree(nkElementSelector, sel,
@@ -1568,19 +1718,28 @@ proc parseScript*(astProgram: var Ast, code: sink string, sourcePath: string) =
   var p = Parser(lex: newLexer(code))
   p.curr = p.lex.getToken()
   p.next = p.lex.getToken()
-  p.skipComments()
   astProgram = Ast()
   astProgram.sourcePath = sourcePath
   while p.curr.kind != tkEOF:
-    try:
-      let node: Node = p.parseStmt()
-      caseNotNil node:
-        astProgram.nodes.add(node)
-      do:
-        p.curr.error(ErrUnexpectedToken % $p.curr.kind)
-    except BroParserError as e:
-      if e.fatal:
-        raise e # fatal syntax errors abort parsing
-      # skip the bad token and continue from the next one
-      if p.curr.kind notin {tkEOF}:
-        walk(p)
+    # preserve top-level doc-block banners (license headers, section notes);
+    # plain comments are skipped as before
+    case p.curr.kind
+    of tkDocBlock, tkDocBlockBang:
+      astProgram.nodes.add(p.newCssComment())
+      # consume trailing plain comments but keep further doc-block banners
+      while p.curr.kind == tkComment:
+        p.skipComments()
+      continue
+    of tkComment:
+      p.skipComments()
+      continue
+    else: discard
+    let node: Node = p.parseStmt()
+    caseNotNil node:
+      # reject bare literals/identifiers at document level — they produce no
+      # CSS and usually indicate a typo (e.g. `$$$` or a stray number)
+      if node.kind in {nkIdent, nkInt, nkFloat, nkString, nkBool}:
+        p.curr.error("unexpected statement at document level", fatal = true)
+      astProgram.nodes.add(node)
+    do:
+      p.curr.error(ErrUnexpectedToken % $p.curr.kind, fatal = true)

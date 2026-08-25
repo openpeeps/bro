@@ -84,6 +84,7 @@ type
 
     tkComment
     tkDocBlock
+    tkDocBlockBang
 
 
   TokenTuple* = tuple
@@ -322,8 +323,10 @@ proc nextToken(lex: var Lexer): TokenTuple =
         lex.advance()
       result = initToken(lex, move(lex.strbuf), tkComment, startLine, startCol, startPos, wsno)
     elif lex.current == '*':
-      # block comment: '/* ... */' and docblock '/** ... */'
-      let isDoc = peek(lex, 1) == '*'
+      # block comment: '/* ... */' and docblocks '/** ... */' or '/*! ... */'
+      # (banner convention for license headers that must survive minification)
+      let isBang = peek(lex, 1) == '!'
+      let isDoc = peek(lex, 1) == '*' or isBang
       # consume the '*' we are currently on, then collect until '*/' or EOF
       lex.advance()
       lex.strbuf.setLen(0)
@@ -334,7 +337,9 @@ proc nextToken(lex: var Lexer): TokenTuple =
       if lex.current == '*' and peek(lex) == '/':
         lex.advance() # '*'
         lex.advance() # '/'
-      result = initToken(lex, move(lex.strbuf), if isDoc: tkDocBlock else: tkComment, startLine, startCol, startPos, wsno)
+      result = initToken(lex, move(lex.strbuf),
+        if isBang: tkDocBlockBang elif isDoc: tkDocBlock else: tkComment,
+        startLine, startCol, startPos, wsno)
     else:
       result = initToken(lex, tkDivide, startLine, startCol, startPos, wsno)
   of '%':

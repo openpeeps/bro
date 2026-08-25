@@ -1,11 +1,12 @@
 import ../src/bro/engine/vancodegen
 import unittest
-import std/[options, strutils]
+import std/[options, strutils, tables, os]
 import pkg/openparser/json
 
 import ../src/bro/engine/parser
 
 import pkg/vancode/interpreter/[ast, codegen, chunk, sym, vm, value]
+import pkg/vancode/interpreter/resolver
 
 import ../src/bro/engine/stdlib/[libsystem]
 
@@ -22,6 +23,27 @@ proc compile(code: string): string =
   script.stdpos = script.procs.high
 
   var gen = initCodeGen(script, module, mainChunk)
+  gen.genScript(program, none(string))
+
+  let virtualMachine = newVirtualMachine(VMPreferences())
+  result = virtualMachine.interpret(script, mainChunk).stringVal[]
+
+proc compileFile(path: string): string =
+  ## Full pipeline for a real file on disk — mirrors the CLI build path,
+  ## including the import parserCallback so `.bass` imports resolve.
+  proc cb(astProgram: var Ast, p: string, resolver: FileResolver) =
+    parser.parseScript(astProgram, readFile(p), p)
+
+  var program: Ast
+  parser.parseScript(program, readFile(path), path)
+  let mainChunk = newChunk(path)
+  var script = newScript(mainChunk)
+  var module = newModule(path.extractFilename, some(path))
+  let systemModule = libsystem.loadLibrary(script, newJObject(), newJObject())
+  module.load(systemModule)
+  script.stdpos = script.procs.high
+
+  var gen = initCodeGen(script, module, mainChunk, pkgr = nil, parserCallback = cb)
   gen.genScript(program, none(string))
 
   let virtualMachine = newVirtualMachine(VMPreferences())
@@ -912,3 +934,122 @@ suite "Phase 5: fn / func aliases":
   test "func alias works identically":
     check compile("func dbl($n: int): int\n  return $n * 2\nlet $p = dbl(21)\n.a { z-index: $p }") ==
       ".a{z-index:42;}"
+
+suite "Phase 6: modules (.bass imports)":
+  let fixturesDir = currentSourcePath().parentDir / "stylesheets"
+
+  test "import resolves and splices rules + exported vars":
+    let css = compileFile(fixturesDir / "import_main.bass")
+    check css == ".base{color:gray;}.a{color:#0d6efd;border-radius:4px;}"
+
+  test "sourcemap segments attribute imported file correctly":
+    proc compileFileVm(path: string): tuple[css: string, vm: Vm] =
+      proc cb(astProgram: var Ast, p: string, resolver: FileResolver) =
+        parser.parseScript(astProgram, readFile(p), p)
+      var program: Ast
+      parser.parseScript(program, readFile(path), path)
+      let mainChunk = newChunk(path)
+      var script = newScript(mainChunk)
+      var module = newModule(path.extractFilename, some(path))
+      let systemModule = libsystem.loadLibrary(script, newJObject(), newJObject())
+      module.load(systemModule)
+      script.stdpos = script.procs.high
+      var gen = initCodeGen(script, module, mainChunk, pkgr = nil, parserCallback = cb)
+      gen.genScript(program, none(string))
+      let virtualMachine = newVirtualMachine(VMPreferences())
+      result.css = virtualMachine.interpret(script, mainChunk).stringVal[]
+      result.vm = virtualMachine
+
+    let (css, machine) = compileFileVm(fixturesDir / "import_main.bass")
+    check css.len > 0
+    let segs = machine.globals.getOrDefault("__bro_sourcemap_segments").stringVal[]
+    var files: seq[string]
+    for record in segs.split('\x02'):
+      if record.len == 0: continue
+      let parts = record.split('\x03')
+      if parts.len >= 4 and parts[3] notin files:
+        files.add(parts[3])
+    check (fixturesDir / "_vars.bass") in files
+    check (fixturesDir / "import_main.bass") in files
+
+  test "missing import raises":
+    expect CatchableError:
+      discard compileFile(fixturesDir / "nonexistent.bass")
+
+proc compilePretty(code: string): string =
+  ## compile() with --pretty semantics: VM emits newlines + indentation.
+  var program: Ast
+  parser.parseScript(program, code, "test.bass")
+  let mainChunk = newChunk("test.bass")
+  var script = newScript(mainChunk)
+  var module = newModule("test", some("test.bass"))
+  let systemModule = libsystem.loadLibrary(script, newJObject(), newJObject())
+  module.load(systemModule)
+  script.stdpos = script.procs.high
+  var gen = initCodeGen(script, module, mainChunk)
+  gen.genScript(program, none(string))
+  let virtualMachine = newVirtualMachine(VMPreferences())
+  virtualMachine.globals["__bro_pretty"] = initValue(true)
+  result = virtualMachine.interpret(script, mainChunk).stringVal[]
+
+suite "Phase 6: pretty output":
+  test "single rule with one property":
+    check compilePretty(".a { color: red; }") == ".a{\n  color:red;\n}\n"
+
+  test "multiple properties on separate lines":
+    check compilePretty(".a { color: red; padding: 0; }") ==
+      ".a{\n  color:red;\n  padding:0;\n}\n"
+
+  test "sibling rules separated by newline":
+    check compilePretty(".a { color: red; }\n.b { color: blue; }") ==
+      ".a{\n  color:red;\n}\n.b{\n  color:blue;\n}\n"
+
+  test "empty rule collapses to brace pair lines":
+    check compilePretty(".a {}") == ".a{\n}\n"
+
+  test "nested rules indent via raw path":
+    check compilePretty(".parent\n  color: red\n  .child\n    color: blue") ==
+      ".parent{\n  color:red;\n}\n.parent .child{\n  color:blue;\n}\n"
+
+  test "at-rule nesting indents inner rule":
+    check compilePretty("@media (max-width: 768px) {\n  .a { color: red; }\n}") ==
+      "@media (max-width: 768px){\n  .a{\n    color:red;\n  }\n}\n"
+
+  test "duplicate properties stay on separate lines (raw path)":
+    check compilePretty("th { text-align: inherit; text-align: -webkit-match-parent; }") ==
+      "th{\n  text-align:inherit;\n  text-align:-webkit-match-parent;\n}\n"
+
+  test "statement at-rule gets its own line":
+    check compilePretty("@charset \"utf-8\";") == "@charset \"utf-8\";\n"
+
+  test "keyframes indent their steps":
+    check compilePretty("@keyframes slide { from { opacity: 0; } to { opacity: 1; } }") ==
+      "@keyframes slide{\n  from{\n    opacity:0;\n  }\n  to{\n    opacity:1;\n  }\n}\n"
+
+suite "Phase 6: doc-block preservation":
+  test "bang banner preserved before rule (minified)":
+    check compile("/*! bro v1 */\n.a { color: red }") == "/*! bro v1 */\n.a{color:red;}"
+
+  test "double-star docblock preserved with original flavor":
+    check compile("/** section note */\n.b { color: blue }") == "/** section note */\n.b{color:blue;}"
+
+  test "plain block comment still stripped":
+    check compile("/* gone */\n.c { color: green }") == ".c{color:green;}"
+
+  test "banner inside rule body precedes the rule":
+    check compile(".a\n  /*! inner */\n  color: red") == "/*! inner */\n.a{color:red;}"
+
+  test "multiple banners keep source order":
+    check compile("/*! first */\n/** second */\n.d { margin: 0 }") ==
+      "/*! first */\n/** second */\n.d{margin:0;}"
+
+  test "banner between rules":
+    check compile(".e { color: red }\n/*! mid */\n.f { color: blue }") ==
+      ".e{color:red;}/*! mid */\n.f{color:blue;}"
+
+  test "pretty mode keeps banner on its own line":
+    check compilePretty("/*! b */\n.a { color: red }") == "/*! b */\n.a{\n  color:red;\n}\n"
+
+  test "pretty mode banner inside nested rule body":
+    check compilePretty(".p\n  color: red\n  .c\n    color: blue") ==
+      ".p{\n  color:red;\n}\n.p .c{\n  color:blue;\n}\n"
