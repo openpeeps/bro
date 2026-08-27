@@ -25,6 +25,8 @@ block extendAST:
     nkCommaList # Represents comma-separated CSS values (e.g., 13, 110, 253)
     nkMixinDef  # Represents a mixin definition (reusable declaration block)
     nkCssComment # Preserved doc-block comment (/*! ... */ or /** ... */)
+    nkCase
+    nkOfBranch
 
 block extendSym:
   extendEnum TypeKind:
@@ -379,6 +381,31 @@ block extendCodeGen:
         else:
           bodyChildren.add(child)
 
+      # Phase 0b: desugar nkCase → nkIf chains for VM codegen
+      proc desugarCase(n: Node): Node =
+        ## case X of 1: a of 2: b else: c → if X == 1: a elif X == 2: b else: c
+        if n.kind != nkCase: return n
+        let subject = n[0]
+        var ifChildren: seq[Node]
+        var i = 1
+        while i < n.len:
+          let branch = n[i]
+          if branch.kind == nkBlock:
+            # else branch
+            ifChildren.add(branch)
+            break
+          elif branch.kind == nkOfBranch:
+            let cond = ast.newInfix(ast.newIdent("=="),
+              subject, branch[0])
+            let blk = branch[1]
+            ifChildren.add(cond)
+            ifChildren.add(blk)
+          inc i
+        result = ast.newTree(nkIf, ifChildren)
+        result.ln = n.ln; result.col = n.col
+      for idx in 0 ..< bodyChildren.len:
+        bodyChildren[idx] = desugarCase(bodyChildren[idx])
+
       # Phase 1: scan body to separate properties from nested children
       var
         nestedStmts: seq[Node]
@@ -404,7 +431,7 @@ block extendCodeGen:
           hasNestedSelectors = true
         of nkAtRule:
           hasNestedAtRule = true
-        of nkIf, nkWhile, nkFor:
+        of nkIf, nkWhile, nkFor, nkCase:
           hasControlFlow = true
         else: discard
       # Check for duplicate property keys in this block
@@ -433,13 +460,16 @@ block extendCodeGen:
           gen.chunk.emit(opcEmitRaw)
           gen.chunk.emit(uint16(node.ln))
           gen.chunk.emit(uint16(node.col))
-          for child in bodyChildren:
+          for ci, child in bodyChildren:
             if child.kind == nkColon:
               let key = child[0].ident
               let val = nodeToCssString(child[1])
               if val.len > 0:
                 gen.chunk.emit(opcPushS)
-                gen.chunk.emit(gen.chunk.getString(key & ":" & val & ";"))
+                let isLast = ci == bodyChildren.len - 1
+                let css = if isLast: key & ":" & val
+                          else: key & ":" & val & ";"
+                gen.chunk.emit(gen.chunk.getString(css))
                 gen.chunk.emit(opcEmitRaw)
                 gen.chunk.emit(uint16(child.ln))
                 gen.chunk.emit(uint16(child.col))
@@ -453,7 +483,7 @@ block extendCodeGen:
         nestingParent = fullText
         for stmt in nestedStmts:
           case stmt.kind
-          of nkIf, nkWhile, nkFor:
+          of nkIf, nkWhile, nkFor, nkCase:
             rawPropMode = true
             gen.genStmt(stmt)
             rawPropMode = false
@@ -472,18 +502,21 @@ block extendCodeGen:
         gen.chunk.emit(uint16(node.ln))
         gen.chunk.emit(uint16(node.col))
         # Declarations & control flow in source order
-        for child in bodyChildren:
+        for ci, child in bodyChildren:
           case child.kind
           of nkColon:
             let key = child[0].ident
             let val = nodeToCssString(child[1])
             if val.len > 0:
               gen.chunk.emit(opcPushS)
-              gen.chunk.emit(gen.chunk.getString(key & ":" & val & ";"))
+              let isLast = ci == bodyChildren.len - 1
+              let css = if isLast: key & ":" & val
+                        else: key & ":" & val & ";"
+              gen.chunk.emit(gen.chunk.getString(css))
               gen.chunk.emit(opcEmitRaw)
               gen.chunk.emit(uint16(child.ln))
               gen.chunk.emit(uint16(child.col))
-          of nkIf, nkWhile, nkFor:
+          of nkIf, nkWhile, nkFor, nkCase:
             rawPropMode = true
             gen.genStmt(child)
             rawPropMode = false
@@ -707,12 +740,15 @@ block extendCodeGen:
         gen.chunk.emit(opcEmitRaw)
         gen.chunk.emit(uint16(node.ln))
         gen.chunk.emit(uint16(node.col))
-        for child in node[2].children:
+        for ci, child in node[2].children:
           if child.kind == nkColon:
             let key = child[0].ident
             let val = nodeToCssString(child[1])
             gen.chunk.emit(opcPushS)
-            gen.chunk.emit(gen.chunk.getString(key & ":" & val & ";"))
+            let isLast = ci == node[2].children.len - 1
+            let css = if isLast: key & ":" & val
+                      else: key & ":" & val & ";"
+            gen.chunk.emit(gen.chunk.getString(css))
             gen.chunk.emit(opcEmitRaw)
             gen.chunk.emit(uint16(child.ln))
             gen.chunk.emit(uint16(child.col))
@@ -767,6 +803,22 @@ block extendCodeGen:
         gen.chunk.emit(opcEmitRaw)
         gen.chunk.emit(uint16(0xFFFF))
         gen.chunk.emit(uint16(0))
+    of nkCase:
+      # Desugar case/of → if/elif/else and re-dispatch
+      let subject = node[0]
+      var ifChildren: seq[Node]
+      var i = 1
+      while i < node.len:
+        let branch = node[i]
+        if branch.kind == nkBlock:
+          ifChildren.add(branch)
+          break
+        elif branch.kind == nkOfBranch:
+          let cond = ast.newInfix(ast.newIdent("=="), subject, branch[0])
+          ifChildren.add(cond)
+          ifChildren.add(branch[1])
+        inc i
+      gen.genStmt(ast.newTree(nkIf, ifChildren))
 
 block extendVM:
   extendEnum Opcode:
@@ -854,6 +906,9 @@ block extendVM:
         else: ""
       let prettyNow = vm.globals["__bro_pretty"].boolVal
       let depthNow = vm.globals["__bro_depth"].intVal.int
+      # Strip trailing ';' before '}' — O(1) single-char check
+      if rawStr == "}" and result.stringVal[].len > 0 and result.stringVal[^1] == ';':
+        result.stringVal[].setLen(result.stringVal[].len - 1)
       if not prettyNow or rawStr.len == 0:
         result.stringVal[].add(rawStr)
       elif rawStr == "}":
@@ -959,7 +1014,9 @@ block extendVM:
           result.stringVal[].add('\n')
           for _ in 1 .. vm.globals["__bro_depth"].intVal.int * 2:
             result.stringVal[].add(' ')
-        result.stringVal[].add(key & ":" & val & ";")
+        result.stringVal[].add(key & ":" & val)
+        if i < keys.len - 1:
+          result.stringVal[].add(";")
         if prettyNow:
           vm.globals["__bro_atline"] = initValue(false)
           vm.globals["__bro_indw"] = initValue(0'i64) # declaration content landed

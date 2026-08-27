@@ -45,6 +45,7 @@ type
     tkKeywordIs = "is"
     tkKeywordIsnot = "isnot"
     tkAnd = "and"
+    tkKeywordNot = "not"
     tkBacktick = "`"
     tkAt = "@"
     tkAssign = "="
@@ -72,6 +73,7 @@ type
     tkKeywordFor = "for"
     tkKeywordIn = "in"
     tkKeywordOf = "of"
+    tkKeywordCase = "case"
     tkKeywordBreak = "break"
     tkKeywordContinue = "continue"
     tkKeywordTrue = "true"
@@ -394,10 +396,11 @@ proc nextToken(lex: var Lexer): TokenTuple =
       result = initToken(lex, tkPipeAssign, startLine, startCol, startPos, wsno)
     else:
       result = initToken(lex, tkUnknown, startLine, startCol, startPos, wsno)
-  of '"':
+  of '"', '\'':
+    let quote = lex.current
     lex.advance()
     lex.strbuf.setLen(0)
-    while lex.current != '"' and lex.current != '\0':
+    while lex.current != quote and lex.current != '\0':
       if lex.current == '\\':
         lex.advance()
         case lex.current
@@ -405,6 +408,7 @@ proc nextToken(lex: var Lexer): TokenTuple =
         of 't': lex.strbuf.add('\t')
         of 'r': lex.strbuf.add('\r')
         of '"': lex.strbuf.add('"')
+        of '\'': lex.strbuf.add('\'')
         of '\\': lex.strbuf.add('\\')
         else:
           # CSS strings: preserve the backslash for unrecognized escapes
@@ -414,7 +418,7 @@ proc nextToken(lex: var Lexer): TokenTuple =
       else:
         lex.strbuf.add(lex.current)
       lex.advance()
-    lex.advance() # skip closing "
+    lex.advance() # skip closing quote
     result = initToken(lex, move(lex.strbuf), tkString, startLine, startCol, startPos, wsno)
   of '0'..'9':
     lex.strbuf.setLen(0)
@@ -511,7 +515,9 @@ proc nextToken(lex: var Lexer): TokenTuple =
         of "is": initToken(lex, move(lex.strbuf), tkKeywordIs, startLine, startCol, startPos, wsno)
         of "isnot": initToken(lex, move(lex.strbuf), tkKeywordIsnot, startLine, startCol, startPos, wsno)
         of "and": initToken(lex, move(lex.strbuf), tkAnd, startLine, startCol, startPos, wsno)
+        of "not": initToken(lex, move(lex.strbuf), tkKeywordNot, startLine, startCol, startPos, wsno)
         of "of": initToken(lex, move(lex.strbuf), tkKeywordOf, startLine, startCol, startPos, wsno)
+        of "case": initToken(lex, move(lex.strbuf), tkKeywordCase, startLine, startCol, startPos, wsno)
         of "break": initToken(lex, move(lex.strbuf), tkKeywordBreak, startLine, startCol, startPos, wsno)
         of "continue": initToken(lex, move(lex.strbuf), tkKeywordContinue, startLine, startCol, startPos, wsno)
         of "true": initToken(lex, move(lex.strbuf), tkKeywordTrue, startLine, startCol, startPos, wsno)

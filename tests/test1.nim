@@ -407,7 +407,7 @@ suite "parser tests":
   test "parse if statement":
     let sample = """
   var x = 10
-  if x > 5
+  if x > 5:
     color: red
   """
     var ast: Ast
@@ -420,11 +420,11 @@ suite "parser tests":
   test "parse if elif else":
     let sample = """
   var x = 10
-  if x > 10
+  if x > 10:
     color: red
-  elif x == 10
+  elif x == 10:
     color: blue
-  else
+  else:
     color: green
   """
     var ast: Ast
@@ -435,23 +435,23 @@ suite "parser tests":
 
   test "parse for loop with single variable":
     let sample = """
-  for item in items
-    color: item
+  for $item in $items:
+    color: $item
   """
     var ast: Ast
     parser.parseScript(ast, sample, "test_for.css")
     assert ast.nodes.len == 1
     assert ast.nodes[0].kind == nkFor
     assert ast.nodes[0].children[0].kind == nkIdent
-    assert ast.nodes[0].children[0].ident == "item"
+    assert ast.nodes[0].children[0].ident == "$item"
     assert ast.nodes[0].children[1].kind == nkIdent
-    assert ast.nodes[0].children[1].ident == "items"
+    assert ast.nodes[0].children[1].ident == "$items"
     assert ast.nodes[0].children[2].kind == nkBlock
 
   test "parse for loop with two variables":
     let sample = """
-  for index, value in array
-    color: value
+  for $index, $value in $array:
+    color: $value
   """
     var ast: Ast
     parser.parseScript(ast, sample, "test_for2.css")
@@ -510,10 +510,10 @@ suite "parser tests":
 
   test "parse break and continue":
     let sample = """
-  for x in items
-    if x == 0
+  for $x in $items:
+    if $x == 0:
       break
-    if x == 1
+    if $x == 1:
       continue
   """
     var ast: Ast
@@ -564,7 +564,7 @@ suite "parser tests":
 
   test "parse comparison expression":
     let sample = """
-  if a == b and c > d
+  if a == b and c > d:
     color: red
   """
     var ast: Ast
@@ -645,7 +645,7 @@ suite "parser tests":
 
   test "parse for loop with brace block":
     let sample = """
-  for item in items {
+  for $item in $items {
     color: item;
   }
   """
@@ -658,12 +658,12 @@ suite "parser tests":
     let sample = """
   var x = 5
   var y = 10
-  if x > 0
-    if y > 5
+  if $x > 0:
+    if $y > 5:
       color: green
-    else
+    else:
       color: yellow
-  else
+  else:
     color: red
   """
     var ast: Ast
@@ -751,12 +751,12 @@ suite "parser tests":
 
   test "parse nested if elif else all at same indent":
     let sample = """
-  if a
-    if b
+  if $a:
+    if $b:
       color: red
-    elif c
+    elif $c:
       color: blue
-    else
+    else:
       color: green
   """
     var ast: Ast
@@ -765,16 +765,16 @@ suite "parser tests":
     assert ast.nodes[0].kind == nkIf
     let outerIf = ast.nodes[0]
     assert outerIf.children[0].kind == nkIdent
-    assert outerIf.children[0].ident == "a"
+    assert outerIf.children[0].ident == "$a"
     let outerBlock = outerIf.children[1]
     assert outerBlock.kind == nkBlock
     let innerIf = outerBlock.children[0]
     assert innerIf.kind == nkIf
     assert innerIf.children.len == 5
     assert innerIf.children[0].kind == nkIdent
-    assert innerIf.children[0].ident == "b"
+    assert innerIf.children[0].ident == "$b"
     assert innerIf.children[2].kind == nkIdent
-    assert innerIf.children[2].ident == "c"
+    assert innerIf.children[2].ident == "$c"
     assert innerIf.children[^1].kind == nkBlock
 
   test "parse assignment in expression":
@@ -790,7 +790,7 @@ suite "parser tests":
   var x = 1
   let y = 2
   const z = 3
-  if x > 0
+  if x > 0:
     color: red
   """
     var ast: Ast
@@ -818,7 +818,7 @@ suite "parser tests":
 
   test "parse not operator":
     let sample = """
-  if not x
+  if not $x:
     color: red
   """
     var ast: Ast
@@ -828,9 +828,9 @@ suite "parser tests":
 
   test "parse is and isnot operators":
     let sample = """
-  if type(x) is int
+  if type($x) is int:
     color: red
-  if type(x) isnot string
+  if type($x) isnot string:
     color: blue
   """
     var ast: Ast
@@ -876,16 +876,16 @@ suite "parser tests":
 
   test "parse deep nested if elif else":
     let sample = """
-  if a
-    if b
+  if $a:
+    if $b:
       color: red
-    elif c
+    elif $c:
       color: blue
-    else
+    else:
       color: green
-  elif d
+  elif $d:
     color: yellow
-  else
+  else:
     color: purple
   """
     var ast: Ast
@@ -907,8 +907,8 @@ suite "parser tests":
 
   test "parse for loop with indent body":
     let sample = """
-  for item in items
-    color: item
+  for $item in $items:
+    color: $item
   """
     var ast: Ast
     parser.parseScript(ast, sample, "test_for_brace.css")

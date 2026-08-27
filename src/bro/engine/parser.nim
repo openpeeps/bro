@@ -6,14 +6,22 @@
 
 import std/[strutils, tables, macros, options]
 import pkg/vancode/interpreter/[errors, ast]
+from pkg/openparser/css import loadCssData, getPropertySyntax, CssData
 
 import ./lexer
+
+var parserCssData = loadCssData()
+proc isKnownCssProperty*(name: string): bool =
+  getPropertySyntax(parserCssData, name) != nil
 
 type
   Parser* = object
     lex: Lexer
     prev, curr, next: TokenTuple
     inValue*: bool # when true, identifiers are parsed as CSS values, not selectors
+    inCaseBlock*: bool # when true, 'of' and 'else' terminate case branches
+    inBlockBody*: bool # when true, disables indented-block selector heuristic (inside parseBlock)
+    inForIterable*: bool # when true, disables colon selector heuristic (inside for iterable expr)
   
   BroParserError* = object of ValueError
     file: string
@@ -577,10 +585,14 @@ proc parseBlock(p: var Parser, indentPos = 0,
       when parseFnBlock == true: tkAssign
                             else: tkColon
       ): walk p
+  let savedInBlockBody = p.inBlockBody
+  p.inBlockBody = true
+  defer: p.inBlockBody = savedInBlockBody
   while p.curr isnot tkEOF:
     if closingBlock and p.curr is tkRBrace:
       walk p; closed = true; break # tkRBrace
     elif not closingBlock and p.curr.col <= indentPos: break
+    elif p.inCaseBlock and p.curr.kind in {tkKeywordOf, tkKeywordElse}: break
     let subNode =
       if p.curr.kind == tkIdentifier and p.next.kind == tkColon and p.next.line == p.curr.line:
         let propL = p.curr.line
@@ -638,10 +650,18 @@ proc parseValueList(p: var Parser): Node =
       continue
     # Collect the next value node
     var exprNode: Node
+    # Interpolation ${expr} in property values, e.g. order: ${size + 1}
+    if p.curr.kind == tkIdentifier and p.curr.value == "$" and p.next.kind == tkLBrace and p.next.wsno == 0:
+      walk p # $
+      walk p # {
+      exprNode = p.parseExpression()
+      if p.curr.kind == tkRBrace:
+        walk p
+      # exprNode is the inside expression, will be evaluated
     # CSS function calls (rgb, var, calc, linear-gradient, url, etc.)
     # are collected as opaque raw text to preserve internal spacing
     # verbatim for modern CSS syntax like `rgb(13 110 253 / 50%)`.
-    if p.curr.kind == tkIdentifier and
+    elif p.curr.kind == tkIdentifier and
         p.next.kind == tkLParen and p.next.line == p.curr.line and p.next.wsno == 0:
       exprNode = p.collectRawCall()
     elif p.curr.kind == tkKeywordVar and p.next.kind == tkLParen and p.next.line == p.curr.line:
@@ -738,6 +758,26 @@ proc parseBlockSelector(p: var Parser, indentPos: int): Node {.rule.} =
     if p.curr.kind == tkLBracket:
       selBuf &= p.collectAttributeSelector()
       continue
+    # Handle ${expr} interpolation in selector names
+    if p.curr.kind == tkIdentifier and p.curr.value == "$" and p.next.kind == tkLBrace and p.next.wsno == 0:
+      walk p # $
+      walk p # {
+      var exprStr = ""
+      var depth = 0
+      while p.curr.kind notin {tkRBrace, tkEOF}:
+        if p.curr.kind == tkLBrace: inc depth
+        elif p.curr.kind == tkRBrace:
+          if depth == 0: break
+          dec depth
+        if exprStr.len > 0 and p.curr.wsno > 0:
+          exprStr &= " "
+        let txt2 = if p.curr.value.len > 0: p.curr.value else: $p.curr.kind
+        exprStr &= txt2
+        walk p
+      if p.curr.kind == tkRBrace:
+        walk p
+      selBuf &= "${" & exprStr.strip() & "}"
+      continue
     if selBuf.len > 0 and p.curr.wsno > 0:
       selBuf &= " "
     selBuf &= txt
@@ -821,6 +861,9 @@ proc parseSelectorBlock(p: var Parser, indentPos = 0): Node {.rule.} =
     walk p # tkLBrace
   else:
     closingBlock = false
+  let savedInBlockBody = p.inBlockBody
+  p.inBlockBody = true
+  defer: p.inBlockBody = savedInBlockBody
   while p.curr isnot tkEOF:
     # preserve doc-block banners inside rule bodies
     if p.curr.kind in {tkDocBlock, tkDocBlockBang}:
@@ -840,23 +883,43 @@ proc parseSelectorBlock(p: var Parser, indentPos = 0): Node {.rule.} =
     case p.curr.kind
     of tkIdentifier, tkCssVar:
       if p.next.kind == tkColon:
-        # parse a CSS property definition, e.g., `color: red;`
-        # the semicolon is optional, so we handle it in the
-        # walkOptSemiColon call after parsing the property value
-        let propL = p.curr.line
-        let propC = p.curr.col
-        let propName = ast.newIdent(p.curr.value)
-        walk p, 2 # tkIdentifier > tkColon
-        # let propValue = p.parseExpression()
-        let propValue = p.parseValueList()
-        caseNotNil propValue:
-          let propNode = ast.newTree(nkColon, propName, propValue)
-          propNode.ln = propL
-          propNode.col = propC
-          props.add(propNode)
-        p.walkOptSemiColon() # optional semicolon after each property
-      elif p.next.kind in {tkIdentifier, tkComma} and p.next.line == p.curr.line:
-        # element selector with descendant (`ol li`) or comma list (`h1, .h1`)
+        var isPseudoSelector = false
+        if p.curr.kind == tkIdentifier and not isKnownCssProperty(p.curr.value) and p.next.wsno == 0 and not p.curr.value.startsWith("-"):
+          var probe = p
+          probe.walk() # ident
+          probe.walk() # colon
+          if probe.curr.kind == tkColon:
+            isPseudoSelector = true
+          elif probe.curr.kind == tkIdentifier:
+            const pseudoNames = ["where","is","not","has","matches","hover","focus","active","visited","link","target","root","scope","host","slotted","first-child","last-child","nth-child","nth-of-type","nth-last-child","first-of-type","last-of-type","only-child","only-of-type","empty","enabled","disabled","checked","indeterminate","placeholder-shown","valid","invalid","required","optional","out-of-range","in-range","read-only","read-write","before","after","first-line","first-letter","selection","marker","backdrop","placeholder","file-selector-button"]
+            if probe.curr.value in pseudoNames:
+              isPseudoSelector = true
+        if isPseudoSelector:
+          let subNode = p.parseBlockSelector(p.curr.col)
+          caseNotNil subNode:
+            props.add(subNode)
+        else:
+          # parse a CSS property definition, e.g., `color: red;`
+          # the semicolon is optional, so we handle it in the
+          # walkOptSemiColon call after parsing the property value
+          let propL = p.curr.line
+          let propC = p.curr.col
+          let propName = ast.newIdent(p.curr.value)
+          walk p, 2 # tkIdentifier > tkColon
+          # let propValue = p.parseExpression()
+          let propValue = p.parseValueList()
+          caseNotNil propValue:
+            let propNode = ast.newTree(nkColon, propName, propValue)
+            propNode.ln = propL
+            propNode.col = propC
+            props.add(propNode)
+          p.walkOptSemiColon() # optional semicolon after each property
+      elif p.next.kind in {tkIdentifier, tkComma, tkLBracket, tkDot, tkHash, tkColon, tkPlus, tkGT, tkTilde, tkAsterisk} and p.next.line == p.curr.line:
+        # element selector with descendant (`ol li`), comma list (`h1, .h1`) or attribute/pseudo (`hr[role="x"]`, `a:hover`)
+        let subNode = p.parseBlockSelector(p.curr.col)
+        caseNotNil subNode:
+          props.add(subNode)
+      elif p.next.line != p.curr.line and p.next.col > p.curr.col:
         let subNode = p.parseBlockSelector(p.curr.col)
         caseNotNil subNode:
           props.add(subNode)
@@ -921,6 +984,10 @@ proc parseSelectorBlock(p: var Parser, indentPos = 0): Node {.rule.} =
         let subNode = p.parseExpression()
         caseNotNil subNode:
           props.add(subNode)
+    of tkKeywordIf, tkKeywordFor, tkKeywordWhile, tkKeywordCase:
+      let subNode = p.parseExpression()
+      caseNotNil subNode:
+        props.add(subNode)
     else:
       # we allow for nested CSS selectors and other
       # statements in the selector block, so we parse them as expressions
@@ -991,6 +1058,8 @@ prefixHandle parseIf:
   walk p # tkKeywordIf
   let ifExpr = p.parseExpression()
   caseNotNil ifExpr:
+    if p.curr.kind notin {tkColon, tkLBrace}:
+      p.curr.error("expected ':' or '{' after 'if' condition", fatal = true)
     var children = @[ifExpr]
     let ifBlock: Node = p.parseBlock(tk.col)
     caseNotNil ifBlock:
@@ -1003,6 +1072,8 @@ prefixHandle parseIf:
         walk p # tkKeywordElif
         let elifExpr = p.parseExpression()
         caseNotNil elifExpr:
+          if p.curr.kind notin {tkColon, tkLBrace}:
+            p.curr.error("expected ':' or '{' after 'elif' condition", fatal = true)
           let elifBlock = p.parseBlock(tk.col)
           caseNotNil elifBlock:
             children.add(@[elifExpr, elifBlock])
@@ -1010,16 +1081,68 @@ prefixHandle parseIf:
         if p.curr.col != tk.col:
           break
         walk p # tkKeywordElse
+        if p.curr.kind notin {tkColon, tkLBrace}:
+          p.curr.error("expected ':' or '{' after 'else'", fatal = true)
         let elseBlock = p.parseBlock(tk.col)
         caseNotNil elseBlock:
           children.add(elseBlock)
       else: break
     result = ast.newTree(nkIf, children)
 
+prefixHandle parseCase:
+  let tk = p.curr
+  walk p # tkKeywordCase
+  let subject = p.parseExpression()
+  caseNotNil subject:
+    let useBrace = p.curr.kind == tkLBrace and p.curr.line == subject.ln
+    if useBrace:
+      walk p # tkLBrace
+    elif p.curr.kind == tkColon:
+      walk p # optional colon after subject
+    var branches: seq[Node]
+    var branchCol = -1 # column of first `of` — `else` must match
+    p.inCaseBlock = true
+    defer: p.inCaseBlock = false
+    while p.curr.kind == tkKeywordOf:
+      if not useBrace and p.curr.col > tk.col + 2:
+        break
+      let ofCol = p.curr.col
+      if branchCol == -1: branchCol = ofCol
+      walk p # tkKeywordOf
+      let ofVal = p.parseExpression()
+      caseNotNil ofVal:
+        if p.curr.kind notin {tkColon, tkLBrace}:
+          p.curr.error("expected ':' or '{' after 'of' value", fatal = true)
+        let ofBlock = p.parseBlock(ofCol)
+        caseNotNil ofBlock:
+          branches.add(ast.newTree(nkOfBranch, ofVal, ofBlock))
+    var elseBlock: Node = nil
+    if p.curr.kind == tkKeywordElse:
+      let elseMatch = if useBrace: true
+                      elif branchCol >= 0: p.curr.col == branchCol
+                      else: p.curr.col == tk.col
+      if elseMatch:
+        let elseCol = p.curr.col
+        walk p # tkKeywordElse
+        if p.curr.kind notin {tkColon, tkLBrace}:
+          p.curr.error("expected ':' or '{' after 'else'", fatal = true)
+        elseBlock = p.parseBlock(elseCol)
+    if useBrace:
+      if p.curr.kind == tkRBrace:
+        walk p # tkRBrace
+      else:
+        p.curr.error("expected closing '}' for case block", fatal = true)
+    var children = @[subject]
+    for b in branches:
+      children.add(b)
+    if elseBlock != nil:
+      children.add(elseBlock)
+    result = ast.newTree(nkCase, children)
+
 prefixHandle parseFor:
   # parse a for loop
   let tokenFor: TokenTuple = p.curr
-  if p.next.kind == tkIdentifier:
+  if tokenFor.kind == tkKeywordFor:
     walk p # tkFor
     var itemVar: Node
     if p.next is tkComma:
@@ -1031,11 +1154,205 @@ prefixHandle parseFor:
       itemVar = ast.newIdent(p.curr.value)
     walk p
     expectWalk(tkKeywordIn)
-    let iterExpr: Node = p.parseExpression() 
+    p.inForIterable = true
+    let iterExpr: Node = p.parseExpression()
+    p.inForIterable = false
     caseNotNil iterExpr:
+      if p.curr.kind notin {tkColon, tkLBrace}:
+        p.curr.error("expected ':' or '{' after 'for' iterable", fatal = true)
       let body: Node = p.parseBlock(tokenFor.col)
       caseNotNil body:
-        result = ast.newTree(nkFor, itemVar, iterExpr, body)
+        # Check for range-based for with interpolated selectors like .col-${size}
+        # If found, unroll at parse time to generate static selectors
+        var doUnroll = false
+        var startVal, endVal: int
+        var varName: string
+        if iterExpr.kind == nkCall and iterExpr.len == 3 and iterExpr[0].kind == nkIdent and iterExpr[0].ident == "range":
+          if iterExpr[1].kind == nkInt and iterExpr[2].kind == nkInt:
+            startVal = iterExpr[1].intVal
+            endVal = iterExpr[2].intVal
+            varName = if itemVar.kind == nkIdent: itemVar.ident else: ""
+            if varName.len > 0 and varName[0] == '$':
+              varName = varName[1..^1]
+            for child in body.children:
+              if child.kind in {nkClassSelector, nkIdSelector, nkPseudoSelector, nkElementSelector}:
+                let selIdent = if child[0].kind == nkIdent: child[0].ident
+                               elif child[0].kind == nkBracket and child[0].len > 0 and child[0][0].kind == nkIdent: child[0][0].ident
+                               else: ""
+                if "${" in selIdent:
+                  doUnroll = true
+                  break
+        if doUnroll:
+          result = ast.newNode(nkBlock)
+          for v in startVal..endVal:
+            for child in body.children:
+              var newChild = deepCopy(child)
+              # Replace ${expr} in selector
+              proc evalExpr(expr: string, v: int): string =
+                let e = expr.strip()
+                if e == varName or e == "$" & varName:
+                  return $v
+                elif e == varName & " + 1" or e == "$" & varName & " + 1":
+                  return $(v + 1)
+                elif e == varName & " - 1" or e == "$" & varName & " - 1":
+                  return $(v - 1)
+                elif "+" in e:
+                  # simple addition like "size + 1"
+                  var parts = e.split('+')
+                  if parts.len == 2:
+                    let a = parts[0].strip()
+                    let b = parts[1].strip()
+                    var av = if a == varName or a == "$" & varName: v else: 0
+                    var bv = try: parseInt(b) except: 0
+                    return $(av + bv)
+                return e
+              if newChild.kind in {nkClassSelector, nkIdSelector, nkPseudoSelector, nkElementSelector}:
+                var sel = if newChild[0].kind == nkIdent: newChild[0].ident else: ""
+                var isBracket = false
+                if newChild[0].kind == nkBracket:
+                  sel = newChild[0][0].ident
+                  isBracket = true
+                var outSel = ""
+                var i = 0
+                while i < sel.len:
+                  if i+1 < sel.len and sel[i] == '$' and sel[i+1] == '{':
+                    var j = sel.find('}', i+2)
+                    if j != -1:
+                      let expr = sel[i+2 .. j-1]
+                      outSel &= evalExpr(expr, v)
+                      i = j+1
+                      continue
+                  outSel &= sel[i]
+                  inc i
+                if isBracket:
+                  newChild[0][0].ident = outSel
+                else:
+                  newChild[0].ident = outSel
+                # Handle if/elif chain inside the selector's block (for _grid.bass pattern)
+                if newChild.len > 3 and newChild[3].kind == nkBlock:
+                  proc interpVal(n: Node, v: int, varName: string) =
+                    if n.kind == nkColon and n[1] != nil and n[1].kind == nkIdent and "${" in n[1].ident:
+                      var outVal = ""
+                      let s = n[1].ident
+                      var i = 0
+                      while i < s.len:
+                        if i+1 < s.len and s[i] == '$' and s[i+1] == '{':
+                          var j = s.find('}', i+2)
+                          if j != -1:
+                            let expr = s[i+2 .. j-1]
+                            outVal &= evalExpr(expr, v)
+                            i = j+1
+                            continue
+                        outVal &= s[i]
+                        inc i
+                      n[1].ident = outVal
+                  var newBlockChildren: seq[Node] = @[]
+                  for stmt in newChild[3].children:
+                    if stmt.kind == nkIf:
+                      var matched = false
+                      var k = 0
+                      while k < stmt.len:
+                        if stmt[k].kind == nkBlock:
+                          # else branch
+                          if not matched:
+                            for c in stmt[k].children:
+                              var nc = deepCopy(c)
+                              interpVal(nc, v, varName)
+                              newBlockChildren.add(nc)
+                            matched = true
+                          inc k
+                        else:
+                          # if/elif: cond at k, block at k+1
+                          let cond = stmt[k]
+                          let blk = if k+1 < stmt.len and stmt[k+1].kind == nkBlock: stmt[k+1] else: nil
+                          var condTrue = false
+                          if cond.kind == nkInfix and cond[0].kind == nkIdent and cond[0].ident == "==":
+                            let left = cond[1]
+                            let right = cond[2]
+                            var leftVal = 0
+                            if left.kind == nkIdent and (left.ident == varName or left.ident == "$" & varName):
+                              leftVal = v
+                            elif left.kind == nkInt:
+                              leftVal = left.intVal
+                            var rightVal = 0
+                            if right.kind == nkInt:
+                              rightVal = right.intVal
+                            condTrue = leftVal == rightVal
+                          if condTrue and not matched and blk != nil:
+                            for c in blk.children:
+                              var nc = deepCopy(c)
+                              interpVal(nc, v, varName)
+                              newBlockChildren.add(nc)
+                            matched = true
+                          inc k
+                          if blk != nil: inc k
+                    elif stmt.kind == nkCase:
+                      # case/of: stmt[0]=subject, stmt[1..]=nkOfBranch, last may be else block
+                      let subject = stmt[0]
+                      var subjectVal = 0
+                      if subject.kind == nkIdent and (subject.ident == varName or subject.ident == "$" & varName):
+                        subjectVal = v
+                      var matched = false
+                      for bi in 1 ..< stmt.len:
+                        let branch = stmt[bi]
+                        if branch.kind == nkBlock:
+                          # else branch
+                          if not matched:
+                            for c in branch.children:
+                              var nc = deepCopy(c)
+                              interpVal(nc, v, varName)
+                              newBlockChildren.add(nc)
+                            matched = true
+                        elif branch.kind == nkOfBranch:
+                          let ofVal = branch[0]
+                          let ofBlock = branch[1]
+                          var branchMatch = false
+                          if ofVal.kind == nkInt:
+                            branchMatch = subjectVal == ofVal.intVal
+                          elif ofVal.kind == nkIdent and (ofVal.ident == varName or ofVal.ident == "$" & varName):
+                            branchMatch = subjectVal == v
+                          if branchMatch and not matched:
+                            for c in ofBlock.children:
+                              var nc = deepCopy(c)
+                              interpVal(nc, v, varName)
+                              newBlockChildren.add(nc)
+                            matched = true
+                    else:
+                      # Handle ${} in property values like order: ${size + 1}
+                      if stmt.kind == nkColon and stmt[1] != nil:
+                        if stmt[1].kind == nkIdent and (stmt[1].ident == varName or stmt[1].ident == "$" & varName):
+                          stmt[1] = ast.newIntLit(v)
+                        elif stmt[1].kind == nkInfix:
+                          let left = if stmt[1][1].kind == nkIdent: stmt[1][1].ident else: ""
+                          let right = if stmt[1][2].kind == nkInt: $stmt[1][2].intVal else: ""
+                          if (left == varName or left == "$" & varName) and right != "":
+                            try:
+                              let rv = parseInt(right)
+                              if stmt[1][0].ident == "+":
+                                stmt[1] = ast.newIntLit(v + rv)
+                              elif stmt[1][0].ident == "-":
+                                stmt[1] = ast.newIntLit(v - rv)
+                            except: discard
+                        elif stmt[1].kind == nkIdent and "${" in stmt[1].ident:
+                          var outVal = ""
+                          let s = stmt[1].ident
+                          var i = 0
+                          while i < s.len:
+                            if i+1 < s.len and s[i] == '$' and s[i+1] == '{':
+                              var j = s.find('}', i+2)
+                              if j != -1:
+                                let expr = s[i+2 .. j-1]
+                                outVal &= evalExpr(expr, v)
+                                i = j+1
+                                continue
+                            outVal &= s[i]
+                            inc i
+                          stmt[1].ident = outVal
+                      newBlockChildren.add(stmt)
+                  newChild[3] = ast.newTree(nkBlock, newBlockChildren)
+              result.add(newChild)
+        else:
+          result = ast.newTree(nkFor, itemVar, iterExpr, body)
 
 prefixHandle parseClassSelector:
   # parse a class selector, which is a dot followed by an identifier
@@ -1044,10 +1361,32 @@ prefixHandle parseClassSelector:
   if p.curr.kind == tkIdentifier:
     var selName = p.curr.value
     walk p # tkIdentifier
-    while p.curr.kind == tkColon and p.curr.line == p.prev.line and p.curr.wsno == 0:
-      selName &= p.collectPseudoSuffix()
-    while p.curr.kind == tkLBracket and p.curr.line == p.prev.line:
-      selName &= p.collectAttributeSelector()
+    while true:
+      if p.curr.kind == tkColon and p.curr.line == p.prev.line and p.curr.wsno == 0:
+        selName &= p.collectPseudoSuffix()
+      elif p.curr.kind == tkLBracket and p.curr.line == p.prev.line:
+        selName &= p.collectAttributeSelector()
+      elif p.curr.kind == tkIdentifier and p.curr.value == "$" and p.next.kind == tkLBrace and p.next.wsno == 0:
+        walk p # $
+        walk p # {
+        var exprStr = ""
+        var depth = 0
+        while p.curr.kind notin {tkRBrace, tkEOF}:
+          if p.curr.kind == tkLBrace:
+            inc depth
+          elif p.curr.kind == tkRBrace:
+            if depth == 0:
+              break
+            dec depth
+          if exprStr.len > 0 and p.curr.wsno > 0:
+            exprStr &= " "
+          let txt = if p.curr.value.len > 0: p.curr.value else: $p.curr.kind
+          exprStr &= txt
+          walk p
+        if p.curr.kind == tkRBrace:
+          walk p
+        selName &= "${" & exprStr.strip() & "}"
+      else: break
     # Collect comma-separated selectors: `.a, .b, .c`
     # A selector may also start on the line after a trailing comma
     var selList: seq[string]
@@ -1060,18 +1399,92 @@ prefixHandle parseClassSelector:
         if p.curr.kind == tkIdentifier:
           extra = "." & p.curr.value
           walk p
-          while p.curr.kind == tkColon and p.curr.line == p.prev.line and p.curr.wsno == 0:
-            extra &= p.collectPseudoSuffix()
-          while p.curr.kind == tkLBracket and p.curr.line == p.prev.line:
-            extra &= p.collectAttributeSelector()
+          while true:
+            if p.curr.kind == tkColon and p.curr.line == p.prev.line and p.curr.wsno == 0:
+              extra &= p.collectPseudoSuffix()
+            elif p.curr.kind == tkLBracket and p.curr.line == p.prev.line:
+              extra &= p.collectAttributeSelector()
+            elif p.curr.kind == tkIdentifier and p.curr.value == "$" and p.next.kind == tkLBrace and p.next.wsno == 0:
+              walk p
+              walk p
+              var exprStr = ""
+              var depth = 0
+              while p.curr.kind notin {tkRBrace, tkEOF}:
+                if p.curr.kind == tkLBrace:
+                  inc depth
+                elif p.curr.kind == tkRBrace:
+                  if depth == 0:
+                    break
+                  dec depth
+                if exprStr.len > 0 and p.curr.wsno > 0:
+                  exprStr &= " "
+                let txt = if p.curr.value.len > 0: p.curr.value else: $p.curr.kind
+                exprStr &= txt
+                walk p
+              if p.curr.kind == tkRBrace:
+                walk p
+              extra &= "${" & exprStr.strip() & "}"
+            else: break
       elif p.curr.kind == tkHash and p.curr.line in {cline, cline + 1}:
         walk p # tkHash
         if p.curr.kind == tkIdentifier:
           extra = "#" & p.curr.value
           walk p
+          while true:
+            if p.curr.kind == tkColon and p.curr.line == p.prev.line and p.curr.wsno == 0:
+              extra &= p.collectPseudoSuffix()
+            elif p.curr.kind == tkLBracket and p.curr.line == p.prev.line:
+              extra &= p.collectAttributeSelector()
+            elif p.curr.kind == tkIdentifier and p.curr.value == "$" and p.next.kind == tkLBrace and p.next.wsno == 0:
+              walk p
+              walk p
+              var exprStr = ""
+              var depth = 0
+              while p.curr.kind notin {tkRBrace, tkEOF}:
+                if p.curr.kind == tkLBrace:
+                  inc depth
+                elif p.curr.kind == tkRBrace:
+                  if depth == 0:
+                    break
+                  dec depth
+                if exprStr.len > 0 and p.curr.wsno > 0:
+                  exprStr &= " "
+                let txt = if p.curr.value.len > 0: p.curr.value else: $p.curr.kind
+                exprStr &= txt
+                walk p
+              if p.curr.kind == tkRBrace:
+                walk p
+              extra &= "${" & exprStr.strip() & "}"
+            else: break
       elif p.curr.kind == tkIdentifier and p.curr.line in {cline, cline + 1}:
         extra = p.curr.value
         walk p
+        while true:
+          if p.curr.kind == tkColon and p.curr.line == p.prev.line and p.curr.wsno == 0:
+            extra &= p.collectPseudoSuffix()
+          elif p.curr.kind == tkLBracket and p.curr.line == p.prev.line:
+            extra &= p.collectAttributeSelector()
+          elif p.curr.kind == tkIdentifier and p.curr.value == "$" and p.next.kind == tkLBrace and p.next.wsno == 0:
+            walk p
+            walk p
+            var exprStr = ""
+            var depth = 0
+            while p.curr.kind notin {tkRBrace, tkEOF}:
+              if p.curr.kind == tkLBrace:
+                inc depth
+              elif p.curr.kind == tkRBrace:
+                if depth == 0:
+                  break
+                dec depth
+              if exprStr.len > 0 and p.curr.wsno > 0:
+                exprStr &= " "
+              let txt = if p.curr.value.len > 0: p.curr.value else: $p.curr.kind
+              exprStr &= txt
+              walk p
+            if p.curr.kind == tkRBrace:
+              walk p
+            extra &= "${" & exprStr.strip() & "}"
+          else: break
       # absorb compound/combinator tail on the extra's own line
       # (e.g. `.btn-group-lg > .btn` or `.b[size]:not(x)` as list entries)
       var tailDepth = 0
@@ -1203,7 +1616,7 @@ prefixHandle parsePseudoSelector:
   if p.curr.kind == tkColon:
     dcolon = true
     walk p # second colon of pseudo-element syntax
-  if p.curr.kind == tkIdentifier:
+  if p.curr.kind in {tkIdentifier, tkKeywordNot, tkKeywordIs, tkKeywordIsnot}:
     var selName = p.curr.value
     walk p # tkIdentifier
     # handle attribute selectors like [data-x] appended to pseudo
@@ -1401,8 +1814,9 @@ prefixHandle parseSelector:
   var selectors = ast.newNode(nkBracket)
   var sawAny = false
   let pos = p.curr.col
+  var selLine = p.curr.line
   var parenDepth = 0
-  while p.curr.kind notin {tkLBrace, tkEOF}:
+  while p.curr.kind notin {tkLBrace, tkEOF} and p.curr.line == selLine:
     # Accumulate token text (identifiers, symbols, combinators, colons, dots, hashes, commas)
     let txt =
       if p.curr.value.len > 0: p.curr.value
@@ -1419,6 +1833,8 @@ prefixHandle parseSelector:
       selBuf = ""
       sawAny = true
       walk p # consume comma
+      if p.curr.line == selLine + 1 and p.curr.kind notin {tkLBrace, tkEOF}:
+        selLine = p.curr.line
       continue
     # Attribute selectors are collected whole to preserve quoting and operators
     if p.curr.kind == tkLBracket:
@@ -1505,6 +1921,14 @@ prefixHandle parseHash:
     val = "#"
   result = ast.newStringLit(val)
 
+prefixHandle parseNot:
+  walk p # tkKeywordNot
+  let operand = p.parseExpression(minPrec = 90)
+  caseNotNil operand:
+    result = ast.newNode(nkPrefix)
+    result.add(ast.newIdent("not"))
+    result.add(operand)
+
 proc getPrefixFn(p: var Parser, minPrec: int): PrefixFunction =
   # Get the appropriate prefix function based on the current token.
   result = 
@@ -1512,7 +1936,9 @@ proc getPrefixFn(p: var Parser, minPrec: int): PrefixFunction =
     of tkIdentifier:
       if p.next.line == p.curr.line and p.next is tkLParen:
         parseCall
-      elif not p.inValue and p.next.kind in {tkLBrace, tkDot, tkHash, tkColon} and p.next.line == p.curr.line:
+      elif not p.inValue and not p.inBlockBody and not p.inForIterable and minPrec == 0 and
+           not (p.curr.value.len > 0 and p.curr.value[0] == '$') and
+           p.next.kind in {tkLBrace, tkDot, tkHash, tkColon} and p.next.line == p.curr.line:
         parseSelector
       else: parseIdent
     of tkKeywordVar:
@@ -1537,6 +1963,8 @@ proc getPrefixFn(p: var Parser, minPrec: int): PrefixFunction =
     of tkKeywordContinue: parseContinue
     of tkKeywordIf: parseIf
     of tkKeywordFor: parseFor
+    of tkKeywordCase: parseCase
+    of tkKeywordNot: parseNot
     of tkDot: parseClassSelector
     of tkHash: parseHash
     of tkColon: parsePseudoSelector
@@ -1691,15 +2119,19 @@ prefixHandle parseStmt:
     of tkIdentifier, tkCssVar:
       if p.next.line == p.curr.line and p.next is tkLParen:
         parseCall
-      elif p.next.kind in {tkLBrace, tkComma, tkDot, tkHash, tkColon, tkLBracket} and p.next.line == p.curr.line:
+      elif p.next.kind in {tkLBrace, tkComma, tkDot, tkHash, tkColon, tkLBracket} and p.next.line == p.curr.line and
+           not (p.curr.value.len > 0 and p.curr.value[0] == '$') and not p.inForIterable:
         parseSelector
       elif p.next.line == p.curr.line and
            ((p.next.kind == tkIdentifier and p.next.wsno > 0) or
             p.next.kind in {tkPlus, tkGT, tkTilde}):
         parseSelector # element selector with descendant or combinator (e.g. `ol li`, `ol > li`)
+      elif p.next.line != p.curr.line and p.next.col > p.curr.col and not p.inBlockBody:
+        parseSelector # element selector with indented block (e.g. `hr` / `hr[role="x"]` alone on line)
       else: parseExpression
     of tkKeywordIf: parseIf
     of tkKeywordFor: parseFor
+    of tkKeywordCase: parseCase
     of tkAt: parseAtRule
     of tkKeywordImport:
       proc (p: var Parser, minPrec = 0): Node =
