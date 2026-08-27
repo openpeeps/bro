@@ -7,7 +7,7 @@
 import std/[os, monotimes, times, options, strutils]
 
 import pkg/watchout
-import pkg/openparser/json
+import pkg/openparser/[json, bson]
 import pkg/kapsis/[cli, runtime, interactive/prompts]
 import pkg/vancode/interpreter/[ast, codegen, chunk, sym, vm, value, resolver]
 import pkg/vancode/manager/packager
@@ -231,4 +231,13 @@ proc astCommand*(v: Values) =
     displayError(e.msg)
     quit(1)
   
-  if not hasOutput: echo toJson(program)
+  if not hasOutput:
+    echo toJson(program)
+  else:
+    if fileExists(outputPath):
+      if not promptConfirm("Confirm overwrite file `" & outputPath & "`"):
+        displayInfo("Canceled")
+        return
+    writeFile(outputPath.changeFileExt(".ast"), toJson(program))
+      
+

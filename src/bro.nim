@@ -12,9 +12,9 @@ when isMainModule:
   import ./bro/app/build
 
   initKapsis do:
-    defaultCommand: "compile"
+    defaultCommand: "c"
     commands:
       c path(bass), ?filename("-o"), ?bool("-w"), ?bool("--sourceMap"), ?bool("--pretty"):
         ## Compile BASS to CSS with optional source map
-      ast path(bass), ?filename("-o"):
+      ast path(bass), ?filename("-o"), ?bool("--bson"):
         ## Generate binary AST from BASS/CSS

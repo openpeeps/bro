@@ -801,7 +801,7 @@ proc collectPseudoSuffix(p: var Parser): string =
   if p.curr.kind == tkColon and p.next.kind == tkIdentifier:
     result = "::"
     walk p # second colon
-  if p.curr.kind == tkIdentifier:
+  if p.curr.kind in {tkIdentifier, tkKeywordNot, tkKeywordIs, tkKeywordIsnot}:
     result &= p.curr.value
     walk p # identifier
     # functional pseudo-class: :not(...), :is(...), :nth-child(...)
@@ -890,7 +890,7 @@ proc parseSelectorBlock(p: var Parser, indentPos = 0): Node {.rule.} =
           probe.walk() # colon
           if probe.curr.kind == tkColon:
             isPseudoSelector = true
-          elif probe.curr.kind == tkIdentifier:
+          elif probe.curr.kind in {tkIdentifier, tkKeywordNot, tkKeywordIs, tkKeywordIsnot}:
             const pseudoNames = ["where","is","not","has","matches","hover","focus","active","visited","link","target","root","scope","host","slotted","first-child","last-child","nth-child","nth-of-type","nth-last-child","first-of-type","last-of-type","only-child","only-of-type","empty","enabled","disabled","checked","indeterminate","placeholder-shown","valid","invalid","required","optional","out-of-range","in-range","read-only","read-write","before","after","first-line","first-letter","selection","marker","backdrop","placeholder","file-selector-button"]
             if probe.curr.value in pseudoNames:
               isPseudoSelector = true

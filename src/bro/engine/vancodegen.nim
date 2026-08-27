@@ -460,13 +460,18 @@ block extendCodeGen:
           gen.chunk.emit(opcEmitRaw)
           gen.chunk.emit(uint16(node.ln))
           gen.chunk.emit(uint16(node.col))
+          # find last property child for trailing-; optimization
+          var lastPropIdx = -1
+          for ci, child in bodyChildren:
+            if child.kind == nkColon:
+              lastPropIdx = ci
           for ci, child in bodyChildren:
             if child.kind == nkColon:
               let key = child[0].ident
               let val = nodeToCssString(child[1])
               if val.len > 0:
                 gen.chunk.emit(opcPushS)
-                let isLast = ci == bodyChildren.len - 1
+                let isLast = ci == lastPropIdx
                 let css = if isLast: key & ":" & val
                           else: key & ":" & val & ";"
                 gen.chunk.emit(gen.chunk.getString(css))
@@ -502,6 +507,10 @@ block extendCodeGen:
         gen.chunk.emit(uint16(node.ln))
         gen.chunk.emit(uint16(node.col))
         # Declarations & control flow in source order
+        var lastPropIdx = -1
+        for ci, child in bodyChildren:
+          if child.kind == nkColon:
+            lastPropIdx = ci
         for ci, child in bodyChildren:
           case child.kind
           of nkColon:
@@ -509,7 +518,7 @@ block extendCodeGen:
             let val = nodeToCssString(child[1])
             if val.len > 0:
               gen.chunk.emit(opcPushS)
-              let isLast = ci == bodyChildren.len - 1
+              let isLast = ci == lastPropIdx
               let css = if isLast: key & ":" & val
                         else: key & ":" & val & ";"
               gen.chunk.emit(gen.chunk.getString(css))
@@ -740,12 +749,16 @@ block extendCodeGen:
         gen.chunk.emit(opcEmitRaw)
         gen.chunk.emit(uint16(node.ln))
         gen.chunk.emit(uint16(node.col))
+        var lastPropIdx = -1
+        for ci, child in node[2].children:
+          if child.kind == nkColon:
+            lastPropIdx = ci
         for ci, child in node[2].children:
           if child.kind == nkColon:
             let key = child[0].ident
             let val = nodeToCssString(child[1])
             gen.chunk.emit(opcPushS)
-            let isLast = ci == node[2].children.len - 1
+            let isLast = ci == lastPropIdx
             let css = if isLast: key & ":" & val
                       else: key & ":" & val & ";"
             gen.chunk.emit(gen.chunk.getString(css))
