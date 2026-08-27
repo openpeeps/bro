@@ -16,5 +16,5 @@ when isMainModule:
     commands:
       c path(bass), ?filename("-o"), ?bool("-w"), ?bool("--sourceMap"), ?bool("--pretty"):
         ## Compile BASS to CSS with optional source map
-      ast path(bass), ?filename("-o"), ?bool("--bson"):
+      ast path(bass), ?filename("-o"):
         ## Generate binary AST from BASS/CSS
