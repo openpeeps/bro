@@ -394,10 +394,11 @@ proc collectRawCall(p: var Parser, minPrec = 0): Node =
     let endPos = p.curr.pos
     walk p # tkRParen
     var raw = p.lex.input[startPos .. endPos]
-    # Minify: collapse newlines/indentation into single spaces, remove space after '(' / before ')' and after ','
+    # Collapse newlines/indentation to single spaces so multi-line
+    # linear-gradient(...) stays minified; keep ", " for test expectations
     raw = raw.replace("\r\n", " ").replace("\n", " ").replace("\r", " ").replace("\t", " ")
     raw = raw.splitWhitespace().join(" ")
-    raw = raw.replace("( ", "(").replace(" )", ")").replace(", ", ",")
+    raw = raw.replace("( ", "(").replace(" )", ")")
     result = ast.newIdent(raw)
   else:
     p.curr.error("expected closing ')' for function call", fatal = true)

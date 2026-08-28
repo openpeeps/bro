@@ -281,43 +281,51 @@ suite "CSS type system — valid values":
     check css == ".a{filter:none}"
 
 suite "CSS type system — invalid values":
-  # These tests verify that invalid CSS values produce warnings (not errors).
-  # With the warn-only policy, codegen succeeds but stderr receives diagnostics.
+  # Invalid CSS values are hard errors (bro error), not [warn].
   test "color: integer":
-    let css = compileExpectSuccess(".a { color: 123; }")
-    check css.len > 0
+    let err = compileExpectError(".a { color: 123; }")
+    check err.len > 0
+    check "color" in err
 
   test "width: multiple values":
-    let css = compileExpectSuccess(".a { width: 100 200; }")
-    check css.len > 0
+    let err = compileExpectError(".a { width: 100 200; }")
+    check err.len > 0
+    check "width" in err
 
   test "width: string":
-    let css = compileExpectSuccess(".a { width: \"foo\"; }")
-    check css.len > 0
+    let err = compileExpectError(".a { width: \"foo\"; }")
+    check err.len > 0
+    check "width" in err
 
   test "display: garbage":
-    let css = compileExpectSuccess(".a { display: yesplease; }")
-    check css.len > 0
+    let err = compileExpectError(".a { display: yesplease; }")
+    check err.len > 0
+    check "display" in err
 
   test "z-index: px value":
-    let css = compileExpectSuccess(".a { z-index: 10px; }")
-    check css.len > 0
+    let err = compileExpectError(".a { z-index: 10px; }")
+    check err.len > 0
+    check "z-index" in err
 
   test "overflow: garbage":
-    let css = compileExpectSuccess(".a { overflow: sideways; }")
-    check css.len > 0
+    let err = compileExpectError(".a { overflow: sideways; }")
+    check err.len > 0
+    check "overflow" in err
 
   test "opacity: string":
-    let css = compileExpectSuccess(".a { opacity: \"half\"; }")
-    check css.len > 0
+    let err = compileExpectError(".a { opacity: \"half\"; }")
+    check err.len > 0
+    check "opacity" in err
 
   test "position: px":
-    let css = compileExpectSuccess(".a { position: 10px; }")
-    check css.len > 0
+    let err = compileExpectError(".a { position: 10px; }")
+    check err.len > 0
+    check "position" in err
 
   test "flex-direction: garbage":
-    let css = compileExpectSuccess(".a { flex-direction: diagonal; }")
-    check css.len > 0
+    let err = compileExpectError(".a { flex-direction: diagonal; }")
+    check err.len > 0
+    check "flex-direction" in err
 
 suite "CSS type system — variable type checking":
   test "var color used in width property (type error)":

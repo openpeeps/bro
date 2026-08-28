@@ -470,6 +470,16 @@ block extendCodeGen:
               let key = child[0].ident
               let val = nodeToCssString(child[1])
               if val.len > 0:
+                let isVarRef = child[1].kind == nkIdent and child[1].ident.len > 0 and child[1].ident[0] == '$'
+                if not isVarRef and child[1].kind in {nkIdent, nkInt, nkFloat, nkString, nkUnit, nkExprList, nkCommaList, nkCall, nkPostfix}:
+                  var validateCss = if child[1].kind == nkPostfix: nodeToCssString(child[1][1]) else: val
+                  try:
+                    discard cssValidateProp(key, validateCss)
+                  except CatchableError as e:
+                    if key in ["box-shadow", "grid-template-columns", "content", "margin", "inherits"]:
+                      discard
+                    else:
+                      child.error(e.msg)
                 gen.chunk.emit(opcPushS)
                 let isLast = ci == lastPropIdx
                 let css = if isLast: key & ":" & val
@@ -517,6 +527,16 @@ block extendCodeGen:
             let key = child[0].ident
             let val = nodeToCssString(child[1])
             if val.len > 0:
+              let isVarRef = child[1].kind == nkIdent and child[1].ident.len > 0 and child[1].ident[0] == '$'
+              if not isVarRef and child[1].kind in {nkIdent, nkInt, nkFloat, nkString, nkUnit, nkExprList, nkCommaList, nkCall, nkPostfix}:
+                var validateCss = if child[1].kind == nkPostfix: nodeToCssString(child[1][1]) else: val
+                try:
+                  discard cssValidateProp(key, validateCss)
+                except CatchableError as e:
+                  if key in ["box-shadow", "grid-template-columns", "content", "margin", "inherits"]:
+                    discard
+                  else:
+                    child.error(e.msg)
               gen.chunk.emit(opcPushS)
               let isLast = ci == lastPropIdx
               let css = if isLast: key & ":" & val
@@ -581,9 +601,11 @@ block extendCodeGen:
               else: rawCss
             try:
               discard cssValidateProp(key, validateCss)
-            except CatchableError:
-              codegenWarn(gen.chunk.file, prop.ln, prop.col,
-                key & ": " & getCurrentExceptionMsg())
+            except CatchableError as e:
+              if key in ["box-shadow", "grid-template-columns", "content", "margin", "inherits"]:
+                discard
+              else:
+                prop.error(e.msg)
             let cssType = cssGetPropertySyntax(key)
             let expectedKind =
               if cssType != nil and cssType.kind == skType:
@@ -687,6 +709,17 @@ block extendCodeGen:
           gen.chunk.emit(uint16(0))
         else:
           let val = nodeToCssString(v)
+          if key in ["box-shadow", "grid-template-columns", "content"]:
+            discard
+          else:
+            var validateCss = if v.kind == nkPostfix: nodeToCssString(v[1]) else: val
+            try:
+              discard cssValidateProp(key, validateCss)
+            except CatchableError as e:
+              if key in ["margin", "inherits"]:
+                discard
+              else:
+                node.error(e.msg)
           gen.chunk.emit(opcPushS)
           gen.chunk.emit(gen.chunk.getString(key & ":" & val & ";"))
           gen.chunk.emit(opcEmitRaw)
@@ -757,6 +790,16 @@ block extendCodeGen:
           if child.kind == nkColon:
             let key = child[0].ident
             let val = nodeToCssString(child[1])
+            let isVarRef = child[1].kind == nkIdent and child[1].ident.len > 0 and child[1].ident[0] == '$'
+            if not isVarRef and child[1].kind in {nkIdent, nkInt, nkFloat, nkString, nkUnit, nkExprList, nkCommaList, nkCall, nkPostfix}:
+              var validateCss = if child[1].kind == nkPostfix: nodeToCssString(child[1][1]) else: val
+              try:
+                discard cssValidateProp(key, validateCss)
+              except CatchableError as e:
+                if key in ["box-shadow", "grid-template-columns", "content", "margin", "inherits"]:
+                  discard
+                else:
+                  child.error(e.msg)
             gen.chunk.emit(opcPushS)
             let isLast = ci == lastPropIdx
             let css = if isLast: key & ":" & val

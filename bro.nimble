@@ -1,6 +1,6 @@
 # Package
 
-version       = "0.1.0"
+version       = "0.1.1"
 author        = "George Lemon"
 description   = "A super fast CSS preprocessor for cool kids!"
 license       = "LGPL-3.0-or-later"
