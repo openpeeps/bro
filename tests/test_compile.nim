@@ -913,6 +913,12 @@ suite "Phase 5: control flow inside rule bodies":
   test "for range loop emits repeated properties":
     check compile(".a\n  for $i in range(1, 3):\n    z-index: $i") == ".a{z-index:1;z-index:2;z-index:3}"
 
+  test "for over array of objects":
+    check compile("var $s = [{k: 0, v: 0}, {k: 1, v: 0.25rem}]\nfor $item in $s:\n  .p-${$item.k}\n    padding: $item.v") == ".p-0{padding:0}.p-1{padding:0.25rem}"
+
+  test "for over inline array of objects":
+    check compile("for $s in [{k: 0, v: 0}, {k: 1, v: 1rem}]:\n  .m-${$s.k}\n    margin: $s.v") == ".m-0{margin:0}.m-1{margin:1rem}"
+
   test "control flow with surrounding properties":
     check compile("let $on = true\n.a\n  color: red\n  if $on:\n    top: 1px\n  background: blue") == ".a{color:red;top:1px;background:blue}"
 

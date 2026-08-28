@@ -22,6 +22,7 @@ type
     inCaseBlock*: bool # when true, 'of' and 'else' terminate case branches
     inBlockBody*: bool # when true, disables indented-block selector heuristic (inside parseBlock)
     inForIterable*: bool # when true, disables colon selector heuristic (inside for iterable expr)
+    arrayLits*: Table[string, Node] # var name -> nkArray literal for unrolling
   
   BroParserError* = object of ValueError
     file: string
@@ -198,6 +199,7 @@ proc getPrefixFn(p: var Parser, minPrec: int): PrefixFunction
 proc parsePrefix(p: var Parser, minPrec = 0): Node
 proc parseExpression(p: var Parser, minPrec = 0): Node
 proc parseIdent(p: var Parser, minPrec = 0): Node
+proc parseObjectStorage(p: var Parser, minPrec = 0): Node
 
 
 #
@@ -391,7 +393,12 @@ proc collectRawCall(p: var Parser, minPrec = 0): Node =
   if p.curr.kind == tkRParen:
     let endPos = p.curr.pos
     walk p # tkRParen
-    result = ast.newIdent(p.lex.input[startPos .. endPos])
+    var raw = p.lex.input[startPos .. endPos]
+    # Minify: collapse newlines/indentation into single spaces, remove space after '(' / before ')' and after ','
+    raw = raw.replace("\r\n", " ").replace("\n", " ").replace("\r", " ").replace("\t", " ")
+    raw = raw.splitWhitespace().join(" ")
+    raw = raw.replace("( ", "(").replace(" )", ")").replace(", ", ",")
+    result = ast.newIdent(raw)
   else:
     p.curr.error("expected closing ')' for function call", fatal = true)
 
@@ -499,6 +506,17 @@ prefixHandle parseVar:
     p.curr.error(ErrUnexpectedToken % $p.curr.kind)
   walk p
   result.add(p.parseVarIdent())
+  # remember array literals for for-loop unrolling (var $a = [ ... ])
+  if result.len > 0 and result[0].kind == nkIdentDefs:
+    for child in result[0].children:
+      if child.kind == nkAssign and child.len >= 3 and child[2].kind in {nkArray, nkObjectStorage}:
+        # child[0] is the ident ($name)
+        var idNode = child[0]
+        # handle possible nested ident inside (e.g. $a)
+        if idNode.kind == nkIdent:
+          p.arrayLits[idNode.ident] = child[2]
+        elif idNode.kind == nkIdentDefs and idNode.len > 0 and idNode[0].kind == nkIdent:
+          p.arrayLits[idNode[0].ident] = child[2]
   p.walkOptSemiColon() # optional semicolon
 
 prefixHandle parseReturn:
@@ -515,6 +533,17 @@ prefixHandle parseBreak:
   # parse a break statement
   result = ast.newNode(nkBreak)
   walk p # tkKeywordBreak
+  p.walkOptSemiColon() # optional semicolon
+
+prefixHandle parseEcho:
+  # parse an echo statement: echo expr
+  # desugars to nkCall("echo", expr) so the VM's echo foreign procs handle it
+  result = ast.newCall(ast.newIdent("echo"))
+  walk p # tkKeywordEcho
+  if p.curr.kind notin {tkSemicolon, tkEOF, tkRBrace}:
+    let exprNode = p.parseExpression()
+    caseNotNil exprNode:
+      result.add(exprNode)
   p.walkOptSemiColon() # optional semicolon
 
 prefixHandle parseContinue:
@@ -1351,6 +1380,173 @@ prefixHandle parseFor:
                       newBlockChildren.add(stmt)
                   newChild[3] = ast.newTree(nkBlock, newBlockChildren)
               result.add(newChild)
+        elif (iterExpr.kind == nkArray) or (iterExpr.kind == nkIdent and p.arrayLits.hasKey(iterExpr.ident)):
+          # array-of-objects unroll (e.g. for $s in [{k:0,v:0}, {k:1,v:0.25rem}] or for $s in $spacings)
+          var arrNode: Node
+          if iterExpr.kind == nkArray:
+            arrNode = iterExpr
+          else:
+            arrNode = p.arrayLits[iterExpr.ident]
+          var arrVar = if itemVar.kind == nkIdent: itemVar.ident else: ""
+          if arrVar.len > 0 and arrVar[0] == '$':
+            arrVar = arrVar[1..^1]
+          var doArrUnroll = false
+          for child in body.children:
+            if child.kind in {nkClassSelector, nkIdSelector, nkPseudoSelector, nkElementSelector}:
+              let selIdent = if child[0].kind == nkIdent: child[0].ident
+                             elif child[0].kind == nkBracket and child[0].len > 0 and child[0][0].kind == nkIdent: child[0][0].ident
+                             else: ""
+              if "${" in selIdent:
+                doArrUnroll = true
+                break
+          if doArrUnroll and arrNode != nil and arrNode.len > 0:
+            result = ast.newNode(nkBlock)
+            proc nodeStr(n: Node): string =
+              case n.kind
+              of nkInt: $n.intVal
+              of nkFloat:
+                var s = $n.floatVal
+                if s.endsWith(".0"): s.setLen(s.len - 2)
+                s
+              of nkString: n.stringVal
+              of nkUnit:
+                var b: string
+                if n[0].kind == nkInt:
+                  b = $(n[0].intVal)
+                else:
+                  b = $(n[0].floatVal)
+                  if b.endsWith(".0"): b.setLen(b.len - 2)
+                b & n[1].ident
+              of nkIdent: n.ident
+              else: ""
+            proc fieldStr(obj: Node, field: string): string =
+              if obj.kind == nkObjectStorage:
+                for f in obj.children:
+                  if f.kind == nkColon and f[0].kind == nkIdent and f[0].ident == field:
+                    return nodeStr(f[1])
+                  if f.kind == nkColon and f[0].kind == nkString and f[0].stringVal == field:
+                    return nodeStr(f[1])
+              return ""
+            for elem in arrNode.children:
+              for child in body.children:
+                var newChild = deepCopy(child)
+                proc evalArrExpr(expr: string, curElem: Node): string =
+                  var e = expr.strip()
+                  if e.startsWith("$"): e = e[1..^1]
+                  if "." in e:
+                    var parts = e.split('.', maxsplit=1)
+                    let base = parts[0].strip()
+                    let field = parts[1].strip()
+                    if base == arrVar:
+                      if curElem.kind == nkObjectStorage:
+                        return fieldStr(curElem, field)
+                      else:
+                        return nodeStr(curElem)
+                  else:
+                    if e == arrVar:
+                      if curElem.kind == nkObjectStorage:
+                        return nodeStr(curElem)
+                      return nodeStr(curElem)
+                  return e
+                if newChild.kind in {nkClassSelector, nkIdSelector, nkPseudoSelector, nkElementSelector}:
+                  var sel = if newChild[0].kind == nkIdent: newChild[0].ident else: ""
+                  var isBracket = false
+                  if newChild[0].kind == nkBracket:
+                    sel = newChild[0][0].ident
+                    isBracket = true
+                  var outSel = ""
+                  var i = 0
+                  while i < sel.len:
+                    if i+1 < sel.len and sel[i] == '$' and sel[i+1] == '{':
+                      var j = sel.find('}', i+2)
+                      if j != -1:
+                        let expr = sel[i+2 .. j-1]
+                        outSel &= evalArrExpr(expr, elem)
+                        i = j+1
+                        continue
+                    outSel &= sel[i]
+                    inc i
+                  if isBracket:
+                    newChild[0][0].ident = outSel
+                  else:
+                    newChild[0].ident = outSel
+                  if newChild.len > 3 and newChild[3].kind == nkBlock:
+                    var newBlockChildren: seq[Node] = @[]
+                    for stmt in newChild[3].children:
+                      var nc = deepCopy(stmt)
+                      if nc.kind == nkColon and nc[1] != nil:
+                        # unwrap !important postfix if present
+                        var valNode = nc[1]
+                        var isPostfix = valNode.kind == nkPostfix
+                        var inner = if isPostfix and valNode.len >= 2: valNode[1] else: valNode
+                        if inner.kind == nkDot:
+                          let base = inner[0]
+                          let field = inner[1]
+                          var baseName = ""
+                          if base.kind == nkIdent: baseName = base.ident
+                          if baseName.startsWith("$"): baseName = baseName[1..^1]
+                          var fieldName = ""
+                          if field.kind == nkIdent: fieldName = field.ident
+                          if baseName == arrVar and elem.kind == nkObjectStorage:
+                            for f in elem.children:
+                              if f.kind == nkColon and f[0].kind == nkIdent and f[0].ident == fieldName:
+                                let newVal = deepCopy(f[1])
+                                if isPostfix:
+                                  valNode[1] = newVal
+                                  nc[1] = valNode
+                                else:
+                                  nc[1] = newVal
+                                break
+                              if f.kind == nkColon and f[0].kind == nkString and f[0].stringVal == fieldName:
+                                let newVal = deepCopy(f[1])
+                                if isPostfix:
+                                  valNode[1] = newVal
+                                  nc[1] = valNode
+                                else:
+                                  nc[1] = newVal
+                                break
+                        elif inner.kind == nkIdent:
+                          var id = inner.ident
+                          var stripped = if id.startsWith("$"): id[1..^1] else: id
+                          if stripped == arrVar:
+                            var newVal: Node
+                            if elem.kind != nkObjectStorage:
+                              newVal = deepCopy(elem)
+                            else:
+                              for f in elem.children:
+                                if f.kind == nkColon and f[0].kind == nkIdent and f[0].ident == "v":
+                                  newVal = deepCopy(f[1]); break
+                            if newVal != nil:
+                              if isPostfix:
+                                valNode[1] = newVal
+                                nc[1] = valNode
+                              else:
+                                nc[1] = newVal
+                        elif inner.kind == nkIdent and "${" in inner.ident:
+                          var outV = ""
+                          let s = inner.ident
+                          var ii = 0
+                          while ii < s.len:
+                            if ii+1 < s.len and s[ii] == '$' and s[ii+1] == '{':
+                              var jj = s.find('}', ii+2)
+                              if jj != -1:
+                                let expr = s[ii+2 .. jj-1]
+                                outV &= evalArrExpr(expr, elem)
+                                ii = jj+1
+                                continue
+                            outV &= s[ii]
+                            inc ii
+                          if isPostfix:
+                            valNode[1].ident = outV
+                            nc[1] = valNode
+                          else:
+                            inner.ident = outV
+                            nc[1] = inner
+                      newBlockChildren.add(nc)
+                    newChild[3] = ast.newTree(nkBlock, newBlockChildren)
+                result.add(newChild)
+          else:
+            result = ast.newTree(nkFor, itemVar, iterExpr, body)
         else:
           result = ast.newTree(nkFor, itemVar, iterExpr, body)
 
@@ -1929,6 +2125,91 @@ prefixHandle parseNot:
     result.add(ast.newIdent("not"))
     result.add(operand)
 
+prefixHandle parseArray:
+  result = ast.newTree(nkArray)
+  walk p # tkLBracket
+  if p.curr.kind == tkRBracket:
+    walk p # ]
+    return
+  while true:
+    # object literal inside array: {k: v, ...}
+    if p.curr.kind == tkLBrace:
+      let elem = p.parseObjectStorage()
+      if elem == nil:
+        p.curr.error("expected object literal in array", fatal = true)
+        break
+      result.add(elem)
+    else:
+      let elem = p.parseExpression()
+      if elem == nil:
+        p.curr.error("expected expression in array", fatal = true)
+        break
+      result.add(elem)
+    if p.curr.kind == tkComma:
+      walk p # ,
+      if p.curr.kind == tkRBracket:
+        walk p # ]
+        break
+    elif p.curr.kind == tkRBracket:
+      walk p # ]
+      break
+    elif p.curr.kind == tkEOF:
+      p.curr.error("expected closing ']' for array", fatal = true)
+      break
+    else:
+      p.curr.error("expected ',' or ']' in array", fatal = true)
+      break
+
+prefixHandle parseObjectStorage:
+  # inline object {k: v, ...} used inside expressions (e.g. array of objects)
+  result = ast.newTree(nkObjectStorage)
+  walk p # tkLBrace
+  if p.curr.kind == tkRBrace:
+    walk p # }
+    return
+  while true:
+    var keyNode: Node
+    case p.curr.kind
+    of tkIdentifier:
+      keyNode = ast.newIdent(p.curr.value)
+      keyNode.ln = p.curr.line
+      keyNode.col = p.curr.col
+      walk p
+    of tkString:
+      keyNode = ast.newStringLit(p.curr.value)
+      walk p
+    of tkInt, tkFloat:
+      keyNode = p.parseNumber()
+    else:
+      p.curr.error("expected object key", fatal = true)
+      break
+    if p.curr.kind != tkColon:
+      p.curr.error("expected ':' after object key", fatal = true)
+      break
+    walk p # tkColon
+    let valNode = p.parseExpression()
+    if valNode == nil:
+      p.curr.error("expected value after ':'", fatal = true)
+      break
+    let colon = ast.newTree(nkColon, keyNode, valNode)
+    colon.ln = keyNode.ln
+    colon.col = keyNode.col
+    result.add(colon)
+    if p.curr.kind == tkComma:
+      walk p # ,
+      if p.curr.kind == tkRBrace:
+        walk p # }
+        break
+    elif p.curr.kind == tkRBrace:
+      walk p # }
+      break
+    elif p.curr.kind == tkEOF:
+      p.curr.error("expected closing '}' for object", fatal = true)
+      break
+    else:
+      p.curr.error("expected ',' or '}' in object", fatal = true)
+      break
+
 proc getPrefixFn(p: var Parser, minPrec: int): PrefixFunction =
   # Get the appropriate prefix function based on the current token.
   result = 
@@ -1936,9 +2217,10 @@ proc getPrefixFn(p: var Parser, minPrec: int): PrefixFunction =
     of tkIdentifier:
       if p.next.line == p.curr.line and p.next is tkLParen:
         parseCall
-      elif not p.inValue and not p.inBlockBody and not p.inForIterable and minPrec == 0 and
+      elif not p.inValue and not p.inForIterable and minPrec == 0 and
            not (p.curr.value.len > 0 and p.curr.value[0] == '$') and
-           p.next.kind in {tkLBrace, tkDot, tkHash, tkColon} and p.next.line == p.curr.line:
+           p.next.kind in {tkLBrace, tkDot, tkHash, tkColon} and p.next.line == p.curr.line and
+           (not p.inBlockBody or p.next.kind == tkLBrace):
         parseSelector
       else: parseIdent
     of tkKeywordVar:
@@ -1961,10 +2243,12 @@ proc getPrefixFn(p: var Parser, minPrec: int): PrefixFunction =
     of tkKeywordReturn: parseReturn
     of tkKeywordBreak: parseBreak
     of tkKeywordContinue: parseContinue
+    of tkKeywordEcho: parseEcho
     of tkKeywordIf: parseIf
     of tkKeywordFor: parseFor
     of tkKeywordCase: parseCase
     of tkKeywordNot: parseNot
+    of tkLBracket: parseArray
     of tkDot: parseClassSelector
     of tkHash: parseHash
     of tkColon: parsePseudoSelector
@@ -2116,6 +2400,7 @@ prefixHandle parseStmt:
     of tkKeywordIterator: parseIterator
     of tkKeywordMixin: parseMixin
     of tkKeywordWhile: parseWhile
+    of tkKeywordEcho: parseEcho
     of tkIdentifier, tkCssVar:
       if p.next.line == p.curr.line and p.next is tkLParen:
         parseCall

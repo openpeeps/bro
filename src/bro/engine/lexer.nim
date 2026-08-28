@@ -76,6 +76,7 @@ type
     tkKeywordCase = "case"
     tkKeywordBreak = "break"
     tkKeywordContinue = "continue"
+    tkKeywordEcho = "echo"
     tkKeywordTrue = "true"
     tkKeywordFalse = "false"
     tkKeywordNull = "null"
@@ -520,6 +521,7 @@ proc nextToken(lex: var Lexer): TokenTuple =
         of "case": initToken(lex, move(lex.strbuf), tkKeywordCase, startLine, startCol, startPos, wsno)
         of "break": initToken(lex, move(lex.strbuf), tkKeywordBreak, startLine, startCol, startPos, wsno)
         of "continue": initToken(lex, move(lex.strbuf), tkKeywordContinue, startLine, startCol, startPos, wsno)
+        of "echo": initToken(lex, move(lex.strbuf), tkKeywordEcho, startLine, startCol, startPos, wsno)
         of "true": initToken(lex, move(lex.strbuf), tkKeywordTrue, startLine, startCol, startPos, wsno)
         of "false": initToken(lex, move(lex.strbuf), tkKeywordFalse, startLine, startCol, startPos, wsno)
         of "null": initToken(lex, move(lex.strbuf), tkKeywordNull, startLine, startCol, startPos, wsno)

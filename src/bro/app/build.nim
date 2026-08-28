@@ -89,6 +89,13 @@ proc compileCode(filePath: string,
   let systemModule = libsystem.loadLibrary(script, globalData, localData)
   module.load(systemModule)
 
+  # auto-import all std libs
+  let colorsModule = libcolors.initColors(script, systemModule)
+  module.load(colorsModule)
+
+  let arraysModule = libarrays.initArrays(script, systemModule)
+  module.load(arraysModule)
+
   script.stdpos = script.procs.high
 
   # compile the code and handle any errors

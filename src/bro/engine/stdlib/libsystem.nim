@@ -291,6 +291,18 @@ proc loadLibrary*(script: Script, globalData, localData: JsonNode): Module =
         echo "pointer(", $(cast[int64](args[0].objectVal.foreign.data)), ")"
     )
 
+  script.addProc(result, "toString", @[p("x", ttyInt)], ttyString,
+    proc (args: StackView, argc: int): Value =
+      result = initValue($args[0].intVal))
+
+  script.addProc(result, "toString", @[p("x", ttyFloat)], ttyString,
+    proc (args: StackView, argc: int): Value =
+      result = initValue($args[0].floatVal))
+
+  script.addProc(result, "toString", @[p("x", ttyBool)], ttyString,
+    proc (args: StackView, argc: int): Value =
+      result = initValue($args[0].boolVal))
+
   let genT = ast.newIdent("T")
   let genArrayType = newSym(skGenericParam, genT, impl = genT)
   genArrayType.constraint = result.sym"any"
