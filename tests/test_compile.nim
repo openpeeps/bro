@@ -43,7 +43,7 @@ proc compileFile(path: string): string =
   module.load(systemModule)
   script.stdpos = script.procs.high
 
-  var gen = initCodeGen(script, module, mainChunk, pkgr = nil, parserCallback = cb)
+  var gen = initCodeGen(script, module, mainChunk, manager = nil, parserCallback = cb)
   gen.genScript(program, none(string))
 
   let virtualMachine = newVirtualMachine(VMPreferences())
@@ -960,7 +960,7 @@ suite "Phase 6: modules (.bass imports)":
       let systemModule = libsystem.loadLibrary(script, newJObject(), newJObject())
       module.load(systemModule)
       script.stdpos = script.procs.high
-      var gen = initCodeGen(script, module, mainChunk, pkgr = nil, parserCallback = cb)
+      var gen = initCodeGen(script, module, mainChunk, manager = nil, parserCallback = cb)
       gen.genScript(program, none(string))
       let virtualMachine = newVirtualMachine(VMPreferences())
       result.css = virtualMachine.interpret(script, mainChunk).stringVal[]

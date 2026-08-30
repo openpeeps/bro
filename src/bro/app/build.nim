@@ -4,13 +4,12 @@
 #          Made by Humans from OpenPeeps
 #          https://github.com/openpeeps/bro
 
-import std/[os, monotimes, times, options, strutils]
+import std/[os, monotimes, times, options, strutils, algorithm]
 
 import pkg/watchout
 import pkg/openparser/[json, bson]
 import pkg/kapsis/[cli, runtime, interactive/prompts]
-import pkg/vancode/interpreter/[ast, codegen, chunk, sym, vm, value, resolver]
-import pkg/vancode/manager/packager
+import pkg/vancode/interpreter/[ast, codegen, chunk, sym, vm, value, resolver, manager]
 
 import ../engine/parser
 import ../engine/sourcemap
@@ -69,7 +68,7 @@ proc writeSourceMap(vm: Vm, srcPath, code: string, outputFilePath: string) =
   writeFile(mapPath, toJson(mapNode))
 
 proc compileCode(filePath: string,
-          pkgr: Packager, globalData: JsonNode, localData: JsonNode,
+          manager: ModuleManager, globalData: JsonNode, localData: JsonNode,
           output: bool = false, outputPath: string = "",
           sourceMap: bool = false, pretty: bool = false) =
   # Compile the BASS code at `filePath` and optionally save the output to `
@@ -101,7 +100,7 @@ proc compileCode(filePath: string,
   # compile the code and handle any errors
   try:
     var compiler = initCodeGen(script, module, mainChunk,
-                                  pkgr = pkgr, parserCallback = parserCallback)
+                                  manager = manager, parserCallback = parserCallback)
     compiler.genScript(program, none(string))
     
     # initialize a Voodoo VM and execute the script
@@ -159,9 +158,47 @@ proc cCommand*(v: Values) =
     displayError("--sourceMap requires -o <output.css>")
     quit(1)
 
-  # init the package manager and load the local packages
-  let pkgr = packager.initPackageRemote()
-  pkgr.loadPackages()
+  # init module manager with persistent cache and pkg resolver
+  let cacheRoot = getHomeDir() / ".bro" / "cache"
+  let manager = newModuleManager(cacheRoot = some(cacheRoot))
+  # pkg resolver for `pkg/` imports (Tim packages sharing ~/.tim)
+  manager.pkgResolver = some(proc(pkgImport: string): Option[string] {.closure.} =
+    if not pkgImport.startsWith("pkg/"):
+      return none(string)
+    let parts = pkgImport.split("/")
+    if parts.len < 2:
+      return none(string)
+    let pkgName = parts[1]
+    let subPath = if parts.len > 2: parts[2..^1].join("/") else: ""
+    let pkgBase = getHomeDir() / ".tim" / "packages" / pkgName
+    var version = "0.1.0"
+    if dirExists(pkgBase):
+      var versions: seq[string] = @[]
+      for kind, path in walkDir(pkgBase):
+        if kind == pcDir:
+          versions.add(path.extractFilename)
+      if versions.len > 0:
+        versions.sort()
+        version = versions[^1]
+    let pkgSrc = pkgBase / version / "src"
+    var candidates: seq[string] = @[]
+    if subPath.len == 0:
+      candidates.add(pkgSrc / "main.bass")
+      candidates.add(pkgSrc / "index.bass")
+      candidates.add(pkgSrc / pkgName & ".bass")
+      candidates.add(pkgSrc / "main.timl")
+    else:
+      let base = pkgSrc / subPath
+      candidates.add(base)
+      if splitFile(subPath).ext.len == 0:
+        candidates.add(base & ".bass")
+        candidates.add(base & ".timl")
+        candidates.add(base & ".css")
+    for c in candidates:
+      if fileExists(c):
+        return some(c)
+    return none(string)
+  )
 
   let
     t = getMonotime()
@@ -184,7 +221,7 @@ proc cCommand*(v: Values) =
       else: newJObject()
 
   # compile the code for the first time
-  compileCode(srcPath, pkgr, globalData, localData, hasOutput, outputPath,
+  compileCode(srcPath, manager, globalData, localData, hasOutput, outputPath,
       enabledSourceMap, enabledPretty)
 
   # initialize the file watcher for browser sync if watch mode is enabled
@@ -199,10 +236,10 @@ proc cCommand*(v: Values) =
       if not hasOutput:
         # If no output file is specified, just recompile and print
         # the resulted CSS in the console
-        compileCode(file.getPath, pkgr, globalData, localData, false, "")
+        compileCode(file.getPath, manager, globalData, localData, false, "")
       else:
         let t = cpuTime()
-        compileCode(file.getPath, pkgr, globalData, localData, hasOutput,
+        compileCode(file.getPath, manager, globalData, localData, hasOutput,
             outputPath, enabledSourceMap, enabledPretty)
         displayInfo("File changed: " & file.getPath)
         displaySuccess("Recompiled in " & $((cpuTime() - t)) & "s")
