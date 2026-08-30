@@ -7,8 +7,8 @@
 #          Made by Humans from OpenPeeps
 #          https://github.com/openpeeps/tim | https://openpeeps.dev/packages/tim
 
-import std/[options, sequtils, strutils, tables, hashes]
-import pkg/vancode/interpreter/[chunk, ast, sym, value]
+import std/[options, sequtils, strutils, hashes]
+import pkg/vancode/interpreter/[chunk, sym, value]
 
 import ./inliner
 

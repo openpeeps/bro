@@ -4,7 +4,7 @@
 #          Made by Humans from OpenPeeps
 #          https://github.com/openpeeps/bro
 
-import std/[strutils, options]
+import std/strutils
 
 type
   TokenKind* = enum
@@ -129,11 +129,11 @@ proc advance(lex: var Lexer) =
     else:
       lex.current = '\0'
 
-proc peek(lex: Lexer, offset = 1): char =
+proc peek*(lex: Lexer, offset = 1): char =
   let idx = lex.pos + offset
   if idx < lex.input.len: lex.input[idx] else: '\0'
 
-proc peekToken(lex: Lexer, expectToken: string): bool =
+proc peekToken*(lex: Lexer, expectToken: string): bool =
   # Peeks ahead to see if the next token matches expectToken
   # without advancing the lexer
   var tempLex = lex
@@ -143,17 +143,17 @@ proc peekToken(lex: Lexer, expectToken: string): bool =
     tempLex.advance()
   return tempLex.strbuf == expectToken
 
-proc skipWhitespace(lex: var Lexer) =
+proc skipWhitespace*(lex: var Lexer) =
   while lex.current in {' ', '\t', '\r'}:
     lex.advance()
 
-proc initToken(lex: var Lexer, kind: static TokenKind, line, col, pos, wsno: int): TokenTuple =
+proc initToken*(lex: var Lexer, kind: static TokenKind, line, col, pos, wsno: int): TokenTuple =
   (kind, "", line, col, pos, wsno)
 
-proc initToken(lex: var Lexer, value: sink string, kind: TokenKind, line, col, pos, wsno: int): TokenTuple =
+proc initToken*(lex: var Lexer, value: sink string, kind: TokenKind, line, col, pos, wsno: int): TokenTuple =
   (kind, value, line, col, pos, wsno)
 
-proc initToken(lex: var Lexer, kind: static TokenKind): TokenTuple =
+proc initToken*(lex: var Lexer, kind: static TokenKind): TokenTuple =
   (kind, "", lex.line, lex.col, lex.pos, 0)
 
 proc tryLexExponent(lex: var Lexer): bool =

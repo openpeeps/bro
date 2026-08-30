@@ -4,12 +4,8 @@
 #          Made by Humans from OpenPeeps
 #          https://github.com/openpeeps/bro
 
-import std/[os, strutils, tables]
+import std/os
 import pkg/voodoo/extensibles
-import pkg/openparser/json
-import pkg/openparser/css
-
-import ./cssvalidator
 
 block extendAST:
   extendEnum NodeKind:

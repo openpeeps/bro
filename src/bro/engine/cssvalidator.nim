@@ -4,7 +4,6 @@
 #          Made by Humans from OpenPeeps
 #          https://github.com/openpeeps/bro
 
-import std/[strutils, tables]
 import pkg/openparser/css
 
 type

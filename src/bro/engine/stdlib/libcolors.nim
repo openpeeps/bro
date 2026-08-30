@@ -4,10 +4,9 @@
 #          Made by Humans from OpenPeeps
 #          https://github.com/openpeeps/bro
 
-import std/[strutils, options, base64]
-
+import std/options
 import pkg/chroma
-import pkg/vancode/interpreter/[chunk, ast, sym, value]
+import pkg/vancode/interpreter/[chunk, sym, value]
 
 import ./inliner
 

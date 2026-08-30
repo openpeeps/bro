@@ -1591,7 +1591,7 @@ prefixHandle parseClassSelector:
       let cline = p.curr.line
       walk p # tkComma
       var extra = ""
-      if p.curr.kind == tkDot and p.curr.line in {cline, cline + 1}:
+      if p.curr.kind == tkDot and p.curr.line in [cline, cline + 1]:
         walk p # tkDot
         if p.curr.kind == tkIdentifier:
           extra = "." & p.curr.value
@@ -1622,7 +1622,7 @@ prefixHandle parseClassSelector:
                 walk p
               extra &= "${" & exprStr.strip() & "}"
             else: break
-      elif p.curr.kind == tkHash and p.curr.line in {cline, cline + 1}:
+      elif p.curr.kind == tkHash and p.curr.line in [cline, cline + 1]:
         walk p # tkHash
         if p.curr.kind == tkIdentifier:
           extra = "#" & p.curr.value
@@ -1653,7 +1653,7 @@ prefixHandle parseClassSelector:
                 walk p
               extra &= "${" & exprStr.strip() & "}"
             else: break
-      elif p.curr.kind == tkIdentifier and p.curr.line in {cline, cline + 1}:
+      elif p.curr.kind == tkIdentifier and p.curr.line in [cline, cline + 1]:
         extra = p.curr.value
         walk p
         while true:
@@ -1826,7 +1826,7 @@ prefixHandle parsePseudoSelector:
       let cline = p.curr.line
       walk p # tkComma
       var extra = ""
-      if p.curr.kind == tkDot and p.curr.line in {cline, cline + 1}:
+      if p.curr.kind == tkDot and p.curr.line in [cline, cline + 1]:
         walk p # tkDot
         if p.curr.kind == tkIdentifier:
           extra = "." & p.curr.value
@@ -1835,18 +1835,18 @@ prefixHandle parsePseudoSelector:
             extra &= p.collectPseudoSuffix()
           while p.curr.kind == tkLBracket and p.curr.line == p.prev.line:
             extra &= p.collectAttributeSelector()
-      elif p.curr.kind == tkHash and p.curr.line in {cline, cline + 1}:
+      elif p.curr.kind == tkHash and p.curr.line in [cline, cline + 1]:
         walk p # tkHash
         if p.curr.kind == tkIdentifier:
           extra = "#" & p.curr.value
           walk p
-      elif p.curr.kind == tkColon and p.curr.wsno == 0 and p.curr.line in {cline, cline + 1}:
+      elif p.curr.kind == tkColon and p.curr.wsno == 0 and p.curr.line in [cline, cline + 1]:
         extra = p.collectPseudoSuffix()
         while p.curr.kind == tkLBracket and p.curr.line == p.prev.line:
           extra &= p.collectAttributeSelector()
-      elif p.curr.kind == tkLBracket and p.curr.line in {cline, cline + 1}:
+      elif p.curr.kind == tkLBracket and p.curr.line in [cline, cline + 1]:
         extra = p.collectAttributeSelector()
-      elif p.curr.kind == tkIdentifier and p.curr.line in {cline, cline + 1}:
+      elif p.curr.kind == tkIdentifier and p.curr.line in [cline, cline + 1]:
         extra = p.curr.value
         walk p
       # absorb compound/combinator tail on the extra's own line
@@ -1942,7 +1942,6 @@ proc parseKeyframeBlock(p: var Parser, indentPos = 0): Node {.rule.} =
       walk p; closed = true; break
     elif not closingBlock and p.curr.col <= indentPos:
       break
-    var selectorName = ""
     let selCol = p.curr.col
     var selectorNames: seq[string]
     # collect comma-separated keyframe selectors: `20%, 30%`
