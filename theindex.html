@@ -28,8 +28,12 @@
     <label for="nav-toggle" id="nav-overlay"></label>
     <div class="container">
       <h1 class="title">Index</h1>
-      Modules: <a href="index.html">bro</a>, <a href="bro/app/build.html">bro/app/build</a>, <a href="bro/engine/cssvalidator.html">bro/engine/cssvalidator</a>, <a href="bro/engine/lexer.html">bro/engine/lexer</a>, <a href="bro/engine/parser.html">bro/engine/parser</a>, <a href="bro/engine/stdlib/inliner.html">bro/engine/stdlib/inliner</a>, <a href="bro/engine/stdlib/libarrays.html">bro/engine/stdlib/libarrays</a>, <a href="bro/engine/stdlib/libcolors.html">bro/engine/stdlib/libcolors</a>, <a href="bro/engine/stdlib/libsystem.html">bro/engine/stdlib/libsystem</a>, <a href="bro/engine/vancodegen.html">bro/engine/vancodegen</a>.<br/><p /><h2>API symbols</h2>
-<dl><dt><a name="addProc" href="#addProc"><span>addProc:</span></a></dt><dd><ul class="simple">
+      Modules: <a href="index.html">bro</a>, <a href="bro/app/build.html">bro/app/build</a>, <a href="bro/engine/lexer.html">bro/engine/lexer</a>, <a href="bro/engine/parser.html">bro/engine/parser</a>, <a href="bro/engine/sourcemap.html">bro/engine/sourcemap</a>, <a href="bro/engine/stdlib/inliner.html">bro/engine/stdlib/inliner</a>, <a href="bro/engine/stdlib/libarrays.html">bro/engine/stdlib/libarrays</a>, <a href="bro/engine/stdlib/libcolors.html">bro/engine/stdlib/libcolors</a>, <a href="bro/engine/stdlib/libsystem.html">bro/engine/stdlib/libsystem</a>, <a href="bro/engine/vancodegen.html">bro/engine/vancodegen</a>.<br/><p /><h2>API symbols</h2>
+<dl><dt><a name="addContent" href="#addContent"><span>addContent:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="sourcemap: proc addContent(info: var SourceInfo; file, content: string)" href="bro/engine/sourcemap.html#addContent%2CSourceInfo%2Cstring%2Cstring">sourcemap: proc addContent(info: var SourceInfo; file, content: string)</a></li>
+          </ul></dd>
+<dt><a name="addProc" href="#addProc"><span>addProc:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="inliner: proc addProc(script: Script; module: Module; name: string;
         params: seq[TempParamDef] = @[]; returnTy: TypeKind;
@@ -37,25 +41,31 @@
         params: seq[TempParamDef] = @[]; returnTy: TypeKind;
         impl: ForeignProc = nil; exportSym = true)</a></li>
           </ul></dd>
+<dt><a name="addSegment" href="#addSegment"><span>addSegment:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="sourcemap: proc addSegment(info: var SourceInfo; genLine, genCol: int; file: string;
+           line, col: int)" href="bro/engine/sourcemap.html#addSegment%2CSourceInfo%2Cint%2Cint%2Cstring%2Cint%2Cint">sourcemap: proc addSegment(info: var SourceInfo; genLine, genCol: int; file: string;
+           line, col: int)</a></li>
+          </ul></dd>
+<dt><a name="astCommand" href="#astCommand"><span>astCommand:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="build: proc astCommand(v: Values)" href="bro/app/build.html#astCommand%2CValues">build: proc astCommand(v: Values)</a></li>
+          </ul></dd>
 <dt><a name="BroParserError" href="#BroParserError"><span>BroParserError:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="parser: object BroParserError" href="bro/engine/parser.html#BroParserError">parser: object BroParserError</a></li>
+          </ul></dd>
+<dt><a name="cCommand" href="#cCommand"><span>cCommand:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="build: proc cCommand(v: Values)" href="bro/app/build.html#cCommand%2CValues">build: proc cCommand(v: Values)</a></li>
           </ul></dd>
 <dt><a name="compileCode" href="#compileCode"><span>compileCode:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="inliner: proc compileCode(script: Script; module: Module; filename, code: string)" href="bro/engine/stdlib/inliner.html#compileCode%2CScript%2CModule%2Cstring%2Cstring">inliner: proc compileCode(script: Script; module: Module; filename, code: string)</a></li>
           </ul></dd>
-<dt><a name="compileCommand" href="#compileCommand"><span>compileCommand:</span></a></dt><dd><ul class="simple">
+<dt><a name="encode" href="#encode"><span>encode:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="build: proc compileCommand(v: Values)" href="bro/app/build.html#compileCommand%2CValues">build: proc compileCommand(v: Values)</a></li>
-          </ul></dd>
-<dt><a name="CssValidator" href="#CssValidator"><span>CssValidator:</span></a></dt><dd><ul class="simple">
-<li><a class="reference external"
-          data-doc-search-tag="cssvalidator: object CssValidator" href="bro/engine/cssvalidator.html#CssValidator">cssvalidator: object CssValidator</a></li>
-          </ul></dd>
-<dt><a name="CssValidatorError" href="#CssValidatorError"><span>CssValidatorError:</span></a></dt><dd><ul class="simple">
-<li><a class="reference external"
-          data-doc-search-tag="cssvalidator: object CssValidatorError" href="bro/engine/cssvalidator.html#CssValidatorError">cssvalidator: object CssValidatorError</a></li>
+          data-doc-search-tag="sourcemap: proc encode(values: seq[int]): string" href="bro/engine/sourcemap.html#encode%2Cseq%5Bint%5D">sourcemap: proc encode(values: seq[int]): string</a></li>
           </ul></dd>
 <dt><a name="getToken" href="#getToken"><span>getToken:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -69,13 +79,27 @@
 <li><a class="reference external"
           data-doc-search-tag="libcolors: proc initColors(script: Script; systemModule: Module): Module" href="bro/engine/stdlib/libcolors.html#initColors%2CScript%2CModule">libcolors: proc initColors(script: Script; systemModule: Module): Module</a></li>
           </ul></dd>
-<dt><a name="initCssValidator" href="#initCssValidator"><span>initCssValidator:</span></a></dt><dd><ul class="simple">
+<dt><a name="initSourceInfo" href="#initSourceInfo"><span>initSourceInfo:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="cssvalidator: proc initCssValidator(): CssValidator" href="bro/engine/cssvalidator.html#initCssValidator">cssvalidator: proc initCssValidator(): CssValidator</a></li>
+          data-doc-search-tag="sourcemap: proc initSourceInfo(): SourceInfo" href="bro/engine/sourcemap.html#initSourceInfo">sourcemap: proc initSourceInfo(): SourceInfo</a></li>
+          </ul></dd>
+<dt><a name="initToken" href="#initToken"><span>initToken:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="lexer: proc initToken(lex: var Lexer; value: sink string; kind: TokenKind;
+          line, col, pos, wsno: int): TokenTuple" href="bro/engine/lexer.html#initToken%2CLexer%2Csinkstring%2CTokenKind%2Cint%2Cint%2Cint%2Cint">lexer: proc initToken(lex: var Lexer; value: sink string; kind: TokenKind;
+          line, col, pos, wsno: int): TokenTuple</a></li>
+          <li><a class="reference external"
+          data-doc-search-tag="lexer: proc initToken(lex: var Lexer; kind: static TokenKind): TokenTuple" href="bro/engine/lexer.html#initToken%2CLexer%2CstaticTokenKind">lexer: proc initToken(lex: var Lexer; kind: static TokenKind): TokenTuple</a></li>
+          <li><a class="reference external"
+          data-doc-search-tag="lexer: proc initToken(lex: var Lexer; kind: static TokenKind; line, col, pos, wsno: int): TokenTuple" href="bro/engine/lexer.html#initToken%2CLexer%2CstaticTokenKind%2Cint%2Cint%2Cint%2Cint">lexer: proc initToken(lex: var Lexer; kind: static TokenKind; line, col, pos, wsno: int): TokenTuple</a></li>
           </ul></dd>
 <dt><a name="InlineCode" href="#InlineCode"><span>InlineCode:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="inliner: const InlineCode" href="bro/engine/stdlib/inliner.html#InlineCode">inliner: const InlineCode</a></li>
+          </ul></dd>
+<dt><a name="isKnownCssProperty" href="#isKnownCssProperty"><span>isKnownCssProperty:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="parser: proc isKnownCssProperty(name: string): bool" href="bro/engine/parser.html#isKnownCssProperty%2Cstring">parser: proc isKnownCssProperty(name: string): bool</a></li>
           </ul></dd>
 <dt><a name="Lexer" href="#Lexer"><span>Lexer:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -84,6 +108,10 @@
 <dt><a name="loadLibrary" href="#loadLibrary"><span>loadLibrary:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="libsystem: proc loadLibrary(script: Script; globalData, localData: JsonNode): Module" href="bro/engine/stdlib/libsystem.html#loadLibrary%2CScript%2CJsonNode%2CJsonNode">libsystem: proc loadLibrary(script: Script; globalData, localData: JsonNode): Module</a></li>
+          </ul></dd>
+<dt><a name="MapSegment" href="#MapSegment"><span>MapSegment:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="sourcemap: object MapSegment" href="bro/engine/sourcemap.html#MapSegment">sourcemap: object MapSegment</a></li>
           </ul></dd>
 <dt><a name="newLexer" href="#newLexer"><span>newLexer:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -107,9 +135,29 @@
 <li><a class="reference external"
           data-doc-search-tag="parser: proc parseScript(astProgram: var Ast; code: sink string; sourcePath: string)" href="bro/engine/parser.html#parseScript%2CAst%2Csinkstring%2Cstring">parser: proc parseScript(astProgram: var Ast; code: sink string; sourcePath: string)</a></li>
           </ul></dd>
+<dt><a name="peek" href="#peek"><span>peek:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="lexer: proc peek(lex: Lexer; offset = 1): char" href="bro/engine/lexer.html#peek%2CLexer%2Cint">lexer: proc peek(lex: Lexer; offset = 1): char</a></li>
+          </ul></dd>
+<dt><a name="peekToken" href="#peekToken"><span>peekToken:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="lexer: proc peekToken(lex: Lexer; expectToken: string): bool" href="bro/engine/lexer.html#peekToken%2CLexer%2Cstring">lexer: proc peekToken(lex: Lexer; expectToken: string): bool</a></li>
+          </ul></dd>
 <dt><a name="PrefixFunction" href="#PrefixFunction"><span>PrefixFunction:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="parser: type PrefixFunction" href="bro/engine/parser.html#PrefixFunction">parser: type PrefixFunction</a></li>
+          </ul></dd>
+<dt><a name="skipWhitespace" href="#skipWhitespace"><span>skipWhitespace:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="lexer: proc skipWhitespace(lex: var Lexer)" href="bro/engine/lexer.html#skipWhitespace%2CLexer">lexer: proc skipWhitespace(lex: var Lexer)</a></li>
+          </ul></dd>
+<dt><a name="SourceInfo" href="#SourceInfo"><span>SourceInfo:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="sourcemap: object SourceInfo" href="bro/engine/sourcemap.html#SourceInfo">sourcemap: object SourceInfo</a></li>
+          </ul></dd>
+<dt><a name="SourceMap" href="#SourceMap"><span>SourceMap:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="sourcemap: object SourceMap" href="bro/engine/sourcemap.html#SourceMap">sourcemap: object SourceMap</a></li>
           </ul></dd>
 <dt><a name="TempParamDef" href="#TempParamDef"><span>TempParamDef:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -151,6 +199,18 @@
 <li><a class="reference external"
           data-doc-search-tag="lexer: TokenKind.tkBacktick" href="bro/engine/lexer.html#tkBacktick">lexer: TokenKind.tkBacktick</a></li>
           </ul></dd>
+<dt><a name="tkBang" href="#tkBang"><span>tkBang:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="lexer: TokenKind.tkBang" href="bro/engine/lexer.html#tkBang">lexer: TokenKind.tkBang</a></li>
+          </ul></dd>
+<dt><a name="tkCaret" href="#tkCaret"><span>tkCaret:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="lexer: TokenKind.tkCaret" href="bro/engine/lexer.html#tkCaret">lexer: TokenKind.tkCaret</a></li>
+          </ul></dd>
+<dt><a name="tkCaretAssign" href="#tkCaretAssign"><span>tkCaretAssign:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="lexer: TokenKind.tkCaretAssign" href="bro/engine/lexer.html#tkCaretAssign">lexer: TokenKind.tkCaretAssign</a></li>
+          </ul></dd>
 <dt><a name="tkColon" href="#tkColon"><span>tkColon:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="lexer: TokenKind.tkColon" href="bro/engine/lexer.html#tkColon">lexer: TokenKind.tkColon</a></li>
@@ -174,6 +234,14 @@
 <dt><a name="tkDocBlock" href="#tkDocBlock"><span>tkDocBlock:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="lexer: TokenKind.tkDocBlock" href="bro/engine/lexer.html#tkDocBlock">lexer: TokenKind.tkDocBlock</a></li>
+          </ul></dd>
+<dt><a name="tkDocBlockBang" href="#tkDocBlockBang"><span>tkDocBlockBang:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="lexer: TokenKind.tkDocBlockBang" href="bro/engine/lexer.html#tkDocBlockBang">lexer: TokenKind.tkDocBlockBang</a></li>
+          </ul></dd>
+<dt><a name="tkDollarAssign" href="#tkDollarAssign"><span>tkDollarAssign:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="lexer: TokenKind.tkDollarAssign" href="bro/engine/lexer.html#tkDollarAssign">lexer: TokenKind.tkDollarAssign</a></li>
           </ul></dd>
 <dt><a name="tkDot" href="#tkDot"><span>tkDot:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -219,6 +287,10 @@
 <li><a class="reference external"
           data-doc-search-tag="lexer: TokenKind.tkKeywordBreak" href="bro/engine/lexer.html#tkKeywordBreak">lexer: TokenKind.tkKeywordBreak</a></li>
           </ul></dd>
+<dt><a name="tkKeywordCase" href="#tkKeywordCase"><span>tkKeywordCase:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="lexer: TokenKind.tkKeywordCase" href="bro/engine/lexer.html#tkKeywordCase">lexer: TokenKind.tkKeywordCase</a></li>
+          </ul></dd>
 <dt><a name="tkKeywordConst" href="#tkKeywordConst"><span>tkKeywordConst:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="lexer: TokenKind.tkKeywordConst" href="bro/engine/lexer.html#tkKeywordConst">lexer: TokenKind.tkKeywordConst</a></li>
@@ -226,6 +298,10 @@
 <dt><a name="tkKeywordContinue" href="#tkKeywordContinue"><span>tkKeywordContinue:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="lexer: TokenKind.tkKeywordContinue" href="bro/engine/lexer.html#tkKeywordContinue">lexer: TokenKind.tkKeywordContinue</a></li>
+          </ul></dd>
+<dt><a name="tkKeywordEcho" href="#tkKeywordEcho"><span>tkKeywordEcho:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="lexer: TokenKind.tkKeywordEcho" href="bro/engine/lexer.html#tkKeywordEcho">lexer: TokenKind.tkKeywordEcho</a></li>
           </ul></dd>
 <dt><a name="tkKeywordElif" href="#tkKeywordElif"><span>tkKeywordElif:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -274,6 +350,14 @@
 <dt><a name="tkKeywordLet" href="#tkKeywordLet"><span>tkKeywordLet:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="lexer: TokenKind.tkKeywordLet" href="bro/engine/lexer.html#tkKeywordLet">lexer: TokenKind.tkKeywordLet</a></li>
+          </ul></dd>
+<dt><a name="tkKeywordMixin" href="#tkKeywordMixin"><span>tkKeywordMixin:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="lexer: TokenKind.tkKeywordMixin" href="bro/engine/lexer.html#tkKeywordMixin">lexer: TokenKind.tkKeywordMixin</a></li>
+          </ul></dd>
+<dt><a name="tkKeywordNot" href="#tkKeywordNot"><span>tkKeywordNot:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="lexer: TokenKind.tkKeywordNot" href="bro/engine/lexer.html#tkKeywordNot">lexer: TokenKind.tkKeywordNot</a></li>
           </ul></dd>
 <dt><a name="tkKeywordNull" href="#tkKeywordNull"><span>tkKeywordNull:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -351,6 +435,10 @@
 <li><a class="reference external"
           data-doc-search-tag="lexer: TokenKind.tkPercentAssign" href="bro/engine/lexer.html#tkPercentAssign">lexer: TokenKind.tkPercentAssign</a></li>
           </ul></dd>
+<dt><a name="tkPipeAssign" href="#tkPipeAssign"><span>tkPipeAssign:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="lexer: TokenKind.tkPipeAssign" href="bro/engine/lexer.html#tkPipeAssign">lexer: TokenKind.tkPipeAssign</a></li>
+          </ul></dd>
 <dt><a name="tkPlus" href="#tkPlus"><span>tkPlus:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="lexer: TokenKind.tkPlus" href="bro/engine/lexer.html#tkPlus">lexer: TokenKind.tkPlus</a></li>
@@ -383,6 +471,14 @@
 <li><a class="reference external"
           data-doc-search-tag="lexer: TokenKind.tkString" href="bro/engine/lexer.html#tkString">lexer: TokenKind.tkString</a></li>
           </ul></dd>
+<dt><a name="tkTilde" href="#tkTilde"><span>tkTilde:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="lexer: TokenKind.tkTilde" href="bro/engine/lexer.html#tkTilde">lexer: TokenKind.tkTilde</a></li>
+          </ul></dd>
+<dt><a name="tkTildeAssign" href="#tkTildeAssign"><span>tkTildeAssign:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="lexer: TokenKind.tkTildeAssign" href="bro/engine/lexer.html#tkTildeAssign">lexer: TokenKind.tkTildeAssign</a></li>
+          </ul></dd>
 <dt><a name="tkUnknown" href="#tkUnknown"><span>tkUnknown:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="lexer: TokenKind.tkUnknown" href="bro/engine/lexer.html#tkUnknown">lexer: TokenKind.tkUnknown</a></li>
@@ -395,19 +491,19 @@
 <li><a class="reference external"
           data-doc-search-tag="lexer: tuple TokenTuple" href="bro/engine/lexer.html#TokenTuple">lexer: tuple TokenTuple</a></li>
           </ul></dd>
+<dt><a name="toSourceMap" href="#toSourceMap"><span>toSourceMap:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="sourcemap: proc toSourceMap(info: SourceInfo; outputFile: string): SourceMap" href="bro/engine/sourcemap.html#toSourceMap%2CSourceInfo%2Cstring">sourcemap: proc toSourceMap(info: SourceInfo; outputFile: string): SourceMap</a></li>
+          </ul></dd>
 <dt><a name="tyColor" href="#tyColor"><span>tyColor:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="libcolors: const tyColor" href="bro/engine/stdlib/libcolors.html#tyColor">libcolors: const tyColor</a></li>
-          </ul></dd>
-<dt><a name="validateCssProp" href="#validateCssProp"><span>validateCssProp:</span></a></dt><dd><ul class="simple">
-<li><a class="reference external"
-          data-doc-search-tag="cssvalidator: proc validateCssProp(v: CssValidator; propName: string; rawValue: string): string" href="bro/engine/cssvalidator.html#validateCssProp%2CCssValidator%2Cstring%2Cstring">cssvalidator: proc validateCssProp(v: CssValidator; propName: string; rawValue: string): string</a></li>
           </ul></dd>
 </dl>
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2026-07-30 19:56:55 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2026-08-31 19:01:42 UTC</small>
       </div>
     </div>
   </div>

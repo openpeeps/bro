@@ -71,17 +71,22 @@
   tkAsterisk = &quot;*&quot;, tkDivide = &quot;/&quot;, tkPercent = &quot;%&quot;, tkEqual = &quot;=&quot;,
   tkDoubleEqual = &quot;==&quot;, tkNotEqual = &quot;!=&quot;, tkLT = &quot;&lt;&quot;, tkLTE = &quot;&lt;=&quot;, tkGT = &quot;&gt;&quot;,
   tkGTE = &quot;&gt;=&quot;, tkAmp = &quot;&amp;&quot;, tkAndAnd = &quot;&amp;&amp;&quot;, tkOrOr = &quot;||&quot;, tkOr = &quot;or&quot;,
-  tkKeywordIs = &quot;is&quot;, tkKeywordIsnot = &quot;isnot&quot;, tkAnd = &quot;and&quot;, tkBacktick = &quot;`&quot;,
-  tkAt = &quot;@&quot;, tkAssign = &quot;=&quot;, tkPlusAssign = &quot;+=&quot;, tkMinusAssign = &quot;-=&quot;,
-  tkAsteriskAssign = &quot;*=&quot;, tkSlashAssign = &quot;/=&quot;, tkPercentAssign = &quot;%=&quot;,
-  tkKeywordVar = &quot;var&quot;, tkKeywordLet = &quot;let&quot;, tkKeywordConst = &quot;const&quot;,
+  tkKeywordIs = &quot;is&quot;, tkKeywordIsnot = &quot;isnot&quot;, tkAnd = &quot;and&quot;,
+  tkKeywordNot = &quot;not&quot;, tkBacktick = &quot;`&quot;, tkAt = &quot;@&quot;, tkAssign = &quot;=&quot;,
+  tkPlusAssign = &quot;+=&quot;, tkMinusAssign = &quot;-=&quot;, tkAsteriskAssign = &quot;*=&quot;,
+  tkSlashAssign = &quot;/=&quot;, tkPercentAssign = &quot;%=&quot;, tkBang = &quot;!&quot;, tkTilde = &quot;~&quot;,
+  tkTildeAssign = &quot;~=&quot;, tkCaret = &quot;^&quot;, tkCaretAssign = &quot;^=&quot;,
+  tkPipeAssign = &quot;|=&quot;, tkDollarAssign = &quot;$=&quot;, tkKeywordVar = &quot;var&quot;,
+  tkKeywordLet = &quot;let&quot;, tkKeywordConst = &quot;const&quot;,
   tkKeywordFunction = &quot;function&quot;, tkKeywordReturn = &quot;return&quot;,
   tkKeywordIf = &quot;if&quot;, tkKeywordElse = &quot;else&quot;, tkKeywordElif = &quot;elif&quot;,
   tkKeywordWhile = &quot;while&quot;, tkKeywordFor = &quot;for&quot;, tkKeywordIn = &quot;in&quot;,
-  tkKeywordOf = &quot;of&quot;, tkKeywordBreak = &quot;break&quot;, tkKeywordContinue = &quot;continue&quot;,
+  tkKeywordOf = &quot;of&quot;, tkKeywordCase = &quot;case&quot;, tkKeywordBreak = &quot;break&quot;,
+  tkKeywordContinue = &quot;continue&quot;, tkKeywordEcho = &quot;echo&quot;,
   tkKeywordTrue = &quot;true&quot;, tkKeywordFalse = &quot;false&quot;, tkKeywordNull = &quot;null&quot;,
   tkKeywordUndefined = &quot;undefined&quot;, tkKeywordImport = &quot;import&quot;,
-  tkKeywordIterator = &quot;iterator&quot;, tkComment, tkDocBlock">TokenKind</a></li>
+  tkKeywordIterator = &quot;iterator&quot;, tkKeywordMixin = &quot;mixin&quot;, tkComment,
+  tkDocBlock, tkDocBlockBang">TokenKind</a></li>
 <li><a class="reference" href="#TokenTuple" title="TokenTuple = tuple[kind: TokenKind, value: string, line: int, col: int,
                    pos: int, wsno: int]">TokenTuple</a></li>
 
@@ -96,8 +101,28 @@
   <li><a class="reference" href="#getToken%2CLexer" title="getToken(lex: var Lexer): TokenTuple">getToken(lex: var Lexer): TokenTuple</a></li>
 
 </ul>
+<ul class="simple nested-toc-section">initToken
+  <li><a class="reference" href="#initToken%2CLexer%2CstaticTokenKind" title="initToken(lex: var Lexer; kind: static TokenKind): TokenTuple">initToken(lex: var Lexer; kind: static TokenKind): TokenTuple</a></li>
+<li><a class="reference" href="#initToken%2CLexer%2CstaticTokenKind%2Cint%2Cint%2Cint%2Cint" title="initToken(lex: var Lexer; kind: static TokenKind; line, col, pos, wsno: int): TokenTuple">initToken(lex: var Lexer; kind: static TokenKind; line, col, pos, wsno: int): TokenTuple</a></li>
+<li><a class="reference" href="#initToken%2CLexer%2Csinkstring%2CTokenKind%2Cint%2Cint%2Cint%2Cint" title="initToken(lex: var Lexer; value: sink string; kind: TokenKind;
+          line, col, pos, wsno: int): TokenTuple">initToken(lex: var Lexer; value: sink string; kind: TokenKind;
+          line, col, pos, wsno: int): TokenTuple</a></li>
+
+</ul>
 <ul class="simple nested-toc-section">newLexer
   <li><a class="reference" href="#newLexer%2Cstring" title="newLexer(input: string): Lexer">newLexer(input: string): Lexer</a></li>
+
+</ul>
+<ul class="simple nested-toc-section">peek
+  <li><a class="reference" href="#peek%2CLexer%2Cint" title="peek(lex: Lexer; offset = 1): char">peek(lex: Lexer; offset = 1): char</a></li>
+
+</ul>
+<ul class="simple nested-toc-section">peekToken
+  <li><a class="reference" href="#peekToken%2CLexer%2Cstring" title="peekToken(lex: Lexer; expectToken: string): bool">peekToken(lex: Lexer; expectToken: string): bool</a></li>
+
+</ul>
+<ul class="simple nested-toc-section">skipWhitespace
+  <li><a class="reference" href="#skipWhitespace%2CLexer" title="skipWhitespace(lex: var Lexer)">skipWhitespace(lex: var Lexer)</a></li>
 
 </ul>
 
@@ -137,17 +162,22 @@
   <span class="Identifier">tkAsterisk</span> <span class="Other">=</span> <span class="StringLit">&quot;*&quot;</span><span class="Other">,</span> <span class="Identifier">tkDivide</span> <span class="Other">=</span> <span class="StringLit">&quot;/&quot;</span><span class="Other">,</span> <span class="Identifier">tkPercent</span> <span class="Other">=</span> <span class="StringLit">&quot;%&quot;</span><span class="Other">,</span> <span class="Identifier">tkEqual</span> <span class="Other">=</span> <span class="StringLit">&quot;=&quot;</span><span class="Other">,</span>
   <span class="Identifier">tkDoubleEqual</span> <span class="Other">=</span> <span class="StringLit">&quot;==&quot;</span><span class="Other">,</span> <span class="Identifier">tkNotEqual</span> <span class="Other">=</span> <span class="StringLit">&quot;!=&quot;</span><span class="Other">,</span> <span class="Identifier">tkLT</span> <span class="Other">=</span> <span class="StringLit">&quot;&lt;&quot;</span><span class="Other">,</span> <span class="Identifier">tkLTE</span> <span class="Other">=</span> <span class="StringLit">&quot;&lt;=&quot;</span><span class="Other">,</span> <span class="Identifier">tkGT</span> <span class="Other">=</span> <span class="StringLit">&quot;&gt;&quot;</span><span class="Other">,</span>
   <span class="Identifier">tkGTE</span> <span class="Other">=</span> <span class="StringLit">&quot;&gt;=&quot;</span><span class="Other">,</span> <span class="Identifier">tkAmp</span> <span class="Other">=</span> <span class="StringLit">&quot;&amp;&quot;</span><span class="Other">,</span> <span class="Identifier">tkAndAnd</span> <span class="Other">=</span> <span class="StringLit">&quot;&amp;&amp;&quot;</span><span class="Other">,</span> <span class="Identifier">tkOrOr</span> <span class="Other">=</span> <span class="StringLit">&quot;||&quot;</span><span class="Other">,</span> <span class="Identifier">tkOr</span> <span class="Other">=</span> <span class="StringLit">&quot;or&quot;</span><span class="Other">,</span>
-  <span class="Identifier">tkKeywordIs</span> <span class="Other">=</span> <span class="StringLit">&quot;is&quot;</span><span class="Other">,</span> <span class="Identifier">tkKeywordIsnot</span> <span class="Other">=</span> <span class="StringLit">&quot;isnot&quot;</span><span class="Other">,</span> <span class="Identifier">tkAnd</span> <span class="Other">=</span> <span class="StringLit">&quot;and&quot;</span><span class="Other">,</span> <span class="Identifier">tkBacktick</span> <span class="Other">=</span> <span class="StringLit">&quot;`&quot;</span><span class="Other">,</span>
-  <span class="Identifier">tkAt</span> <span class="Other">=</span> <span class="StringLit">&quot;@&quot;</span><span class="Other">,</span> <span class="Identifier">tkAssign</span> <span class="Other">=</span> <span class="StringLit">&quot;=&quot;</span><span class="Other">,</span> <span class="Identifier">tkPlusAssign</span> <span class="Other">=</span> <span class="StringLit">&quot;+=&quot;</span><span class="Other">,</span> <span class="Identifier">tkMinusAssign</span> <span class="Other">=</span> <span class="StringLit">&quot;-=&quot;</span><span class="Other">,</span>
-  <span class="Identifier">tkAsteriskAssign</span> <span class="Other">=</span> <span class="StringLit">&quot;*=&quot;</span><span class="Other">,</span> <span class="Identifier">tkSlashAssign</span> <span class="Other">=</span> <span class="StringLit">&quot;/=&quot;</span><span class="Other">,</span> <span class="Identifier">tkPercentAssign</span> <span class="Other">=</span> <span class="StringLit">&quot;%=&quot;</span><span class="Other">,</span>
-  <span class="Identifier">tkKeywordVar</span> <span class="Other">=</span> <span class="StringLit">&quot;var&quot;</span><span class="Other">,</span> <span class="Identifier">tkKeywordLet</span> <span class="Other">=</span> <span class="StringLit">&quot;let&quot;</span><span class="Other">,</span> <span class="Identifier">tkKeywordConst</span> <span class="Other">=</span> <span class="StringLit">&quot;const&quot;</span><span class="Other">,</span>
+  <span class="Identifier">tkKeywordIs</span> <span class="Other">=</span> <span class="StringLit">&quot;is&quot;</span><span class="Other">,</span> <span class="Identifier">tkKeywordIsnot</span> <span class="Other">=</span> <span class="StringLit">&quot;isnot&quot;</span><span class="Other">,</span> <span class="Identifier">tkAnd</span> <span class="Other">=</span> <span class="StringLit">&quot;and&quot;</span><span class="Other">,</span>
+  <span class="Identifier">tkKeywordNot</span> <span class="Other">=</span> <span class="StringLit">&quot;not&quot;</span><span class="Other">,</span> <span class="Identifier">tkBacktick</span> <span class="Other">=</span> <span class="StringLit">&quot;`&quot;</span><span class="Other">,</span> <span class="Identifier">tkAt</span> <span class="Other">=</span> <span class="StringLit">&quot;@&quot;</span><span class="Other">,</span> <span class="Identifier">tkAssign</span> <span class="Other">=</span> <span class="StringLit">&quot;=&quot;</span><span class="Other">,</span>
+  <span class="Identifier">tkPlusAssign</span> <span class="Other">=</span> <span class="StringLit">&quot;+=&quot;</span><span class="Other">,</span> <span class="Identifier">tkMinusAssign</span> <span class="Other">=</span> <span class="StringLit">&quot;-=&quot;</span><span class="Other">,</span> <span class="Identifier">tkAsteriskAssign</span> <span class="Other">=</span> <span class="StringLit">&quot;*=&quot;</span><span class="Other">,</span>
+  <span class="Identifier">tkSlashAssign</span> <span class="Other">=</span> <span class="StringLit">&quot;/=&quot;</span><span class="Other">,</span> <span class="Identifier">tkPercentAssign</span> <span class="Other">=</span> <span class="StringLit">&quot;%=&quot;</span><span class="Other">,</span> <span class="Identifier">tkBang</span> <span class="Other">=</span> <span class="StringLit">&quot;!&quot;</span><span class="Other">,</span> <span class="Identifier">tkTilde</span> <span class="Other">=</span> <span class="StringLit">&quot;~&quot;</span><span class="Other">,</span>
+  <span class="Identifier">tkTildeAssign</span> <span class="Other">=</span> <span class="StringLit">&quot;~=&quot;</span><span class="Other">,</span> <span class="Identifier">tkCaret</span> <span class="Other">=</span> <span class="StringLit">&quot;^&quot;</span><span class="Other">,</span> <span class="Identifier">tkCaretAssign</span> <span class="Other">=</span> <span class="StringLit">&quot;^=&quot;</span><span class="Other">,</span>
+  <span class="Identifier">tkPipeAssign</span> <span class="Other">=</span> <span class="StringLit">&quot;|=&quot;</span><span class="Other">,</span> <span class="Identifier">tkDollarAssign</span> <span class="Other">=</span> <span class="StringLit">&quot;$=&quot;</span><span class="Other">,</span> <span class="Identifier">tkKeywordVar</span> <span class="Other">=</span> <span class="StringLit">&quot;var&quot;</span><span class="Other">,</span>
+  <span class="Identifier">tkKeywordLet</span> <span class="Other">=</span> <span class="StringLit">&quot;let&quot;</span><span class="Other">,</span> <span class="Identifier">tkKeywordConst</span> <span class="Other">=</span> <span class="StringLit">&quot;const&quot;</span><span class="Other">,</span>
   <span class="Identifier">tkKeywordFunction</span> <span class="Other">=</span> <span class="StringLit">&quot;function&quot;</span><span class="Other">,</span> <span class="Identifier">tkKeywordReturn</span> <span class="Other">=</span> <span class="StringLit">&quot;return&quot;</span><span class="Other">,</span>
   <span class="Identifier">tkKeywordIf</span> <span class="Other">=</span> <span class="StringLit">&quot;if&quot;</span><span class="Other">,</span> <span class="Identifier">tkKeywordElse</span> <span class="Other">=</span> <span class="StringLit">&quot;else&quot;</span><span class="Other">,</span> <span class="Identifier">tkKeywordElif</span> <span class="Other">=</span> <span class="StringLit">&quot;elif&quot;</span><span class="Other">,</span>
   <span class="Identifier">tkKeywordWhile</span> <span class="Other">=</span> <span class="StringLit">&quot;while&quot;</span><span class="Other">,</span> <span class="Identifier">tkKeywordFor</span> <span class="Other">=</span> <span class="StringLit">&quot;for&quot;</span><span class="Other">,</span> <span class="Identifier">tkKeywordIn</span> <span class="Other">=</span> <span class="StringLit">&quot;in&quot;</span><span class="Other">,</span>
-  <span class="Identifier">tkKeywordOf</span> <span class="Other">=</span> <span class="StringLit">&quot;of&quot;</span><span class="Other">,</span> <span class="Identifier">tkKeywordBreak</span> <span class="Other">=</span> <span class="StringLit">&quot;break&quot;</span><span class="Other">,</span> <span class="Identifier">tkKeywordContinue</span> <span class="Other">=</span> <span class="StringLit">&quot;continue&quot;</span><span class="Other">,</span>
+  <span class="Identifier">tkKeywordOf</span> <span class="Other">=</span> <span class="StringLit">&quot;of&quot;</span><span class="Other">,</span> <span class="Identifier">tkKeywordCase</span> <span class="Other">=</span> <span class="StringLit">&quot;case&quot;</span><span class="Other">,</span> <span class="Identifier">tkKeywordBreak</span> <span class="Other">=</span> <span class="StringLit">&quot;break&quot;</span><span class="Other">,</span>
+  <span class="Identifier">tkKeywordContinue</span> <span class="Other">=</span> <span class="StringLit">&quot;continue&quot;</span><span class="Other">,</span> <span class="Identifier">tkKeywordEcho</span> <span class="Other">=</span> <span class="StringLit">&quot;echo&quot;</span><span class="Other">,</span>
   <span class="Identifier">tkKeywordTrue</span> <span class="Other">=</span> <span class="StringLit">&quot;true&quot;</span><span class="Other">,</span> <span class="Identifier">tkKeywordFalse</span> <span class="Other">=</span> <span class="StringLit">&quot;false&quot;</span><span class="Other">,</span> <span class="Identifier">tkKeywordNull</span> <span class="Other">=</span> <span class="StringLit">&quot;null&quot;</span><span class="Other">,</span>
   <span class="Identifier">tkKeywordUndefined</span> <span class="Other">=</span> <span class="StringLit">&quot;undefined&quot;</span><span class="Other">,</span> <span class="Identifier">tkKeywordImport</span> <span class="Other">=</span> <span class="StringLit">&quot;import&quot;</span><span class="Other">,</span>
-  <span class="Identifier">tkKeywordIterator</span> <span class="Other">=</span> <span class="StringLit">&quot;iterator&quot;</span><span class="Other">,</span> <span class="Identifier">tkComment</span><span class="Other">,</span> <span class="Identifier">tkDocBlock</span></pre></dt>
+  <span class="Identifier">tkKeywordIterator</span> <span class="Other">=</span> <span class="StringLit">&quot;iterator&quot;</span><span class="Other">,</span> <span class="Identifier">tkKeywordMixin</span> <span class="Other">=</span> <span class="StringLit">&quot;mixin&quot;</span><span class="Other">,</span> <span class="Identifier">tkComment</span><span class="Other">,</span>
+  <span class="Identifier">tkDocBlock</span><span class="Other">,</span> <span class="Identifier">tkDocBlockBang</span></pre></dt>
   <dd>
     
     
@@ -180,9 +210,72 @@
 </div>
 
 </div>
+<div id="initToken-procs-all">
+  <div id="initToken,Lexer,staticTokenKind">
+  <dt><pre><span class="Keyword">proc</span> <a href="#initToken%2CLexer%2CstaticTokenKind"><span class="Identifier">initToken</span></a><span class="Other">(</span><span class="Identifier">lex</span><span class="Other">:</span> <span class="Keyword">var</span> <a href="#Lexer"><span class="Identifier">Lexer</span></a><span class="Other">;</span> <span class="Identifier">kind</span><span class="Other">:</span> <span class="Keyword">static</span> <a href="#TokenKind"><span class="Identifier">TokenKind</span></a><span class="Other">)</span><span class="Other">:</span> <a href="#TokenTuple"><span class="Identifier">TokenTuple</span></a></pre></dt>
+  <dd>
+    
+    
+    
+  </dd>
+</div>
+<div id="initToken,Lexer,staticTokenKind,int,int,int,int">
+  <dt><pre><span class="Keyword">proc</span> <a href="#initToken%2CLexer%2CstaticTokenKind%2Cint%2Cint%2Cint%2Cint"><span class="Identifier">initToken</span></a><span class="Other">(</span><span class="Identifier">lex</span><span class="Other">:</span> <span class="Keyword">var</span> <a href="#Lexer"><span class="Identifier">Lexer</span></a><span class="Other">;</span> <span class="Identifier">kind</span><span class="Other">:</span> <span class="Keyword">static</span> <a href="#TokenKind"><span class="Identifier">TokenKind</span></a><span class="Other">;</span> <span class="Identifier">line</span><span class="Other">,</span> <span class="Identifier">col</span><span class="Other">,</span> <span class="Identifier">pos</span><span class="Other">,</span> <span class="Identifier">wsno</span><span class="Other">:</span> <span class="Identifier">int</span><span class="Other">)</span><span class="Other">:</span> <a href="#TokenTuple"><span class="Identifier">TokenTuple</span></a></pre></dt>
+  <dd>
+    
+    
+    
+  </dd>
+</div>
+<div id="initToken,Lexer,sinkstring,TokenKind,int,int,int,int">
+  <dt><pre><span class="Keyword">proc</span> <a href="#initToken%2CLexer%2Csinkstring%2CTokenKind%2Cint%2Cint%2Cint%2Cint"><span class="Identifier">initToken</span></a><span class="Other">(</span><span class="Identifier">lex</span><span class="Other">:</span> <span class="Keyword">var</span> <a href="#Lexer"><span class="Identifier">Lexer</span></a><span class="Other">;</span> <span class="Identifier">value</span><span class="Other">:</span> <span class="Identifier">sink</span> <span class="Identifier">string</span><span class="Other">;</span> <span class="Identifier">kind</span><span class="Other">:</span> <a href="#TokenKind"><span class="Identifier">TokenKind</span></a><span class="Other">;</span>
+               <span class="Identifier">line</span><span class="Other">,</span> <span class="Identifier">col</span><span class="Other">,</span> <span class="Identifier">pos</span><span class="Other">,</span> <span class="Identifier">wsno</span><span class="Other">:</span> <span class="Identifier">int</span><span class="Other">)</span><span class="Other">:</span> <a href="#TokenTuple"><span class="Identifier">TokenTuple</span></a> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+    <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+  <dd>
+    
+    
+    
+  </dd>
+</div>
+
+</div>
 <div id="newLexer-procs-all">
   <div id="newLexer,string">
   <dt><pre><span class="Keyword">proc</span> <a href="#newLexer%2Cstring"><span class="Identifier">newLexer</span></a><span class="Other">(</span><span class="Identifier">input</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">)</span><span class="Other">:</span> <a href="#Lexer"><span class="Identifier">Lexer</span></a> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+  <dd>
+    
+    
+    
+  </dd>
+</div>
+
+</div>
+<div id="peek-procs-all">
+  <div id="peek,Lexer,int">
+  <dt><pre><span class="Keyword">proc</span> <a href="#peek%2CLexer%2Cint"><span class="Identifier">peek</span></a><span class="Other">(</span><span class="Identifier">lex</span><span class="Other">:</span> <a href="#Lexer"><span class="Identifier">Lexer</span></a><span class="Other">;</span> <span class="Identifier">offset</span> <span class="Other">=</span> <span class="DecNumber">1</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">char</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+  <dd>
+    
+    
+    
+  </dd>
+</div>
+
+</div>
+<div id="peekToken-procs-all">
+  <div id="peekToken,Lexer,string">
+  <dt><pre><span class="Keyword">proc</span> <a href="#peekToken%2CLexer%2Cstring"><span class="Identifier">peekToken</span></a><span class="Other">(</span><span class="Identifier">lex</span><span class="Other">:</span> <a href="#Lexer"><span class="Identifier">Lexer</span></a><span class="Other">;</span> <span class="Identifier">expectToken</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">bool</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+    <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+  <dd>
+    
+    
+    
+  </dd>
+</div>
+
+</div>
+<div id="skipWhitespace-procs-all">
+  <div id="skipWhitespace,Lexer">
+  <dt><pre><span class="Keyword">proc</span> <a href="#skipWhitespace%2CLexer"><span class="Identifier">skipWhitespace</span></a><span class="Other">(</span><span class="Identifier">lex</span><span class="Other">:</span> <span class="Keyword">var</span> <a href="#Lexer"><span class="Identifier">Lexer</span></a><span class="Other">)</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
   <dd>
     
     
@@ -201,7 +294,7 @@
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2026-07-30 19:56:54 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2026-08-31 19:01:42 UTC</small>
       </div>
     </div>
   </div>

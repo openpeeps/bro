@@ -36,6 +36,7 @@ nim	tkOr	bro/engine/lexer.html#tkOr	TokenKind.tkOr		10
 nim	tkKeywordIs	bro/engine/lexer.html#tkKeywordIs	TokenKind.tkKeywordIs		10
 nim	tkKeywordIsnot	bro/engine/lexer.html#tkKeywordIsnot	TokenKind.tkKeywordIsnot		10
 nim	tkAnd	bro/engine/lexer.html#tkAnd	TokenKind.tkAnd		10
+nim	tkKeywordNot	bro/engine/lexer.html#tkKeywordNot	TokenKind.tkKeywordNot		10
 nim	tkBacktick	bro/engine/lexer.html#tkBacktick	TokenKind.tkBacktick		10
 nim	tkAt	bro/engine/lexer.html#tkAt	TokenKind.tkAt		10
 nim	tkAssign	bro/engine/lexer.html#tkAssign	TokenKind.tkAssign		10
@@ -44,6 +45,13 @@ nim	tkMinusAssign	bro/engine/lexer.html#tkMinusAssign	TokenKind.tkMinusAssign		1
 nim	tkAsteriskAssign	bro/engine/lexer.html#tkAsteriskAssign	TokenKind.tkAsteriskAssign		10
 nim	tkSlashAssign	bro/engine/lexer.html#tkSlashAssign	TokenKind.tkSlashAssign		10
 nim	tkPercentAssign	bro/engine/lexer.html#tkPercentAssign	TokenKind.tkPercentAssign		10
+nim	tkBang	bro/engine/lexer.html#tkBang	TokenKind.tkBang		10
+nim	tkTilde	bro/engine/lexer.html#tkTilde	TokenKind.tkTilde		10
+nim	tkTildeAssign	bro/engine/lexer.html#tkTildeAssign	TokenKind.tkTildeAssign		10
+nim	tkCaret	bro/engine/lexer.html#tkCaret	TokenKind.tkCaret		10
+nim	tkCaretAssign	bro/engine/lexer.html#tkCaretAssign	TokenKind.tkCaretAssign		10
+nim	tkPipeAssign	bro/engine/lexer.html#tkPipeAssign	TokenKind.tkPipeAssign		10
+nim	tkDollarAssign	bro/engine/lexer.html#tkDollarAssign	TokenKind.tkDollarAssign		10
 nim	tkKeywordVar	bro/engine/lexer.html#tkKeywordVar	TokenKind.tkKeywordVar		10
 nim	tkKeywordLet	bro/engine/lexer.html#tkKeywordLet	TokenKind.tkKeywordLet		10
 nim	tkKeywordConst	bro/engine/lexer.html#tkKeywordConst	TokenKind.tkKeywordConst		10
@@ -56,18 +64,29 @@ nim	tkKeywordWhile	bro/engine/lexer.html#tkKeywordWhile	TokenKind.tkKeywordWhile
 nim	tkKeywordFor	bro/engine/lexer.html#tkKeywordFor	TokenKind.tkKeywordFor		10
 nim	tkKeywordIn	bro/engine/lexer.html#tkKeywordIn	TokenKind.tkKeywordIn		10
 nim	tkKeywordOf	bro/engine/lexer.html#tkKeywordOf	TokenKind.tkKeywordOf		10
+nim	tkKeywordCase	bro/engine/lexer.html#tkKeywordCase	TokenKind.tkKeywordCase		10
 nim	tkKeywordBreak	bro/engine/lexer.html#tkKeywordBreak	TokenKind.tkKeywordBreak		10
 nim	tkKeywordContinue	bro/engine/lexer.html#tkKeywordContinue	TokenKind.tkKeywordContinue		10
+nim	tkKeywordEcho	bro/engine/lexer.html#tkKeywordEcho	TokenKind.tkKeywordEcho		10
 nim	tkKeywordTrue	bro/engine/lexer.html#tkKeywordTrue	TokenKind.tkKeywordTrue		10
 nim	tkKeywordFalse	bro/engine/lexer.html#tkKeywordFalse	TokenKind.tkKeywordFalse		10
 nim	tkKeywordNull	bro/engine/lexer.html#tkKeywordNull	TokenKind.tkKeywordNull		10
 nim	tkKeywordUndefined	bro/engine/lexer.html#tkKeywordUndefined	TokenKind.tkKeywordUndefined		10
 nim	tkKeywordImport	bro/engine/lexer.html#tkKeywordImport	TokenKind.tkKeywordImport		10
 nim	tkKeywordIterator	bro/engine/lexer.html#tkKeywordIterator	TokenKind.tkKeywordIterator		10
+nim	tkKeywordMixin	bro/engine/lexer.html#tkKeywordMixin	TokenKind.tkKeywordMixin		10
 nim	tkComment	bro/engine/lexer.html#tkComment	TokenKind.tkComment		10
 nim	tkDocBlock	bro/engine/lexer.html#tkDocBlock	TokenKind.tkDocBlock		10
+nim	tkDocBlockBang	bro/engine/lexer.html#tkDocBlockBang	TokenKind.tkDocBlockBang		10
 nim	TokenKind	bro/engine/lexer.html#TokenKind	enum TokenKind		10
-nim	TokenTuple	bro/engine/lexer.html#TokenTuple	tuple TokenTuple		81
-nim	Lexer	bro/engine/lexer.html#Lexer	object Lexer		89
-nim	newLexer	bro/engine/lexer.html#newLexer,string	proc newLexer(input: string): Lexer		96
-nim	getToken	bro/engine/lexer.html#getToken,Lexer	proc getToken(lex: var Lexer): TokenTuple		414
+nim	TokenTuple	bro/engine/lexer.html#TokenTuple	tuple TokenTuple		93
+nim	Lexer	bro/engine/lexer.html#Lexer	object Lexer		101
+nim	newLexer	bro/engine/lexer.html#newLexer,string	proc newLexer(input: string): Lexer		108
+nim	peek	bro/engine/lexer.html#peek,Lexer,int	proc peek(lex: Lexer; offset = 1): char		132
+nim	peekToken	bro/engine/lexer.html#peekToken,Lexer,string	proc peekToken(lex: Lexer; expectToken: string): bool		136
+nim	skipWhitespace	bro/engine/lexer.html#skipWhitespace,Lexer	proc skipWhitespace(lex: var Lexer)		146
+nim	initToken	bro/engine/lexer.html#initToken,Lexer,staticTokenKind,int,int,int,int	proc initToken(lex: var Lexer; kind: static TokenKind; line, col, pos, wsno: int): TokenTuple		150
+nim	initToken	bro/engine/lexer.html#initToken,Lexer,sinkstring,TokenKind,int,int,int,int	proc initToken(lex: var Lexer; value: sink string; kind: TokenKind;\n          line, col, pos, wsno: int): TokenTuple		153
+nim	initToken	bro/engine/lexer.html#initToken,Lexer,staticTokenKind	proc initToken(lex: var Lexer; kind: static TokenKind): TokenTuple		156
+nim	getToken	bro/engine/lexer.html#getToken,Lexer	proc getToken(lex: var Lexer): TokenTuple		539
+nimgrp	inittoken	bro/engine/lexer.html#initToken-procs-all	proc		150
