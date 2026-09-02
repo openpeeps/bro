@@ -64,8 +64,7 @@ proc compileWithTimings(code, path: string, pretty, withMap: bool): (string, str
   let arraysModule = libarrays.initArrays(script, systemModule)
   module.load(arraysModule)
   script.stdpos = script.procs.high
-  var gen = initCodeGen(script, module, mainChunk,
-    pkgr = nil, parserCallback = nil)
+  var gen = initCodeGen(script, module, mainChunk, parserCallback = nil)
   gen.genScript(program, none(string))
   let tGen1 = getMonoTime()
   tm.codegenMs = (tGen1 - tGen0).inMicroseconds.float / 1000.0

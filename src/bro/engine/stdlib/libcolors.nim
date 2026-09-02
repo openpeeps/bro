@@ -5,12 +5,18 @@
 #          https://github.com/openpeeps/bro
 
 import std/options
-import pkg/chroma
+import pkg/openparser/colors
 import pkg/vancode/interpreter/[chunk, sym, value]
 
 import ./inliner
 
 const tyColor* = 20
+
+proc toPercent(amount: float): float {.inline.} =
+  if amount > 0.0 and amount < 1.0: amount * 100.0 else: amount
+
+proc toWeight(weight: float): float {.inline.} =
+  if weight > 0.0 and weight < 1.0: weight * 100.0 else: weight
 
 proc resolveColor(v: Value): Color =
   case v.typeId
@@ -32,11 +38,11 @@ proc resolveColor(v: Value): Color =
       elif hex.len == 8:
         parseHexAlpha(s)
       else:
-        Color(r: 0, g: 0, b: 0, a: 1)
+        initColor(0, 0, 0)
     elif s.len == 6: parseHex(s)
     elif s.len == 8: parseHexAlpha(s)
-    else: Color(r: 0, g: 0, b: 0, a: 1)
-  else: Color(r: 0, g: 0, b: 0, a: 1)
+    else: initColor(0, 0, 0)
+  else: initColor(0, 0, 0)
 
 proc initColors*(script: Script, systemModule: Module): Module =
   result = newModule("colors", some"std::colors")
@@ -46,34 +52,34 @@ proc initColors*(script: Script, systemModule: Module): Module =
   # lighten
   script.addProc(result, "lighten", @[paramDef("color", ttyColor), paramDef("amount", ttyFloat)], ttyColor,
     proc (args: StackView, argc: int): Value =
-      initValue(tyColor, lighten(resolveColor(args[0]), args[1].floatVal)))
+      initValue(tyColor, lighten(resolveColor(args[0]), toPercent(args[1].floatVal))))
   script.addProc(result, "lighten", @[paramDef("color", ttyString), paramDef("amount", ttyFloat)], ttyColor,
     proc (args: StackView, argc: int): Value =
-      initValue(tyColor, lighten(resolveColor(args[0]), args[1].floatVal)))
+      initValue(tyColor, lighten(resolveColor(args[0]), toPercent(args[1].floatVal))))
 
   # darken
   script.addProc(result, "darken", @[paramDef("color", ttyColor), paramDef("amount", ttyFloat)], ttyColor,
     proc (args: StackView, argc: int): Value =
-      initValue(tyColor, darken(resolveColor(args[0]), args[1].floatVal)))
+      initValue(tyColor, darken(resolveColor(args[0]), toPercent(args[1].floatVal))))
   script.addProc(result, "darken", @[paramDef("color", ttyString), paramDef("amount", ttyFloat)], ttyColor,
     proc (args: StackView, argc: int): Value =
-      initValue(tyColor, darken(resolveColor(args[0]), args[1].floatVal)))
+      initValue(tyColor, darken(resolveColor(args[0]), toPercent(args[1].floatVal))))
 
   # saturate
   script.addProc(result, "saturate", @[paramDef("color", ttyColor), paramDef("amount", ttyFloat)], ttyColor,
     proc (args: StackView, argc: int): Value =
-      initValue(tyColor, saturate(resolveColor(args[0]), args[1].floatVal)))
+      initValue(tyColor, saturate(resolveColor(args[0]), toPercent(args[1].floatVal))))
   script.addProc(result, "saturate", @[paramDef("color", ttyString), paramDef("amount", ttyFloat)], ttyColor,
     proc (args: StackView, argc: int): Value =
-      initValue(tyColor, saturate(resolveColor(args[0]), args[1].floatVal)))
+      initValue(tyColor, saturate(resolveColor(args[0]), toPercent(args[1].floatVal))))
 
   # desaturate
   script.addProc(result, "desaturate", @[paramDef("color", ttyColor), paramDef("amount", ttyFloat)], ttyColor,
     proc (args: StackView, argc: int): Value =
-      initValue(tyColor, desaturate(resolveColor(args[0]), args[1].floatVal)))
+      initValue(tyColor, desaturate(resolveColor(args[0]), toPercent(args[1].floatVal))))
   script.addProc(result, "desaturate", @[paramDef("color", ttyString), paramDef("amount", ttyFloat)], ttyColor,
     proc (args: StackView, argc: int): Value =
-      initValue(tyColor, desaturate(resolveColor(args[0]), args[1].floatVal)))
+      initValue(tyColor, desaturate(resolveColor(args[0]), toPercent(args[1].floatVal))))
 
   # spin
   script.addProc(result, "spin", @[paramDef("color", ttyColor), paramDef("degrees", ttyFloat)], ttyColor,
@@ -100,10 +106,10 @@ proc initColors*(script: Script, systemModule: Module): Module =
   # mix with weight
   script.addProc(result, "mix", @[paramDef("a", ttyColor), paramDef("b", ttyColor), paramDef("v", ttyFloat)], ttyColor,
     proc (args: StackView, argc: int): Value =
-      initValue(tyColor, mix(resolveColor(args[0]), resolveColor(args[1]), args[2].floatVal)))
+      initValue(tyColor, mix(resolveColor(args[0]), resolveColor(args[1]), toWeight(args[2].floatVal))))
   script.addProc(result, "mix", @[paramDef("a", ttyString), paramDef("b", ttyString), paramDef("v", ttyFloat)], ttyColor,
     proc (args: StackView, argc: int): Value =
-      initValue(tyColor, mix(resolveColor(args[0]), resolveColor(args[1]), args[2].floatVal)))
+      initValue(tyColor, mix(resolveColor(args[0]), resolveColor(args[1]), toWeight(args[2].floatVal))))
 
   # mixCMYK
   script.addProc(result, "mixCMYK", @[paramDef("a", ttyColor), paramDef("b", ttyColor)], ttyColor,

@@ -1,55 +1,170 @@
 <p align="center">
   <img src="https://github.com/openpeeps/bro/blob/main/.github/bro.png" alt="Bro" width="170px"><br>
-  😋 Bro ⚡ A super fast stylesheet language for cool kids!<br>👑 Written in Nim language
+  Bro — Compiled CSS Preprocessor
 </p>
 
 <p align="center">
-  <a href="https://openpeeps.github.io/bro/theindex.html">API reference</a> | <a href="#">Download</a> (not yet)<br>
-  <img src="https://github.com/openpeeps/bro/workflows/test/badge.svg" alt="Github Actions">  <img src="https://github.com/openpeeps/bro/workflows/docs/badge.svg" alt="Github Actions">
+  <a href="https://openpeeps.github.io/bro/theindex.html">API Reference</a> |
+  <a href="https://bro.openpeeps.dev/">Documentation</a><br>
+  <img src="https://github.com/openpeeps/bro/workflows/test/badge.svg" alt="Github Actions"> <img src="https://github.com/openpeeps/bro/workflows/docs/badge.svg" alt="Github Actions">
 </p>
 
-## Key features
-- Compiled, fast, memory efficient!
-- Super fast VM and JIT Compiler
-- AST generator for efficient storing
-- Powerful typed system ~ no bullshit
-- CSS syntax + powerful features
-- Custom type definition
-- Var assignment (`var`, `const`)
-- Control flow (`if`, `elif`, `else`), `for` and `while` loops
-- Powerful Standard Library
-- Functions (function overloading and forward declaration)
-- Built-in package manager and file watcher for development
-- Cross-platform support (Windows, macOS, Linux)
-- Written in 👑 Nim language
+## Overview
 
-## About this
-Bro is a new stylesheet language that transpiles to CSS. It is designed to be super fast, easy to learn, and powerful enough for real-world projects. Bro is still in early development, but it already has a lot of features that make it a great choice for styling your web projects.
+Bro transpiles BASS files to standard CSS. It is written in Nim and designed for fast compilation, a typed system that catches errors early, and syntax that stays close to CSS while adding variables, nesting, mixins, control flow, and modules.
 
-Are you looking for a template engine for your web projects? Check out [Tim Engine](https://github.com/openpeeps/tim) &bullet; A super fast template engine for cool kids!
+BASS files use the `.bass` extension and compile to `.css`.
 
-## Installation
-Bro is written in Nim, so you need to have Nim installed on your system to use it. You can install Nim from the official website: https://nim-lang.org/install.html
+## Features
 
-Once you have Nim installed, you can install Bro using Nim's package manager, Nimble:
-```
+- Compiled to native code with a fast VM and ahead-of-time code generation
+- Typed system for CSS values (`color`, `length`, `number`, etc.) with compile-time checks
+- Familiar CSS syntax with indentation or brace blocks
+- Variables (`let`, `var`, `const`) with optional type annotations and export (`*`)
+- Nesting with parent selector `&`, combinators, and comma-separated selectors
+- Reusable mixins with typed parameters and named arguments
+- Control flow (`if` / `elif` / `else`, `for`, `while`, `case` / `of`) and functions (`fn` / `func`)
+- Module imports (`import "./vars.bass"`) and package imports (`pkg/`)
+- Modern CSS passthrough: custom properties, `var()`, `calc()`, `color-mix()`, gradients, and at-rules
+- Source maps, bundling, and pretty-printed output
+
+## Quick Start
+
+### Installation
+
+Requires Nim >= 2.0.0 (https://nim-lang.org/install.html).
+
+```sh
 nimble install bro
 ```
 
-## Usage
-Once installed, you can use Bro from the command line to transpile BASS (Bro's Awesome Style Sheets) files to CSS! Crazy! Type `bro -h` for more options.
+### Compile
 
+```sh
+bro c style.bass -o style.css        # compile to CSS (minified by default)
+bro c style.bass --pretty -o style.css  # pretty-printed output
+bro c style.bass --watch             # recompile on change
+bro -h                               # all options
+```
+
+Source maps are supported with `--sourceMap`.
+
+## Syntax Showcase
+
+All examples are minified by default. Add `--pretty` for formatted output.
+
+### 1. Variables
+
+```bass
+let $primary = #0d6efd
+let $radius = 4px
+
+.card
+  color: $primary
+  border-radius: $radius
+```
+```css
+.card{color:#0d6efd;border-radius:4px}
+```
+Variables use `let` / `var` / `const`, support interpolation (`$primary`), and are checked against CSS property types — the compiler rejects mismatches such as `width: red`.
+
+### 2. Nesting
+
+```bass
+.card
+  color: gray
+  &:hover
+    color: black
+  .title
+    font-weight: bold
+```
+```css
+.card{color:gray}.card:hover{color:black}.card .title{font-weight:bold}
+```
+Supports `&` for pseudo-classes, combinators (`& > .item`, `& + .item`), and comma-separated parents. Brace syntax works as well: `.card { &:hover { color: black } }`.
+
+### 3. Mixins
+
+```bass
+mixin btn(color: color)
+  color: $color
+  border-radius: 4px
+
+.a
+  @btn(red)
+```
+```css
+.a{color:red;border-radius:4px}
+```
+Mixins accept typed parameters, support named arguments (`@box($h = 5px, $w = 10px)`), and can contain nested selectors.
+
+### 4. Control Flow and Code Generation
+
+```bass
+for $i in range(1, 3):
+  .p-${$i}
+    z-index: $i
+```
+```css
+.p-1{z-index:1}.p-2{z-index:2}.p-3{z-index:3}
+```
+Other constructs:
+
+```bass
+let $debug = true
+.a
+  if $debug:
+    outline: 1px
+  else:
+    outline: none
+```
+
+`for` also iterates over arrays of objects (`for $s in [{k:0,v:0}, {k:1,v:0.25rem}]`), `while`, and `case` / `of` are available.
+
+### 5. Imports
+
+```bass
+// _vars.bass
+let $accent* = #0d6efd
+let $radius* = 4px
+
+// main.bass
+import "./_vars.bass"
+.a
+  color: $accent
+  border-radius: $radius
+```
+```css
+.a{color:#0d6efd;border-radius:4px}
+```
+Export with `*`, import relative files or packages.
+
+### 6. Functions
+
+```bass
+fn dbl($n: int): int
+  return $n * 2
+
+let $p = dbl(21)
+.a { z-index: $p }
+```
+```css
+.a{z-index:42}
+```
+`func` is an alias for `fn`. Functions support overloading and forward declarations.
 
 ## Documentation
-- [API Reference](https://openpeeps.github.io/bro/)
+
+- [API Reference](https://openpeeps.github.io/bro/theindex.html)
 - [Official Documentation](https://bro.openpeeps.dev/)
 
-### ❤ Contributions & Support
-- 🐛 Found a bug? [Create a new Issue](https://github.com/openpeeps/bro/issues)
-- 👋 Wanna help? [Fork it!](https://github.com/openpeeps/bro/fork)
-- 🎉 Spread the word! **Tell your friends about Bro!**
-- 😋 Use Bro in your next awesome project!
+## Contributing
 
-### 🎩 License
-Bro | `LGPLv3` license. [Made by Humans from OpenPeeps](https://github.com/openpeeps).<br>
-Copyright &copy; 2026 OpenPeeps & Contributors &mdash; All rights reserved.
+- Report a bug: [Create an issue](https://github.com/openpeeps/bro/issues)
+- Contribute code: [Fork the repository](https://github.com/openpeeps/bro/fork)
+- Questions or feedback: open an issue or discussion.
+
+## License
+
+Bro is released under the `LGPL-3.0-or-later` license. Made by Humans from OpenPeeps.<br>
+Copyright &copy; 2026 OpenPeeps & Contributors — All rights reserved.
