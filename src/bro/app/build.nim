@@ -13,7 +13,7 @@ import pkg/vancode/interpreter/[ast, codegen, chunk, sym, vm, value, resolver, m
 
 import ../engine/parser
 import ../engine/sourcemap
-import ../engine/stdlib/[libsystem, libarrays, libcolors]
+import ../engine/stdlib/[libsystem, libarrays, libcolors, libcss]
 
 proc parserCallback(astProgram: var Ast, path: string, resolver: FileResolver) =
   parser.parseScript(astProgram, readFile(path), path)
@@ -95,6 +95,9 @@ proc compileCode(filePath: string,
   let arraysModule = libarrays.initArrays(script, systemModule)
   module.load(arraysModule)
 
+  let cssModule = libcss.initCssTypes(script, systemModule)
+  module.load(cssModule)
+
   script.stdpos = script.procs.high
 
   # compile the code and handle any errors
@@ -127,6 +130,7 @@ proc compileCode(filePath: string,
         writeFile(outputFilePath, cssOutput)
   except CodeGenError as e:
     displayError(e.msg)
+    quit(1)
   except CatchableError as e:
     # Safety net: catch any unhandled validation errors from the codegen
     displayError("internal error: " & e.msg)

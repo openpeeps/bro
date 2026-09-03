@@ -339,7 +339,8 @@ suite "parser tests":
     for x in ast.nodes[0].children[^1]:
       assert x.kind == nkColon
       if x[0].ident == "color":
-        assert x[1].ident == "red"
+        assert x[1].kind == nkColor
+        assert x[1][0].stringVal == "red"
       elif x[0].ident == "font-size":
         assert x[1].kind == nkUnit
         assert x[1][0].intVal == 16

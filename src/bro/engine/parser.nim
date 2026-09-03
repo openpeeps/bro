@@ -7,6 +7,7 @@
 import std/[strutils, tables, macros, options]
 import pkg/vancode/interpreter/[errors, ast]
 from pkg/openparser/css import loadCssData, getPropertySyntax, CssData
+import pkg/openparser/colors/names as colornames
 
 import ./lexer
 
@@ -254,6 +255,52 @@ prefixHandle parseIdent:
   result = ast.newIdent(p.curr.value)
   walk p # tkIdentifier
 
+proc convertNamedColor(p: var Parser, val: Node, hexify: bool): Node =
+  ## Type a bare named color / transparent identifier as nkColor.
+  ## hexify=true (variable initializers) resolves names to their hex spelling,
+  ## preserving the legacy `var $primary = red` -> #FF0000 conversion.
+  ## hexify=false keeps the raw spelling (property values, call args).
+  ## `$vars`, calls and non-identifiers pass through untouched.
+  result = val
+  if val == nil or val.kind != nkIdent: return
+  if val.ident.len == 0 or val.ident[0] == '$': return
+  let lower = val.ident.toLowerAscii()
+  var raw = ""
+  if lower == "transparent":
+    raw = "transparent"
+  elif lower == "currentcolor":
+    return
+  else:
+    colornames.initNamedTable()
+    if not colornames.namedTable.hasKey(lower): return
+    raw = lower
+    if hexify:
+      let rgb = colornames.namedTable[lower]
+      raw = "#" & rgb.r.toHex(2) & rgb.g.toHex(2) & rgb.b.toHex(2)
+  result = ast.newNode(nkColor)
+  result.add(ast.newStringLit(raw))
+  result.ln = val.ln; result.col = val.col
+
+proc normVarName*(name: string): string =
+  ## Normalize a declared variable name: `var accent` registers `$accent`.
+  ## `$` is required at use sites; already-prefixed (and `-`-prefixed,
+  ## e.g. custom properties) names pass through untouched.
+  if name.len > 0 and name[0] != '$' and name[0] != '-':
+    "$" & name
+  else:
+    name
+
+proc normVarNode*(node: Node): Node =
+  ## Apply normVarName to a declaration target (`nkIdent`, possibly wrapped
+  ## in an export-marker `nkPostfix`). Anything else passes through.
+  result = node
+  if node == nil: return
+  if node.kind == nkIdent and node.ident.len > 0:
+    node.ident = normVarName(node.ident)
+  elif node.kind == nkPostfix and node.len == 2 and node[1].kind == nkIdent and
+      node[1].ident.len > 0:
+    node[1].ident = normVarName(node[1].ident)
+
 prefixHandle parseCall:
   # parse a function call
   result = ast.newCall(ast.newIdent(p.curr.value))
@@ -282,12 +329,12 @@ prefixHandle parseCall:
           let name = ast.newIdent(p.curr.value)
           walk p # tkIdentifier
           walk p # tkAssign
-          let value = p.parseExpression()
+          let value = p.convertNamedColor(p.parseExpression(), hexify = false)
           let namedArg = ast.newTree(nkColon, name, value)
           result.add(namedArg)
         else:
           # parse a normal argument
-          let arg = p.parseExpression()
+          let arg = p.convertNamedColor(p.parseExpression(), hexify = false)
           caseNotNil arg:
             result.add(arg)
         continue
@@ -307,9 +354,20 @@ prefixHandle parseBoolLit:
   result = ast.newBoolLit(p.curr.kind == tkKeywordTrue)
   walk p
 
-const unitSizeSuffixes = ["px", "em", "rem", "%", "vh", "vw", "vmin", "vmax",
+const unitSizeSuffixes* = ["px", "em", "rem", "%", "vh", "vw", "vmin", "vmax",
   "s", "ms", "deg", "rad", "grad", "turn", "dpi", "dpcm", "dppx",
   "Hz", "kHz", "fr", "ch", "ex", "cm", "mm", "in", "pt", "pc"]
+
+const broValueFnNames* = ["lighten", "darken", "saturate", "desaturate", "spin",
+  "mix", "mixCMYK", "toHex", "toHexAlpha", "toHtmlHex", "parseHex",
+  "parseHexAlpha", "parseHtmlHex", "parseColor", "parseHtmlName",
+  "parseHtmlColor", "distance", "almostEqual", "parseLength", "parseAngle",
+  "parseTime", "parseResolution", "parseFlex"]
+  ## Bro stdlib procs that construct or combine strictly typed CSS values
+  ## (see stdlib/libcolors, stdlib/libcss). Calls to these names in property
+  ## value position parse as real calls so they evaluate to typed values;
+  ## every other `name(...)` stays opaque raw CSS text (rgb, var, calc,
+  ## linear-gradient, ...).
 
 prefixHandle parseNumber:
   # parse a number (int or float)
@@ -452,7 +510,7 @@ proc parseIdentDefs(p: var Parser): Node {.rule.} =
       of tkAssign:
         # parse an implicit assignment
         walk p # tkAssign
-        val = p.parseExpression(minPrec = 0)
+        val = p.convertNamedColor(p.parseExpression(minPrec = 0), hexify = true)
         break
       of tkComma:
         # parse a comma separated list of identifiers
@@ -485,9 +543,10 @@ proc parseVarIdent(p: var Parser): Node {.rule.} =
     # check for an assignment
     if p.curr.kind == tkAssign:
       walk p  # Consume `=`
-      val = p.parseExpression()
-    # add the identifier, type, and value to the result
-    result.add(ast.newTree(nkAssign, identNode, ty, val))
+      val = p.convertNamedColor(p.parseExpression(), hexify = true)
+    # add the identifier, type, and value to the result.
+    # Bare declarations (`var accent`) register as `$accent`.
+    result.add(ast.newTree(nkAssign, normVarNode(identNode), ty, val))
     if p.curr.kind == tkComma:
       if p.next.kind == tkIdentifier and p.next.col == identNode.col:
         walk p # tkComma
@@ -691,9 +750,14 @@ proc parseValueList(p: var Parser): Node =
     # CSS function calls (rgb, var, calc, linear-gradient, url, etc.)
     # are collected as opaque raw text to preserve internal spacing
     # verbatim for modern CSS syntax like `rgb(13 110 253 / 50%)`.
+    # Calls to known bro value functions (lighten, mix, parseLength, ...)
+    # parse as real calls so they evaluate to strictly typed values.
     elif p.curr.kind == tkIdentifier and
         p.next.kind == tkLParen and p.next.line == p.curr.line and p.next.wsno == 0:
-      exprNode = p.collectRawCall()
+      if p.curr.value in broValueFnNames:
+        exprNode = p.parseCall()
+      else:
+        exprNode = p.collectRawCall()
     elif p.curr.kind == tkKeywordVar and p.next.kind == tkLParen and p.next.line == p.curr.line:
       exprNode = p.collectRawCall()
     # In value context, true/false/null are rendered as text, not evaluated.
@@ -704,6 +768,10 @@ proc parseValueList(p: var Parser): Node =
     else:
       exprNode = p.parseExpression()
     caseNotNil exprNode:
+      # Named colors (red, blue, ...) and transparent are typed color in value
+      # position, keeping the raw spelling (`color: red` stays `color:red`).
+      # $vars, function calls and multi-node exprs pass through untouched.
+      exprNode = p.convertNamedColor(exprNode, hexify = false)
       values.add(exprNode)
     # Stop if next token is semicolon, block end, or newline
     case p.curr.kind
@@ -1381,13 +1449,16 @@ prefixHandle parseFor:
                       newBlockChildren.add(stmt)
                   newChild[3] = ast.newTree(nkBlock, newBlockChildren)
               result.add(newChild)
-        elif (iterExpr.kind == nkArray) or (iterExpr.kind == nkIdent and p.arrayLits.hasKey(iterExpr.ident)):
+        elif (iterExpr.kind == nkArray) or (iterExpr.kind == nkIdent and
+            (p.arrayLits.hasKey(iterExpr.ident) or p.arrayLits.hasKey(normVarName(iterExpr.ident)))):
           # array-of-objects unroll (e.g. for $s in [{k:0,v:0}, {k:1,v:0.25rem}] or for $s in $spacings)
           var arrNode: Node
           if iterExpr.kind == nkArray:
             arrNode = iterExpr
-          else:
+          elif p.arrayLits.hasKey(iterExpr.ident):
             arrNode = p.arrayLits[iterExpr.ident]
+          else:
+            arrNode = p.arrayLits[normVarName(iterExpr.ident)]
           var arrVar = if itemVar.kind == nkIdent: itemVar.ident else: ""
           if arrVar.len > 0 and arrVar[0] == '$':
             arrVar = arrVar[1..^1]
@@ -1418,6 +1489,7 @@ prefixHandle parseFor:
                   b = $(n[0].floatVal)
                   if b.endsWith(".0"): b.setLen(b.len - 2)
                 b & n[1].ident
+              of nkColor: n[0].stringVal
               of nkIdent: n.ident
               else: ""
             proc fieldStr(obj: Node, field: string): string =
@@ -2107,7 +2179,9 @@ prefixHandle parseUniversalSelector:
                 ast.newEmpty(), ast.newEmpty(), propsBlock)
 
 prefixHandle parseHash:
-  # Collect a hex color: #fff, #0d6efd, #123 (all attached tokens)
+  # Collect a hex color: #fff, #0d6efd, #123 (all attached tokens) -> nkColor
+  let hln = p.curr.line
+  let hcol = p.curr.col
   var val = "#"
   walk p # tkHash
   while p.curr.kind in {tkIdentifier, tkInt, tkFloat} and p.curr.wsno == 0:
@@ -2115,7 +2189,9 @@ prefixHandle parseHash:
     walk p
   if val.len == 1:
     val = "#"
-  result = ast.newStringLit(val)
+  result = ast.newNode(nkColor)
+  result.add(ast.newStringLit(val))
+  result.ln = hln; result.col = hcol
 
 prefixHandle parseNot:
   walk p # tkKeywordNot
@@ -2458,7 +2534,7 @@ proc parseScript*(astProgram: var Ast, code: sink string, sourcePath: string) =
     caseNotNil node:
       # reject bare literals/identifiers at document level — they produce no
       # CSS and usually indicate a typo (e.g. `$$$` or a stray number)
-      if node.kind in {nkIdent, nkInt, nkFloat, nkString, nkBool}:
+      if node.kind in {nkIdent, nkInt, nkFloat, nkString, nkBool, nkColor}:
         p.curr.error("unexpected statement at document level", fatal = true)
       astProgram.nodes.add(node)
     do:

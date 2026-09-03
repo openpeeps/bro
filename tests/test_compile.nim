@@ -8,7 +8,16 @@ import ../src/bro/engine/parser
 import pkg/vancode/interpreter/[ast, codegen, chunk, sym, vm, value]
 import pkg/vancode/interpreter/resolver
 
-import ../src/bro/engine/stdlib/[libsystem]
+import ../src/bro/engine/stdlib/[libsystem, libarrays, libcolors, libcss]
+
+proc loadFullStdlib(script: Script, module: Module) =
+  ## Mirror the production CLI: system + colors + arrays + cssTypes.
+  ## Typed CSS literals (4px, red, #fff) need the constructor procs.
+  let systemModule = libsystem.loadLibrary(script, newJObject(), newJObject())
+  module.load(systemModule)
+  module.load(libcolors.initColors(script, systemModule))
+  module.load(libarrays.initArrays(script, systemModule))
+  module.load(libcss.initCssTypes(script, systemModule))
 
 proc compile(code: string): string =
   var program: Ast
@@ -18,8 +27,7 @@ proc compile(code: string): string =
   var script = newScript(mainChunk)
   var module = newModule("test", some("test.bass"))
 
-  let systemModule = libsystem.loadLibrary(script, newJObject(), newJObject())
-  module.load(systemModule)
+  loadFullStdlib(script, module)
   script.stdpos = script.procs.high
 
   var gen = initCodeGen(script, module, mainChunk)
@@ -39,8 +47,7 @@ proc compileFile(path: string): string =
   let mainChunk = newChunk(path)
   var script = newScript(mainChunk)
   var module = newModule(path.extractFilename, some(path))
-  let systemModule = libsystem.loadLibrary(script, newJObject(), newJObject())
-  module.load(systemModule)
+  loadFullStdlib(script, module)
   script.stdpos = script.procs.high
 
   var gen = initCodeGen(script, module, mainChunk, manager = nil, parserCallback = cb)
@@ -312,6 +319,28 @@ suite "compilation tests":
   .foo { width: $a; height: $b; }
   """)
     check css == ".foo{width:10;height:20}"
+
+  test "bare declaration registers dollar var":
+    let css = compile("""
+  var $radius = 4px
+  var xxx = $radius - 3px
+  .foo { width: $xxx; }
+  """)
+    check css == ".foo{width:1px}"
+
+  test "bare declaration of named color keeps hex conversion":
+    let css = compile("""
+  let accent = red
+  .foo { color: $accent; }
+  """)
+    check css == ".foo{color:#FF0000}"
+
+  test "bare exported declaration":
+    let css = compile("""
+  let accent* = blue
+  .foo { color: $accent; }
+  """)
+    check css == ".foo{color:#0000FF}"
 
   test "compile variable reference in selector block":
     let css = compile("""
@@ -957,8 +986,7 @@ suite "Phase 6: modules (.bass imports)":
       let mainChunk = newChunk(path)
       var script = newScript(mainChunk)
       var module = newModule(path.extractFilename, some(path))
-      let systemModule = libsystem.loadLibrary(script, newJObject(), newJObject())
-      module.load(systemModule)
+      loadFullStdlib(script, module)
       script.stdpos = script.procs.high
       var gen = initCodeGen(script, module, mainChunk, manager = nil, parserCallback = cb)
       gen.genScript(program, none(string))
@@ -989,8 +1017,7 @@ proc compilePretty(code: string): string =
   let mainChunk = newChunk("test.bass")
   var script = newScript(mainChunk)
   var module = newModule("test", some("test.bass"))
-  let systemModule = libsystem.loadLibrary(script, newJObject(), newJObject())
-  module.load(systemModule)
+  loadFullStdlib(script, module)
   script.stdpos = script.procs.high
   var gen = initCodeGen(script, module, mainChunk)
   gen.genScript(program, none(string))

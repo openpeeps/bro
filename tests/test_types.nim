@@ -7,31 +7,23 @@ import ../src/bro/engine/parser
 
 import pkg/vancode/interpreter/[ast, codegen, chunk, sym, vm, value]
 
-import ../src/bro/engine/stdlib/libsystem
-
-var
-  cachedScript: Script
-  cachedModule: Module
-  cachedSystem: Module
-  cachedChunk: Chunk
-
-proc ensureStdlib() =
-  if cachedScript.isNil:
-    cachedChunk = newChunk("stdlib")
-    cachedScript = newScript(cachedChunk)
-    cachedModule = newModule("stdlib", some("stdlib"))
-    cachedSystem = libsystem.loadLibrary(cachedScript, newJObject(), newJObject())
-    cachedModule.load(cachedSystem)
-    cachedScript.stdpos = cachedScript.procs.high
+import ../src/bro/engine/stdlib/[libsystem, libarrays, libcolors, libcss]
 
 proc compileExpectSuccess(code: string): string =
-  ensureStdlib()
+  ## Fresh script + full stdlib per test (mirrors production). A cached
+  ## Script reused across mainChunk swaps cannot resolve cross-module calls.
   var program: Ast
   parser.parseScript(program, code, "test.bass")
   let mainChunk = newChunk("test.bass")
-  var script = cachedScript
-  script.mainChunk = mainChunk
-  var gen = initCodeGen(script, cachedModule, mainChunk)
+  var script = newScript(mainChunk)
+  var module = newModule("test", some("test.bass"))
+  let systemModule = libsystem.loadLibrary(script, newJObject(), newJObject())
+  module.load(systemModule)
+  module.load(libcolors.initColors(script, systemModule))
+  module.load(libarrays.initArrays(script, systemModule))
+  module.load(libcss.initCssTypes(script, systemModule))
+  script.stdpos = script.procs.high
+  var gen = initCodeGen(script, module, mainChunk)
   gen.genScript(program, none(string))
   let virtualMachine = newVirtualMachine(VMPreferences())
   result = virtualMachine.interpret(script, mainChunk).stringVal[]
@@ -355,6 +347,62 @@ suite "CSS type system — variable type checking":
   .a { z-index: $n; }
   """)
     check css == ".a{z-index:10}"
+
+suite "CSS type system — strict typed values":
+  test "length arithmetic in var":
+    let css = compileExpectSuccess("""
+var $radius = 4px
+var $xxx = $radius - 3px
+.a { width: $xxx; }
+""")
+    check css == ".a{width:1px}"
+
+  test "length addition":
+    check compileExpectSuccess("echo 4px + 3px") == ""
+    let css = compileExpectSuccess("""
+var $x = 4px + 3px
+.a { width: $x; }
+""")
+    check css == ".a{width:7px}"
+
+  test "angle arithmetic":
+    let css = compileExpectSuccess("""
+var $a = 45deg
+var $b = $a + 15deg
+.a { rotate: $b; }
+""")
+    check css == ".a{rotate:60deg}"
+
+  test "time subtraction":
+    let css = compileExpectSuccess("""
+var $s = 2s
+var $t = $s - 1s
+.a { transition-duration: $t; }
+""")
+    check css == ".a{transition-duration:1s}"
+
+  test "mismatched units are hard errors":
+    let err = compileExpectError("""
+var $s = 2s
+var $t = $s - 500ms
+.a { transition-duration: $t; }
+""")
+    check err.len > 0
+    check "Mismatched units" in err
+
+  test "color function in color property":
+    let css = compileExpectSuccess("""
+var $d = #336699
+.a { color: lighten($d, 10); }
+""")
+    check css == ".a{color:#407fbf}"
+
+  test "named color function args":
+    let css = compileExpectSuccess(".a { color: mix(red, blue); }")
+    check css == ".a{color:#800080}"
+
+  test "echo typed length":
+    check compileExpectSuccess("var $r = 4px\necho $r") == ""
 
 suite "CSS type system — CSS-wide keywords":
   test "inherit on color":

@@ -14,6 +14,7 @@ block extendAST:
     nkPseudoSelector
     nkElementSelector
     nkUnit
+    nkColor
     nkExprList
     nkProperty  # Represents a CSS property (e.g., color: red)
     nkValue     # Represents a CSS value (e.g., 16px, red)
@@ -39,6 +40,7 @@ block extendSym:
 block extendCodeGen:
   extendModule "vancode" / "interpreter" / "codegen.nim":
     import pkg/openparser/css as cssmod
+    import pkg/openparser/colors as colormod
 
     var nestingParent: string = "" ## Sass-style nesting: parent selector context for & substitution
     var mixinTable = initTable[string, Node]() ## registered mixin definitions (name -> nkMixinDef)
@@ -108,6 +110,107 @@ block extendCodeGen:
       of "string": ttyCssString
       else: ttyKeyword
 
+    proc cssKindName(k: TypeKind): string =
+      case k
+      of ttyColor: "color"
+      of ttyLength: "length"
+      of ttyAngle: "angle"
+      of ttyTime: "time"
+      of ttyNumber: "number"
+      of ttyUrl: "url"
+      of ttyResolution: "resolution"
+      of ttyFlex: "flex"
+      of ttyCssString: "string"
+      else: "keyword"
+
+    proc isBroCall(node: Node): bool {.codegen.} =
+      ## True when node calls a known bro foreign proc (lighten, mix,
+      ## parseLength, parseColor, ...) rather than a raw CSS function
+      ## (linear-gradient, rgb, var, calc). Bro calls evaluate to strictly
+      ## typed runtime values; raw CSS calls stay verbatim text.
+      if node.kind != nkCall or node.len == 0 or node[0].kind != nkIdent:
+        return false
+      let s = gen.lookup(node[0], quiet = true)
+      result = s != nil and s.kind in {skProc, skChoice}
+
+    proc collectAcceptedKinds(node: cssmod.SyntaxNode,
+        acc: var seq[TypeKind], unknown: var bool) =
+      ## Walk a CSS syntax tree collecting the value kinds a property accepts.
+      ## unknown=true means the syntax has parts we cannot judge (functions,
+      ## refs, exotic component types) — the check then accepts everything.
+      if node == nil:
+        unknown = true
+        return
+      case node.kind
+      of skType:
+        case node.cssType
+        of "color", "color-base", "hex-color", "named-color",
+           "system-color", "deprecated-system-color": acc.add(ttyColor)
+        of "length", "length-percentage", "percentage": acc.add(ttyLength)
+        of "number", "number-percentage", "integer",
+           "signed-integer", "signless-integer": acc.add(ttyNumber)
+        of "angle", "angle-percentage": acc.add(ttyAngle)
+        of "time": acc.add(ttyTime)
+        of "resolution": acc.add(ttyResolution)
+        of "flex": acc.add(ttyFlex)
+        of "url": acc.add(ttyUrl)
+        of "string": acc.add(ttyCssString)
+        else: unknown = true
+      of skKeyword: acc.add(ttyKeyword)
+      of skNumeric: acc.add(ttyNumber)
+      of skString: acc.add(ttyCssString)
+      of skAlternatives: (for c in node.alternatives: collectAcceptedKinds(c, acc, unknown))
+      of skAtLeastOne: (for c in node.options: collectAcceptedKinds(c, acc, unknown))
+      of skAll: (for c in node.required: collectAcceptedKinds(c, acc, unknown))
+      of skJuxtapose: (for c in node.sequence: collectAcceptedKinds(c, acc, unknown))
+      of skGroup: collectAcceptedKinds(node.group, acc, unknown)
+      of skOptional: collectAcceptedKinds(node.optionalInner, acc, unknown)
+      of skZeroOrMore: collectAcceptedKinds(node.starInner, acc, unknown)
+      of skOneOrMore: collectAcceptedKinds(node.plusInner, acc, unknown)
+      of skCommaSep: collectAcceptedKinds(node.hashInner, acc, unknown)
+      of skRequired: collectAcceptedKinds(node.bangInner, acc, unknown)
+      of skMulti: collectAcceptedKinds(node.multiInner, acc, unknown)
+      else: unknown = true # functions, refs, delims: cannot judge statically
+
+    proc checkPropValueType(key: string, valTy: Sym, errNode: Node) =
+      ## Static type check for dynamic property values (vars, bro calls,
+      ## infix). Literals are validated as text elsewhere; strings and other
+      ## shapes stay legacy-lenient. Mismatched CSS value types are hard errors
+      ## (e.g. `width: $colorVar` or `color: $lengthVar`).
+      if valTy == nil: return
+      var kinds: seq[TypeKind]
+      var unknown = false
+      collectAcceptedKinds(cssGetPropertySyntax(key), kinds, unknown)
+      # Empty sets (margin via property refs, unknown shorthands) accept all.
+      # Otherwise a typed value outside the known members is a hard error even
+      # when exotic alternatives exist — no bro runtime value inhabits those.
+      if kinds.len == 0: return
+      var actual = valTy.tyKind
+      if valTy.kind in {skVar, skLet, skConst} and valTy.varTy != nil:
+        actual = valTy.varTy.tyKind
+      var names = ""
+      var seen: set[TypeKind] = {}
+      for k in kinds:
+        if k in seen: continue
+        seen.incl(k)
+        if names.len > 0: names.add("|")
+        names.add(cssKindName(k))
+      case actual
+      of ttyColor, ttyLength, ttyAngle, ttyTime, ttyResolution, ttyFlex,
+         ttyUrl, ttyCssString:
+        if actual notin kinds:
+          errNode.error(key & ": expected " & names & ", got " & cssKindName(actual))
+      of ttyInt, ttyFloat, ttyNumber:
+        # Bare numbers coerce (mirrors the auto-px validation philosophy).
+        var numericOk = false
+        for k in kinds:
+          if k in {ttyLength, ttyAngle, ttyTime, ttyNumber, ttyResolution, ttyFlex}:
+            numericOk = true
+            break
+        if not numericOk:
+          errNode.error(key & ": expected " & names & ", got number")
+      else: discard # strings and the rest stay legacy-lenient
+
     proc cssFloatStr(f: float): string =
       ## Render a float for CSS output — strips a trailing ".0" so integral
       ## values emit as "1000" instead of "1000.0" (e.g. scientific notation).
@@ -131,6 +234,8 @@ block extendCodeGen:
       of nkUnit:
         result = if node[0].kind == nkInt: $node[0].intVal else: cssFloatStr(node[0].floatVal)
         result &= node[1].ident
+      of nkColor:
+        result = node[0].stringVal # raw spelling: #fff, red, transparent
       of nkExprList:
         var parts: seq[string]
         for child in node.children:
@@ -467,7 +572,7 @@ block extendCodeGen:
               let val = nodeToCssString(child[1])
               if val.len > 0:
                 let isVarRef = child[1].kind == nkIdent and child[1].ident.len > 0 and child[1].ident[0] == '$'
-                if not isVarRef and child[1].kind in {nkIdent, nkInt, nkFloat, nkString, nkUnit, nkExprList, nkCommaList, nkCall, nkPostfix}:
+                if not isVarRef and child[1].kind in {nkIdent, nkInt, nkFloat, nkString, nkUnit, nkColor, nkExprList, nkCommaList, nkCall, nkPostfix}:
                   var validateCss = if child[1].kind == nkPostfix: nodeToCssString(child[1][1]) else: val
                   try:
                     discard cssValidateProp(key, validateCss)
@@ -524,7 +629,7 @@ block extendCodeGen:
             let val = nodeToCssString(child[1])
             if val.len > 0:
               let isVarRef = child[1].kind == nkIdent and child[1].ident.len > 0 and child[1].ident[0] == '$'
-              if not isVarRef and child[1].kind in {nkIdent, nkInt, nkFloat, nkString, nkUnit, nkExprList, nkCommaList, nkCall, nkPostfix}:
+              if not isVarRef and child[1].kind in {nkIdent, nkInt, nkFloat, nkString, nkUnit, nkColor, nkExprList, nkCommaList, nkCall, nkPostfix}:
                 var validateCss = if child[1].kind == nkPostfix: nodeToCssString(child[1][1]) else: val
                 try:
                   discard cssValidateProp(key, validateCss)
@@ -588,8 +693,9 @@ block extendCodeGen:
           hasDuplicate = true
         let isVarRef = prop[1].kind == nkIdent and prop[1].ident.len > 0 and prop[1].ident[0] == '$'
 
-        # Validate CSS property value for literal values
-        if not isVarRef and prop[1].kind in {nkIdent, nkInt, nkFloat, nkString, nkUnit, nkExprList, nkCommaList, nkCall, nkPostfix}:
+        # Validate CSS property value for literal values. Bro calls evaluate
+        # to typed values at runtime, so they take the dynamic path instead.
+        if not isVarRef and not gen.isBroCall(prop[1]) and prop[1].kind in {nkIdent, nkInt, nkFloat, nkString, nkUnit, nkColor, nkExprList, nkCommaList, nkCall, nkPostfix}:
           var rawCss = nodeToCssString(prop[1])
           if rawCss.len > 0:
             var validateCss =
@@ -623,7 +729,9 @@ block extendCodeGen:
         keyIdxes.add(gen.chunk.getString(key))
         let valTy =
           if isVarRef:
-            gen.genExpr(prop[1])
+            let vt = gen.genExpr(prop[1])
+            checkPropValueType(key, vt, prop[1])
+            vt
           else:
             case prop[1].kind
             of nkIdent:
@@ -648,7 +756,11 @@ block extendCodeGen:
               gen.chunk.emit(gen.chunk.getString(nodeToCssString(prop[1])))
               newType(ttyString, name = prop[1])
             else:
-              gen.genExpr(prop[1])
+              # Bro calls (lighten, parseLength, ...), infix and other dynamic
+              # expressions evaluate to strictly typed runtime values.
+              let vt = gen.genExpr(prop[1])
+              checkPropValueType(key, vt, prop[1])
+              vt
         result.objectFields[key] = (
           id: result.objectFields.len,
           name: prop[0],
@@ -687,14 +799,14 @@ block extendCodeGen:
         let key = node[0].ident
         let v = node[1]
         let isVarRef = v.kind == nkIdent and v.ident.len > 0 and v.ident[0] == '$'
-        if isVarRef or v.kind notin {nkIdent, nkInt, nkFloat, nkString, nkUnit, nkExprList, nkCommaList, nkCall, nkPostfix}:
+        if isVarRef or gen.isBroCall(v) or v.kind notin {nkIdent, nkInt, nkFloat, nkString, nkUnit, nkColor, nkExprList, nkCommaList, nkCall, nkPostfix}:
           # VM-evaluated value: `key:` + value + `;` as three raw emissions
           gen.chunk.emit(opcPushS)
           gen.chunk.emit(gen.chunk.getString(key & ":"))
           gen.chunk.emit(opcEmitRaw)
           gen.chunk.emit(uint16(node.ln))
           gen.chunk.emit(uint16(node.col))
-          discard gen.genExpr(v)
+          checkPropValueType(key, gen.genExpr(v), v)
           gen.chunk.emit(opcEmitRaw)
           gen.chunk.emit(uint16(0xFFFF))
           gen.chunk.emit(uint16(0))
@@ -731,10 +843,12 @@ block extendCodeGen:
       discard gen.genExpr(node[1])
 
     proc genUnit*(node: Node): Sym {.codegen.} =
-      ## Generate bytecode for a CSS unit (e.g., 16px)
+      ## Generate bytecode for a CSS unit (e.g., 16px) as a strictly typed
+      ## runtime value. Known suffixes synthesize a call to the matching
+      ## `parseLength/parseAngle/...` constructor so `4px` is a length, not
+      ## a string. Unknown suffixes keep the legacy plain-string push.
       assert node.kind == nkUnit, "Expected nkUnit node"
 
-      # Push the unit value as a string (e.g., "16px")
       var size: string
       case node[0].kind
         of nkInt:
@@ -743,9 +857,59 @@ block extendCodeGen:
           size = cssFloatStr(node[0].floatVal)
         else: node[0].error("Invalid unit value")
 
-      let unitStr = size & node[1].ident
-      gen.chunk.emit(opcPushValue)
-      gen.chunk.emit(gen.chunk.getString(unitStr))
+      let suffix = node[1].ident
+      let unitStr = size & suffix
+      let parseProc =
+        case suffix
+        of "px", "em", "rem", "%", "vh", "vw", "vmin", "vmax",
+           "ch", "ex", "cm", "mm", "in", "pt", "pc":
+          "parseLength"
+        of "deg", "rad", "grad", "turn":
+          "parseAngle"
+        of "s", "ms":
+          "parseTime"
+        of "dpi", "dpcm", "dppx":
+          "parseResolution"
+        of "fr":
+          "parseFlex"
+        else:
+          ""
+      if parseProc.len == 0:
+        gen.chunk.emit(opcPushValue)
+        gen.chunk.emit(gen.chunk.getString(unitStr))
+        result = gen.typeLookup("string")
+        return
+      if gen.lookup(ast.newIdent(parseProc), quiet = true) == nil:
+        # Constructor not in scope (file imports only inherit system):
+        # legacy plain-string push, output-identical.
+        gen.chunk.emit(opcPushValue)
+        gen.chunk.emit(gen.chunk.getString(unitStr))
+        result = gen.typeLookup("string")
+        return
+      let callNode = ast.newCall(ast.newIdent(parseProc), ast.newStringLit(unitStr))
+      callNode.ln = node.ln; callNode.col = node.col
+      result = gen.genExpr(callNode)
+
+    proc genColor*(node: Node): Sym {.codegen.} =
+      ## Generate bytecode for a CSS color literal (nkColor holding the raw
+      ## spelling) as a strictly typed color value via the `parseColor`
+      ## constructor. Validated at compile time so typos fail fast.
+      assert node.kind == nkColor, "Expected nkColor node"
+      let raw = node[0].stringVal
+      try:
+        discard colormod.parseColor(raw)
+      except CatchableError as e:
+        node.error("Invalid color '" & raw & "': " & e.msg)
+      if gen.lookup(ast.newIdent("parseColor"), quiet = true) == nil:
+        # Constructor not in scope (file imports only inherit system):
+        # legacy plain-string push, output-identical.
+        gen.chunk.emit(opcPushS)
+        gen.chunk.emit(gen.chunk.getString(raw))
+        result = gen.typeLookup("string")
+        return
+      let callNode = ast.newCall(ast.newIdent("parseColor"), ast.newStringLit(raw))
+      callNode.ln = node.ln; callNode.col = node.col
+      result = gen.genExpr(callNode)
 
     proc genExprList*(node: Node): Sym {.codegen.} =
       ## Generate bytecode for a list of expressions (e.g., multiple properties)
@@ -760,6 +924,7 @@ block extendCodeGen:
         of nkUnit:
           var v = if child[0].kind == nkInt: $child[0].intVal else: cssFloatStr(child[0].floatVal)
           parts.add(v & child[1].ident)
+        of nkColor: parts.add(child[0].stringVal)
         else: parts.add("<value>")
       let combined = parts.join(" ")
       gen.chunk.emit(opcPushS)
@@ -787,7 +952,7 @@ block extendCodeGen:
             let key = child[0].ident
             let val = nodeToCssString(child[1])
             let isVarRef = child[1].kind == nkIdent and child[1].ident.len > 0 and child[1].ident[0] == '$'
-            if not isVarRef and child[1].kind in {nkIdent, nkInt, nkFloat, nkString, nkUnit, nkExprList, nkCommaList, nkCall, nkPostfix}:
+            if not isVarRef and child[1].kind in {nkIdent, nkInt, nkFloat, nkString, nkUnit, nkColor, nkExprList, nkCommaList, nkCall, nkPostfix}:
               var validateCss = if child[1].kind == nkPostfix: nodeToCssString(child[1][1]) else: val
               try:
                 discard cssValidateProp(key, validateCss)
@@ -820,7 +985,8 @@ block extendCodeGen:
 
   extendCaseStmt "codeGenExpr":
     case node.kind
-    of nkUnit: discard gen.genUnit(node)
+    of nkUnit: result = gen.genUnit(node)
+    of nkColor: result = gen.genColor(node)
     of nkExprList: discard gen.genExprList(node)
 
   extendCaseStmt "codeGenStmt":
@@ -835,6 +1001,8 @@ block extendCodeGen:
       gen.genSelector(node)
     of nkUnit:
       discard gen.genUnit(node)
+    of nkColor:
+      discard gen.genColor(node)
     of nkExprList:
       discard
     of nkColon:
@@ -955,7 +1123,14 @@ block extendVM:
             fs.setLen(fn - 2)
           fs
         of tyBool: $sv.boolVal
-        else: ""
+        else:
+          # Strict CSS values (length/angle/time/color/...) are foreign
+          # Objects whose display spelling is cached on the foreign tag
+          # at construction (see stdlib/cssvalues.initCssPayload).
+          if sv.objectVal != nil and sv.objectVal.isForeign and
+              sv.objectVal.foreign.tag.len > 0:
+            sv.objectVal.foreign.tag
+          else: ""
       let prettyNow = vm.globals["__bro_pretty"].boolVal
       let depthNow = vm.globals["__bro_depth"].intVal.int
       # Strip trailing ';' before '}' — O(1) single-char check
@@ -1059,7 +1234,14 @@ block extendVM:
             fs
           of tyBool:
             $(props.fields[i].boolVal)
-          else: "<value>"
+          else:
+            # Strict CSS values render via the display spelling cached on
+            # the foreign tag at construction time.
+            let rv = props.fields[i].refVal
+            if rv != nil and rv.objectVal != nil and rv.objectVal.isForeign and
+                rv.objectVal.foreign.tag.len > 0:
+              rv.objectVal.foreign.tag
+            else: "<value>"
 
         if prettyNow and i > 0:
           # first declaration sits on the opener's fresh line; rest get their own

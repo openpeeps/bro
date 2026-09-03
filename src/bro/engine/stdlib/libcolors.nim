@@ -9,6 +9,7 @@ import pkg/openparser/colors
 import pkg/vancode/interpreter/[chunk, sym, value]
 
 import ./inliner
+import ./cssvalues
 
 const tyColor* = 20
 
@@ -18,169 +19,143 @@ proc toPercent(amount: float): float {.inline.} =
 proc toWeight(weight: float): float {.inline.} =
   if weight > 0.0 and weight < 1.0: weight * 100.0 else: weight
 
-proc resolveColor(v: Value): Color =
-  case v.typeId
-  of tyColor: v.foreign(Color)
-  of tyString:
-    let s = v.stringVal[]
-    if s.len > 0 and s[0] == '#':
-      let hex = s[1..^1]
-      if hex.len == 3:
-        # expand 3-char hex: #abc -> #aabbcc
-        let expanded = "#" & hex[0] & hex[0] & hex[1] & hex[1] & hex[2] & hex[2]
-        parseHtmlHex(expanded)
-      elif hex.len == 4:
-        # expand 4-char hex: #abcd -> #aabbccdd
-        let expanded = "#" & hex[0] & hex[0] & hex[1] & hex[1] & hex[2] & hex[2] & hex[3] & hex[3]
-        parseHexAlpha(expanded)
-      elif hex.len == 6:
-        parseHtmlHex(s)
-      elif hex.len == 8:
-        parseHexAlpha(s)
-      else:
-        initColor(0, 0, 0)
-    elif s.len == 6: parseHex(s)
-    elif s.len == 8: parseHexAlpha(s)
-    else: initColor(0, 0, 0)
-  else: initColor(0, 0, 0)
+proc newBroColor*(col: Color, raw: string = ""): Value =
+  let r = if raw.len > 0: raw else: col.toHtmlHex()
+  # Display spelling cached on the foreign tag so the VM can emit colors
+  # without bro imports (vancode scope only sees Value/ForeignData).
+  result = initCssPayload(tyColor, BroColor(c: col, raw: r), r)
+
+proc resolveColor*(v: Value): Color =
+  if v.typeId != tyColor:
+    raise newException(ValueError, "type mismatch: expected color, got typeId " & $v.typeId)
+  v.foreign(BroColor).c
+
+proc resolveBroColor*(v: Value): BroColor =
+  if v.typeId != tyColor:
+    raise newException(ValueError, "type mismatch: expected color, got typeId " & $v.typeId)
+  v.foreign(BroColor)
+
+proc broColorToString*(v: Value): string =
+  resolveBroColor(v).raw
 
 proc initColors*(script: Script, systemModule: Module): Module =
   result = newModule("colors", some"std::colors")
   result.load(systemModule)
   result.add(genType(ttyColor, "ttyColor", true))
 
-  # lighten
+  # lighten - strict color only (float + int amount overloads)
   script.addProc(result, "lighten", @[paramDef("color", ttyColor), paramDef("amount", ttyFloat)], ttyColor,
     proc (args: StackView, argc: int): Value =
-      initValue(tyColor, lighten(resolveColor(args[0]), toPercent(args[1].floatVal))))
-  script.addProc(result, "lighten", @[paramDef("color", ttyString), paramDef("amount", ttyFloat)], ttyColor,
+      newBroColor(lighten(resolveColor(args[0]), toPercent(args[1].floatVal))))
+  script.addProc(result, "lighten", @[paramDef("color", ttyColor), paramDef("amount", ttyInt)], ttyColor,
     proc (args: StackView, argc: int): Value =
-      initValue(tyColor, lighten(resolveColor(args[0]), toPercent(args[1].floatVal))))
+      newBroColor(lighten(resolveColor(args[0]), toPercent(float(args[1].intVal)))))
 
   # darken
   script.addProc(result, "darken", @[paramDef("color", ttyColor), paramDef("amount", ttyFloat)], ttyColor,
     proc (args: StackView, argc: int): Value =
-      initValue(tyColor, darken(resolveColor(args[0]), toPercent(args[1].floatVal))))
-  script.addProc(result, "darken", @[paramDef("color", ttyString), paramDef("amount", ttyFloat)], ttyColor,
+      newBroColor(darken(resolveColor(args[0]), toPercent(args[1].floatVal))))
+  script.addProc(result, "darken", @[paramDef("color", ttyColor), paramDef("amount", ttyInt)], ttyColor,
     proc (args: StackView, argc: int): Value =
-      initValue(tyColor, darken(resolveColor(args[0]), toPercent(args[1].floatVal))))
+      newBroColor(darken(resolveColor(args[0]), toPercent(float(args[1].intVal)))))
 
   # saturate
   script.addProc(result, "saturate", @[paramDef("color", ttyColor), paramDef("amount", ttyFloat)], ttyColor,
     proc (args: StackView, argc: int): Value =
-      initValue(tyColor, saturate(resolveColor(args[0]), toPercent(args[1].floatVal))))
-  script.addProc(result, "saturate", @[paramDef("color", ttyString), paramDef("amount", ttyFloat)], ttyColor,
+      newBroColor(saturate(resolveColor(args[0]), toPercent(args[1].floatVal))))
+  script.addProc(result, "saturate", @[paramDef("color", ttyColor), paramDef("amount", ttyInt)], ttyColor,
     proc (args: StackView, argc: int): Value =
-      initValue(tyColor, saturate(resolveColor(args[0]), toPercent(args[1].floatVal))))
+      newBroColor(saturate(resolveColor(args[0]), toPercent(float(args[1].intVal)))))
 
   # desaturate
   script.addProc(result, "desaturate", @[paramDef("color", ttyColor), paramDef("amount", ttyFloat)], ttyColor,
     proc (args: StackView, argc: int): Value =
-      initValue(tyColor, desaturate(resolveColor(args[0]), toPercent(args[1].floatVal))))
-  script.addProc(result, "desaturate", @[paramDef("color", ttyString), paramDef("amount", ttyFloat)], ttyColor,
+      newBroColor(desaturate(resolveColor(args[0]), toPercent(args[1].floatVal))))
+  script.addProc(result, "desaturate", @[paramDef("color", ttyColor), paramDef("amount", ttyInt)], ttyColor,
     proc (args: StackView, argc: int): Value =
-      initValue(tyColor, desaturate(resolveColor(args[0]), toPercent(args[1].floatVal))))
+      newBroColor(desaturate(resolveColor(args[0]), toPercent(float(args[1].intVal)))))
 
   # spin
   script.addProc(result, "spin", @[paramDef("color", ttyColor), paramDef("degrees", ttyFloat)], ttyColor,
     proc (args: StackView, argc: int): Value =
-      initValue(tyColor, spin(resolveColor(args[0]), args[1].floatVal)))
-  script.addProc(result, "spin", @[paramDef("color", ttyString), paramDef("degrees", ttyFloat)], ttyColor,
+      newBroColor(spin(resolveColor(args[0]), args[1].floatVal)))
+  script.addProc(result, "spin", @[paramDef("color", ttyColor), paramDef("degrees", ttyInt)], ttyColor,
     proc (args: StackView, argc: int): Value =
-      initValue(tyColor, spin(resolveColor(args[0]), args[1].floatVal)))
+      newBroColor(spin(resolveColor(args[0]), float(args[1].intVal))))
 
   # mix
   script.addProc(result, "mix", @[paramDef("a", ttyColor), paramDef("b", ttyColor)], ttyColor,
     proc (args: StackView, argc: int): Value =
-      initValue(tyColor, mix(resolveColor(args[0]), resolveColor(args[1]))))
-  script.addProc(result, "mix", @[paramDef("a", ttyString), paramDef("b", ttyColor)], ttyColor,
-    proc (args: StackView, argc: int): Value =
-      initValue(tyColor, mix(resolveColor(args[0]), resolveColor(args[1]))))
-  script.addProc(result, "mix", @[paramDef("a", ttyColor), paramDef("b", ttyString)], ttyColor,
-    proc (args: StackView, argc: int): Value =
-      initValue(tyColor, mix(resolveColor(args[0]), resolveColor(args[1]))))
-  script.addProc(result, "mix", @[paramDef("a", ttyString), paramDef("b", ttyString)], ttyColor,
-    proc (args: StackView, argc: int): Value =
-      initValue(tyColor, mix(resolveColor(args[0]), resolveColor(args[1]))))
-
+      newBroColor(mix(resolveColor(args[0]), resolveColor(args[1]))))
   # mix with weight
   script.addProc(result, "mix", @[paramDef("a", ttyColor), paramDef("b", ttyColor), paramDef("v", ttyFloat)], ttyColor,
     proc (args: StackView, argc: int): Value =
-      initValue(tyColor, mix(resolveColor(args[0]), resolveColor(args[1]), toWeight(args[2].floatVal))))
-  script.addProc(result, "mix", @[paramDef("a", ttyString), paramDef("b", ttyString), paramDef("v", ttyFloat)], ttyColor,
+      newBroColor(mix(resolveColor(args[0]), resolveColor(args[1]), toWeight(args[2].floatVal))))
+  script.addProc(result, "mix", @[paramDef("a", ttyColor), paramDef("b", ttyColor), paramDef("v", ttyInt)], ttyColor,
     proc (args: StackView, argc: int): Value =
-      initValue(tyColor, mix(resolveColor(args[0]), resolveColor(args[1]), toWeight(args[2].floatVal))))
+      newBroColor(mix(resolveColor(args[0]), resolveColor(args[1]), toWeight(float(args[2].intVal)))))
 
   # mixCMYK
   script.addProc(result, "mixCMYK", @[paramDef("a", ttyColor), paramDef("b", ttyColor)], ttyColor,
     proc (args: StackView, argc: int): Value =
-      initValue(tyColor, mixCMYK(resolveColor(args[0]), resolveColor(args[1]))))
-  script.addProc(result, "mixCMYK", @[paramDef("a", ttyString), paramDef("b", ttyString)], ttyColor,
-    proc (args: StackView, argc: int): Value =
-      initValue(tyColor, mixCMYK(resolveColor(args[0]), resolveColor(args[1]))))
+      newBroColor(mixCMYK(resolveColor(args[0]), resolveColor(args[1]))))
 
-  # toHex
+  # toHex - strict color only
   script.addProc(result, "toHex", @[paramDef("color", ttyColor)], ttyString,
     proc (args: StackView, argc: int): Value =
       initValue(toHex(resolveColor(args[0]))))
-  script.addProc(result, "toHex", @[paramDef("color", ttyString)], ttyString,
-    proc (args: StackView, argc: int): Value =
-      initValue(toHex(resolveColor(args[0]))))
-
   # toHexAlpha
   script.addProc(result, "toHexAlpha", @[paramDef("color", ttyColor)], ttyString,
     proc (args: StackView, argc: int): Value =
       initValue(toHexAlpha(resolveColor(args[0]))))
-  script.addProc(result, "toHexAlpha", @[paramDef("color", ttyString)], ttyString,
-    proc (args: StackView, argc: int): Value =
-      initValue(toHexAlpha(resolveColor(args[0]))))
-
   # toHtmlHex
   script.addProc(result, "toHtmlHex", @[paramDef("color", ttyColor)], ttyString,
     proc (args: StackView, argc: int): Value =
       initValue(toHtmlHex(resolveColor(args[0]))))
-  script.addProc(result, "toHtmlHex", @[paramDef("color", ttyString)], ttyString,
-    proc (args: StackView, argc: int): Value =
-      initValue(toHtmlHex(resolveColor(args[0]))))
 
-  # parseHex
+  # parseHex - string -> color is the only legal string entry point
   script.addProc(result, "parseHex", @[paramDef("hex", ttyString)], ttyColor,
     proc (args: StackView, argc: int): Value =
-      initValue(tyColor, parseHex(args[0].stringVal[])))
-
-  # parseHexAlpha
+      let s = args[0].stringVal[]
+      newBroColor(parseHex(s), "#" & s))
   script.addProc(result, "parseHexAlpha", @[paramDef("hex", ttyString)], ttyColor,
     proc (args: StackView, argc: int): Value =
-      initValue(tyColor, parseHexAlpha(args[0].stringVal[])))
-
-  # parseHtmlHex
+      let s = args[0].stringVal[]
+      newBroColor(parseHexAlpha(s), "#" & s))
   script.addProc(result, "parseHtmlHex", @[paramDef("hex", ttyString)], ttyColor,
     proc (args: StackView, argc: int): Value =
-      initValue(tyColor, parseHtmlHex(args[0].stringVal[])))
+      let s = args[0].stringVal[]
+      newBroColor(parseHtmlHex(s), s))
+  # generic parseColor bridge for completeness (explicit)
+  script.addProc(result, "parseColor", @[paramDef("s", ttyString)], ttyColor,
+    proc (args: StackView, argc: int): Value =
+      let s = args[0].stringVal[]
+      newBroColor(parseColor(s), s))
+  script.addProc(result, "parseHtmlName", @[paramDef("s", ttyString)], ttyColor,
+    proc (args: StackView, argc: int): Value =
+      let s = args[0].stringVal[]
+      newBroColor(parseHtmlName(s), s))
+  script.addProc(result, "parseHtmlColor", @[paramDef("s", ttyString)], ttyColor,
+    proc (args: StackView, argc: int): Value =
+      let s = args[0].stringVal[]
+      newBroColor(parseHtmlColor(s), s))
 
-  # distance
+  # distance - strict color only
   script.addProc(result, "distance", @[paramDef("a", ttyColor), paramDef("b", ttyColor)], ttyFloat,
     proc (args: StackView, argc: int): Value =
       initValue(distance(resolveColor(args[0]), resolveColor(args[1]))))
-  script.addProc(result, "distance", @[paramDef("a", ttyString), paramDef("b", ttyString)], ttyFloat,
-    proc (args: StackView, argc: int): Value =
-      initValue(distance(resolveColor(args[0]), resolveColor(args[1]))))
 
-  # almostEqual
+  # almostEqual - strict
   script.addProc(result, "almostEqual", @[paramDef("a", ttyColor), paramDef("b", ttyColor), paramDef("eps", ttyFloat, isOpt = true)], ttyBool,
     proc (args: StackView, argc: int): Value =
       let eps = if argc >= 3: args[2].floatVal else: 0.01.float32
       initValue(almostEqual(resolveColor(args[0]), resolveColor(args[1]), eps)))
-  script.addProc(result, "almostEqual", @[paramDef("a", ttyString), paramDef("b", ttyString), paramDef("eps", ttyFloat, isOpt = true)], ttyBool,
-    proc (args: StackView, argc: int): Value =
-      let eps = if argc >= 3: args[2].floatVal else: 0.01.float32
-      initValue(almostEqual(resolveColor(args[0]), resolveColor(args[1]), eps)))
 
-  # echo/toString for Color
+  # echo/toString for Color - prints raw spelling for fidelity
   script.addProc(result, "echo", @[paramDef("x", ttyColor)], ttyVoid,
     proc (args: StackView, argc: int): Value =
-      echo resolveColor(args[0]).toHtmlHex())
+      echo broColorToString(args[0]))
 
   script.addProc(result, "toString", @[paramDef("x", ttyColor)], ttyString,
     proc (args: StackView, argc: int): Value =
-      result = initValue(resolveColor(args[0]).toHtmlHex()))
+      result = initValue(broColorToString(args[0])))

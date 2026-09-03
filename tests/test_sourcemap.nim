@@ -8,7 +8,7 @@ import ../src/bro/engine/sourcemap
 import pkg/vancode/interpreter/[ast, codegen, chunk, sym, vm, value]
 import pkg/openparser/json
 
-import ../src/bro/engine/stdlib/libsystem
+import ../src/bro/engine/stdlib/[libsystem, libarrays, libcolors, libcss]
 
 proc decodeVlq(mappings: string): seq[seq[tuple[genCol, src, line, col: int]]] =
   ## Minimal base64-VLQ decoder for verifying test output.
@@ -73,6 +73,9 @@ suite "source map":
     var module = newModule("test", some("test.bass"))
     let systemModule = libsystem.loadLibrary(script, newJObject(), newJObject())
     module.load(systemModule)
+    module.load(libcolors.initColors(script, systemModule))
+    module.load(libarrays.initArrays(script, systemModule))
+    module.load(libcss.initCssTypes(script, systemModule))
     script.stdpos = script.procs.high
 
     var gen = initCodeGen(script, module, mainChunk)
