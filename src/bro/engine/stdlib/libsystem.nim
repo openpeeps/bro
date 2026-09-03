@@ -77,6 +77,9 @@ proc initSystemOps(script: Script, module: Module) =
     script.addProc(module, "<=", @[p("a", T[0]), p("b", T[1])], ttyBool)
     script.addProc(module, ">",  @[p("a", T[0]), p("b", T[1])], ttyBool)
     script.addProc(module, "<",  @[p("a", T[0]), p("b", T[1])], ttyBool)
+
+  # CSS unit arithmetic for custom length-type values will be added after system types are registered
+  # (see loadLibrary below for ttyLength etc.)
   
   script.addProc(module, "==", @[p("a", ttyBool), p("b", ttyBool)], ttyBool)
   script.addProc(module, "!=", @[p("a", ttyBool), p("b", ttyBool)], ttyBool)

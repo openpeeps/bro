@@ -255,6 +255,44 @@ prefixHandle parseIdent:
   result = ast.newIdent(p.curr.value)
   walk p # tkIdentifier
 
+const hexDigits = "0123456789ABCDEF"
+
+proc hexByte(v: int): string {.inline.} =
+  ## Uppercase 2-digit hex, const-evaluable (no stdlib dependency).
+  result = newString(2)
+  result[0] = hexDigits[(v shr 4) and 15]
+  result[1] = hexDigits[v and 15]
+
+const namedColorHexList = block:
+  ## Compile-time name -> hex table derived from openparser's NamedColors
+  ## (single source of truth), sorted for binary search. Replaces runtime
+  ## table init + hash lookup + per-hit hex formatting on the parse path.
+  var arr: array[colornames.NamedColors.len, tuple[name, hex: string]]
+  for i, e in colornames.NamedColors:
+    arr[i] = (e.name, "#" & hexByte(e.r) & hexByte(e.g) & hexByte(e.b))
+  for i in 1 ..< arr.len:
+    let tmp = arr[i]
+    var j = i - 1
+    while j >= 0 and arr[j].name > tmp.name:
+      arr[j + 1] = arr[j]
+      dec j
+    arr[j + 1] = tmp
+  arr
+
+proc findNamedColorHex(name: string): string =
+  ## Binary search over namedColorHexList. "" when absent.
+  var lo = 0
+  var hi = namedColorHexList.len - 1
+  while lo <= hi:
+    let mid = (lo + hi) shr 1
+    let n = namedColorHexList[mid].name
+    if n == name:
+      return namedColorHexList[mid].hex
+    elif n < name:
+      lo = mid + 1
+    else:
+      hi = mid - 1
+
 proc convertNamedColor(p: var Parser, val: Node, hexify: bool): Node =
   ## Type a bare named color / transparent identifier as nkColor.
   ## hexify=true (variable initializers) resolves names to their hex spelling,
@@ -271,12 +309,9 @@ proc convertNamedColor(p: var Parser, val: Node, hexify: bool): Node =
   elif lower == "currentcolor":
     return
   else:
-    colornames.initNamedTable()
-    if not colornames.namedTable.hasKey(lower): return
-    raw = lower
-    if hexify:
-      let rgb = colornames.namedTable[lower]
-      raw = "#" & rgb.r.toHex(2) & rgb.g.toHex(2) & rgb.b.toHex(2)
+    let found = findNamedColorHex(lower)
+    if found.len == 0: return
+    raw = if hexify: found else: lower
   result = ast.newNode(nkColor)
   result.add(ast.newStringLit(raw))
   result.ln = val.ln; result.col = val.col
