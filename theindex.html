@@ -28,7 +28,7 @@
     <label for="nav-toggle" id="nav-overlay"></label>
     <div class="container">
       <h1 class="title">Index</h1>
-      Modules: <a href="index.html">bro</a>, <a href="bro/app/build.html">bro/app/build</a>, <a href="bro/engine/lexer.html">bro/engine/lexer</a>, <a href="bro/engine/parser.html">bro/engine/parser</a>, <a href="bro/engine/sourcemap.html">bro/engine/sourcemap</a>, <a href="bro/engine/stdlib/inliner.html">bro/engine/stdlib/inliner</a>, <a href="bro/engine/stdlib/libarrays.html">bro/engine/stdlib/libarrays</a>, <a href="bro/engine/stdlib/libcolors.html">bro/engine/stdlib/libcolors</a>, <a href="bro/engine/stdlib/libsystem.html">bro/engine/stdlib/libsystem</a>, <a href="bro/engine/vancodegen.html">bro/engine/vancodegen</a>.<br/><p /><h2>API symbols</h2>
+      Modules: <a href="index.html">bro</a>, <a href="bro/app/build.html">bro/app/build</a>, <a href="bro/engine/lexer.html">bro/engine/lexer</a>, <a href="bro/engine/parser.html">bro/engine/parser</a>, <a href="bro/engine/sourcemap.html">bro/engine/sourcemap</a>, <a href="bro/engine/stdlib/cssvalues.html">bro/engine/stdlib/cssvalues</a>, <a href="bro/engine/stdlib/inliner.html">bro/engine/stdlib/inliner</a>, <a href="bro/engine/stdlib/libarrays.html">bro/engine/stdlib/libarrays</a>, <a href="bro/engine/stdlib/libcolors.html">bro/engine/stdlib/libcolors</a>, <a href="bro/engine/stdlib/libcss.html">bro/engine/stdlib/libcss</a>, <a href="bro/engine/stdlib/libsystem.html">bro/engine/stdlib/libsystem</a>, <a href="bro/engine/vancodegen.html">bro/engine/vancodegen</a>.<br/><p /><h2>API symbols</h2>
 <dl><dt><a name="addContent" href="#addContent"><span>addContent:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="sourcemap: proc addContent(info: var SourceInfo; file, content: string)" href="bro/engine/sourcemap.html#addContent%2CSourceInfo%2Cstring%2Cstring">sourcemap: proc addContent(info: var SourceInfo; file, content: string)</a></li>
@@ -51,9 +51,21 @@
 <li><a class="reference external"
           data-doc-search-tag="build: proc astCommand(v: Values)" href="bro/app/build.html#astCommand%2CValues">build: proc astCommand(v: Values)</a></li>
           </ul></dd>
+<dt><a name="BroColor" href="#BroColor"><span>BroColor:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="cssvalues: object BroColor" href="bro/engine/stdlib/cssvalues.html#BroColor">cssvalues: object BroColor</a></li>
+          </ul></dd>
+<dt><a name="broColorToString" href="#broColorToString"><span>broColorToString:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="libcolors: proc broColorToString(v: Value): string" href="bro/engine/stdlib/libcolors.html#broColorToString%2CValue">libcolors: proc broColorToString(v: Value): string</a></li>
+          </ul></dd>
 <dt><a name="BroParserError" href="#BroParserError"><span>BroParserError:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="parser: object BroParserError" href="bro/engine/parser.html#BroParserError">parser: object BroParserError</a></li>
+          </ul></dd>
+<dt><a name="broValueFnNames" href="#broValueFnNames"><span>broValueFnNames:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="parser: const broValueFnNames" href="bro/engine/parser.html#broValueFnNames">parser: const broValueFnNames</a></li>
           </ul></dd>
 <dt><a name="cCommand" href="#cCommand"><span>cCommand:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -62,6 +74,50 @@
 <dt><a name="compileCode" href="#compileCode"><span>compileCode:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="inliner: proc compileCode(script: Script; module: Module; filename, code: string)" href="bro/engine/stdlib/inliner.html#compileCode%2CScript%2CModule%2Cstring%2Cstring">inliner: proc compileCode(script: Script; module: Module; filename, code: string)</a></li>
+          </ul></dd>
+<dt><a name="CssAngle" href="#CssAngle"><span>CssAngle:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="cssvalues: object CssAngle" href="bro/engine/stdlib/cssvalues.html#CssAngle">cssvalues: object CssAngle</a></li>
+          </ul></dd>
+<dt><a name="cssAngleToString" href="#cssAngleToString"><span>cssAngleToString:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="libcss: proc cssAngleToString(v: Value): string" href="bro/engine/stdlib/libcss.html#cssAngleToString%2CValue">libcss: proc cssAngleToString(v: Value): string</a></li>
+          </ul></dd>
+<dt><a name="CssFlex" href="#CssFlex"><span>CssFlex:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="cssvalues: object CssFlex" href="bro/engine/stdlib/cssvalues.html#CssFlex">cssvalues: object CssFlex</a></li>
+          </ul></dd>
+<dt><a name="cssFlexToString" href="#cssFlexToString"><span>cssFlexToString:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="libcss: proc cssFlexToString(v: Value): string" href="bro/engine/stdlib/libcss.html#cssFlexToString%2CValue">libcss: proc cssFlexToString(v: Value): string</a></li>
+          </ul></dd>
+<dt><a name="cssNumStr" href="#cssNumStr"><span>cssNumStr:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="cssvalues: proc cssNumStr(f: float): string" href="bro/engine/stdlib/cssvalues.html#cssNumStr%2Cfloat">cssvalues: proc cssNumStr(f: float): string</a></li>
+          </ul></dd>
+<dt><a name="CssResolution" href="#CssResolution"><span>CssResolution:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="cssvalues: object CssResolution" href="bro/engine/stdlib/cssvalues.html#CssResolution">cssvalues: object CssResolution</a></li>
+          </ul></dd>
+<dt><a name="cssResolutionToString" href="#cssResolutionToString"><span>cssResolutionToString:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="libcss: proc cssResolutionToString(v: Value): string" href="bro/engine/stdlib/libcss.html#cssResolutionToString%2CValue">libcss: proc cssResolutionToString(v: Value): string</a></li>
+          </ul></dd>
+<dt><a name="CssSize" href="#CssSize"><span>CssSize:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="cssvalues: object CssSize" href="bro/engine/stdlib/cssvalues.html#CssSize">cssvalues: object CssSize</a></li>
+          </ul></dd>
+<dt><a name="cssSizeToString" href="#cssSizeToString"><span>cssSizeToString:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="libcss: proc cssSizeToString(v: Value): string" href="bro/engine/stdlib/libcss.html#cssSizeToString%2CValue">libcss: proc cssSizeToString(v: Value): string</a></li>
+          </ul></dd>
+<dt><a name="CssTime" href="#CssTime"><span>CssTime:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="cssvalues: object CssTime" href="bro/engine/stdlib/cssvalues.html#CssTime">cssvalues: object CssTime</a></li>
+          </ul></dd>
+<dt><a name="cssTimeToString" href="#cssTimeToString"><span>cssTimeToString:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="libcss: proc cssTimeToString(v: Value): string" href="bro/engine/stdlib/libcss.html#cssTimeToString%2CValue">libcss: proc cssTimeToString(v: Value): string</a></li>
           </ul></dd>
 <dt><a name="encode" href="#encode"><span>encode:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -78,6 +134,14 @@
 <dt><a name="initColors" href="#initColors"><span>initColors:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="libcolors: proc initColors(script: Script; systemModule: Module): Module" href="bro/engine/stdlib/libcolors.html#initColors%2CScript%2CModule">libcolors: proc initColors(script: Script; systemModule: Module): Module</a></li>
+          </ul></dd>
+<dt><a name="initCssPayload" href="#initCssPayload"><span>initCssPayload:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="cssvalues: proc initCssPayload[T: object](id: TypeId; payload: T; display: string): Value" href="bro/engine/stdlib/cssvalues.html#initCssPayload%2CTypeId%2CT%2Cstring">cssvalues: proc initCssPayload[T: object](id: TypeId; payload: T; display: string): Value</a></li>
+          </ul></dd>
+<dt><a name="initCssTypes" href="#initCssTypes"><span>initCssTypes:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="libcss: proc initCssTypes(script: Script; systemModule: Module): Module" href="bro/engine/stdlib/libcss.html#initCssTypes%2CScript%2CModule">libcss: proc initCssTypes(script: Script; systemModule: Module): Module</a></li>
           </ul></dd>
 <dt><a name="initSourceInfo" href="#initSourceInfo"><span>initSourceInfo:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -113,9 +177,53 @@
 <li><a class="reference external"
           data-doc-search-tag="sourcemap: object MapSegment" href="bro/engine/sourcemap.html#MapSegment">sourcemap: object MapSegment</a></li>
           </ul></dd>
+<dt><a name="newBroColor" href="#newBroColor"><span>newBroColor:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="libcolors: proc newBroColor(col: Color; raw: string = &quot;&quot;): Value" href="bro/engine/stdlib/libcolors.html#newBroColor%2CColor%2Cstring">libcolors: proc newBroColor(col: Color; raw: string = &quot;&quot;): Value</a></li>
+          </ul></dd>
+<dt><a name="newCssAngle" href="#newCssAngle"><span>newCssAngle:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="libcss: proc newCssAngle(s: string): Value" href="bro/engine/stdlib/libcss.html#newCssAngle%2Cstring">libcss: proc newCssAngle(s: string): Value</a></li>
+          </ul></dd>
+<dt><a name="newCssAngleRaw" href="#newCssAngleRaw"><span>newCssAngleRaw:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="libcss: proc newCssAngleRaw(val: float; unit: string): Value" href="bro/engine/stdlib/libcss.html#newCssAngleRaw%2Cfloat%2Cstring">libcss: proc newCssAngleRaw(val: float; unit: string): Value</a></li>
+          </ul></dd>
+<dt><a name="newCssFlex" href="#newCssFlex"><span>newCssFlex:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="libcss: proc newCssFlex(s: string): Value" href="bro/engine/stdlib/libcss.html#newCssFlex%2Cstring">libcss: proc newCssFlex(s: string): Value</a></li>
+          </ul></dd>
+<dt><a name="newCssResolution" href="#newCssResolution"><span>newCssResolution:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="libcss: proc newCssResolution(s: string): Value" href="bro/engine/stdlib/libcss.html#newCssResolution%2Cstring">libcss: proc newCssResolution(s: string): Value</a></li>
+          </ul></dd>
+<dt><a name="newCssSize" href="#newCssSize"><span>newCssSize:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="libcss: proc newCssSize(s: string): Value" href="bro/engine/stdlib/libcss.html#newCssSize%2Cstring">libcss: proc newCssSize(s: string): Value</a></li>
+          </ul></dd>
+<dt><a name="newCssSizeRaw" href="#newCssSizeRaw"><span>newCssSizeRaw:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="libcss: proc newCssSizeRaw(val: float; unit: string): Value" href="bro/engine/stdlib/libcss.html#newCssSizeRaw%2Cfloat%2Cstring">libcss: proc newCssSizeRaw(val: float; unit: string): Value</a></li>
+          </ul></dd>
+<dt><a name="newCssTime" href="#newCssTime"><span>newCssTime:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="libcss: proc newCssTime(s: string): Value" href="bro/engine/stdlib/libcss.html#newCssTime%2Cstring">libcss: proc newCssTime(s: string): Value</a></li>
+          </ul></dd>
+<dt><a name="newCssTimeRaw" href="#newCssTimeRaw"><span>newCssTimeRaw:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="libcss: proc newCssTimeRaw(val: float; unit: string): Value" href="bro/engine/stdlib/libcss.html#newCssTimeRaw%2Cfloat%2Cstring">libcss: proc newCssTimeRaw(val: float; unit: string): Value</a></li>
+          </ul></dd>
 <dt><a name="newLexer" href="#newLexer"><span>newLexer:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="lexer: proc newLexer(input: string): Lexer" href="bro/engine/lexer.html#newLexer%2Cstring">lexer: proc newLexer(input: string): Lexer</a></li>
+          </ul></dd>
+<dt><a name="normVarName" href="#normVarName"><span>normVarName:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="parser: proc normVarName(name: string): string" href="bro/engine/parser.html#normVarName%2Cstring">parser: proc normVarName(name: string): string</a></li>
+          </ul></dd>
+<dt><a name="normVarNode" href="#normVarNode"><span>normVarNode:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="parser: proc normVarNode(node: Node): Node" href="bro/engine/parser.html#normVarNode%2CNode">parser: proc normVarNode(node: Node): Node</a></li>
           </ul></dd>
 <dt><a name="p" href="#p"><span>p:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -146,6 +254,14 @@
 <dt><a name="PrefixFunction" href="#PrefixFunction"><span>PrefixFunction:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="parser: type PrefixFunction" href="bro/engine/parser.html#PrefixFunction">parser: type PrefixFunction</a></li>
+          </ul></dd>
+<dt><a name="resolveBroColor" href="#resolveBroColor"><span>resolveBroColor:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="libcolors: proc resolveBroColor(v: Value): BroColor" href="bro/engine/stdlib/libcolors.html#resolveBroColor%2CValue">libcolors: proc resolveBroColor(v: Value): BroColor</a></li>
+          </ul></dd>
+<dt><a name="resolveColor" href="#resolveColor"><span>resolveColor:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="libcolors: proc resolveColor(v: Value): Color" href="bro/engine/stdlib/libcolors.html#resolveColor%2CValue">libcolors: proc resolveColor(v: Value): Color</a></li>
           </ul></dd>
 <dt><a name="skipWhitespace" href="#skipWhitespace"><span>skipWhitespace:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -499,11 +615,15 @@
 <li><a class="reference external"
           data-doc-search-tag="libcolors: const tyColor" href="bro/engine/stdlib/libcolors.html#tyColor">libcolors: const tyColor</a></li>
           </ul></dd>
+<dt><a name="unitSizeSuffixes" href="#unitSizeSuffixes"><span>unitSizeSuffixes:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="parser: const unitSizeSuffixes" href="bro/engine/parser.html#unitSizeSuffixes">parser: const unitSizeSuffixes</a></li>
+          </ul></dd>
 </dl>
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2026-08-31 19:01:42 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2026-09-03 18:28:54 UTC</small>
       </div>
     </div>
   </div>

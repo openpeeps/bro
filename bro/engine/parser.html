@@ -76,10 +76,35 @@
 </li>
 <li>
   <details open>
+    <summary><a class="reference reference-toplevel" href="#10" id="60">Consts</a></summary>
+    <ul class="simple simple-toc-section">
+      <li><a class="reference" href="#broValueFnNames" title="broValueFnNames = [&quot;lighten&quot;, &quot;darken&quot;, &quot;saturate&quot;, &quot;desaturate&quot;, &quot;spin&quot;, &quot;mix&quot;,
+                   &quot;mixCMYK&quot;, &quot;toHex&quot;, &quot;toHexAlpha&quot;, &quot;toHtmlHex&quot;, &quot;parseHex&quot;,
+                   &quot;parseHexAlpha&quot;, &quot;parseHtmlHex&quot;, &quot;parseColor&quot;,
+                   &quot;parseHtmlName&quot;, &quot;parseHtmlColor&quot;, &quot;distance&quot;, &quot;almostEqual&quot;,
+                   &quot;parseLength&quot;, &quot;parseAngle&quot;, &quot;parseTime&quot;, &quot;parseResolution&quot;,
+                   &quot;parseFlex&quot;]">broValueFnNames</a></li>
+<li><a class="reference" href="#unitSizeSuffixes" title="unitSizeSuffixes = [&quot;px&quot;, &quot;em&quot;, &quot;rem&quot;, &quot;%&quot;, &quot;vh&quot;, &quot;vw&quot;, &quot;vmin&quot;, &quot;vmax&quot;, &quot;s&quot;,
+                    &quot;ms&quot;, &quot;deg&quot;, &quot;rad&quot;, &quot;grad&quot;, &quot;turn&quot;, &quot;dpi&quot;, &quot;dpcm&quot;, &quot;dppx&quot;,
+                    &quot;Hz&quot;, &quot;kHz&quot;, &quot;fr&quot;, &quot;ch&quot;, &quot;ex&quot;, &quot;cm&quot;, &quot;mm&quot;, &quot;in&quot;, &quot;pt&quot;, &quot;pc&quot;]">unitSizeSuffixes</a></li>
+
+    </ul>
+  </details>
+</li>
+<li>
+  <details open>
     <summary><a class="reference reference-toplevel" href="#12" id="62">Procs</a></summary>
     <ul class="simple simple-toc-section">
       <ul class="simple nested-toc-section">isKnownCssProperty
   <li><a class="reference" href="#isKnownCssProperty%2Cstring" title="isKnownCssProperty(name: string): bool">isKnownCssProperty(name: string): bool</a></li>
+
+</ul>
+<ul class="simple nested-toc-section">normVarName
+  <li><a class="reference" href="#normVarName%2Cstring" title="normVarName(name: string): string">normVarName(name: string): string</a></li>
+
+</ul>
+<ul class="simple nested-toc-section">normVarNode
+  <li><a class="reference" href="#normVarNode%2CNode" title="normVarNode(node: Node): Node">normVarNode(node: Node): Node</a></li>
 
 </ul>
 <ul class="simple nested-toc-section">parseScript
@@ -141,6 +166,35 @@
 
   </dl>
 </div>
+<div class="section" id="10">
+  <h1><a class="toc-backref" href="#10">Consts</a></h1>
+  <dl class="item">
+    <div id="broValueFnNames">
+  <dt><pre><a href="#broValueFnNames"><span class="Identifier">broValueFnNames</span></a> <span class="Other">=</span> <span class="Other">[</span><span class="StringLit">&quot;lighten&quot;</span><span class="Other">,</span> <span class="StringLit">&quot;darken&quot;</span><span class="Other">,</span> <span class="StringLit">&quot;saturate&quot;</span><span class="Other">,</span> <span class="StringLit">&quot;desaturate&quot;</span><span class="Other">,</span> <span class="StringLit">&quot;spin&quot;</span><span class="Other">,</span> <span class="StringLit">&quot;mix&quot;</span><span class="Other">,</span>
+                   <span class="StringLit">&quot;mixCMYK&quot;</span><span class="Other">,</span> <span class="StringLit">&quot;toHex&quot;</span><span class="Other">,</span> <span class="StringLit">&quot;toHexAlpha&quot;</span><span class="Other">,</span> <span class="StringLit">&quot;toHtmlHex&quot;</span><span class="Other">,</span> <span class="StringLit">&quot;parseHex&quot;</span><span class="Other">,</span>
+                   <span class="StringLit">&quot;parseHexAlpha&quot;</span><span class="Other">,</span> <span class="StringLit">&quot;parseHtmlHex&quot;</span><span class="Other">,</span> <span class="StringLit">&quot;parseColor&quot;</span><span class="Other">,</span>
+                   <span class="StringLit">&quot;parseHtmlName&quot;</span><span class="Other">,</span> <span class="StringLit">&quot;parseHtmlColor&quot;</span><span class="Other">,</span> <span class="StringLit">&quot;distance&quot;</span><span class="Other">,</span> <span class="StringLit">&quot;almostEqual&quot;</span><span class="Other">,</span>
+                   <span class="StringLit">&quot;parseLength&quot;</span><span class="Other">,</span> <span class="StringLit">&quot;parseAngle&quot;</span><span class="Other">,</span> <span class="StringLit">&quot;parseTime&quot;</span><span class="Other">,</span> <span class="StringLit">&quot;parseResolution&quot;</span><span class="Other">,</span>
+                   <span class="StringLit">&quot;parseFlex&quot;</span><span class="Other">]</span></pre></dt>
+  <dd>
+    
+    Bro stdlib procs that construct or combine strictly typed CSS values (see stdlib/libcolors, stdlib/libcss). Calls to these names in property value position parse as real calls so they evaluate to typed values; every other <tt class="docutils literal"><span class="pre"><span class="Identifier">name</span><span class="Punctuation">(</span><span class="Operator">...</span><span class="Punctuation">)</span></span></tt> stays opaque raw CSS text (rgb, var, calc, linear-gradient, ...).
+    
+  </dd>
+</div>
+<div id="unitSizeSuffixes">
+  <dt><pre><a href="#unitSizeSuffixes"><span class="Identifier">unitSizeSuffixes</span></a> <span class="Other">=</span> <span class="Other">[</span><span class="StringLit">&quot;px&quot;</span><span class="Other">,</span> <span class="StringLit">&quot;em&quot;</span><span class="Other">,</span> <span class="StringLit">&quot;rem&quot;</span><span class="Other">,</span> <span class="StringLit">&quot;%&quot;</span><span class="Other">,</span> <span class="StringLit">&quot;vh&quot;</span><span class="Other">,</span> <span class="StringLit">&quot;vw&quot;</span><span class="Other">,</span> <span class="StringLit">&quot;vmin&quot;</span><span class="Other">,</span> <span class="StringLit">&quot;vmax&quot;</span><span class="Other">,</span> <span class="StringLit">&quot;s&quot;</span><span class="Other">,</span>
+                    <span class="StringLit">&quot;ms&quot;</span><span class="Other">,</span> <span class="StringLit">&quot;deg&quot;</span><span class="Other">,</span> <span class="StringLit">&quot;rad&quot;</span><span class="Other">,</span> <span class="StringLit">&quot;grad&quot;</span><span class="Other">,</span> <span class="StringLit">&quot;turn&quot;</span><span class="Other">,</span> <span class="StringLit">&quot;dpi&quot;</span><span class="Other">,</span> <span class="StringLit">&quot;dpcm&quot;</span><span class="Other">,</span> <span class="StringLit">&quot;dppx&quot;</span><span class="Other">,</span>
+                    <span class="StringLit">&quot;Hz&quot;</span><span class="Other">,</span> <span class="StringLit">&quot;kHz&quot;</span><span class="Other">,</span> <span class="StringLit">&quot;fr&quot;</span><span class="Other">,</span> <span class="StringLit">&quot;ch&quot;</span><span class="Other">,</span> <span class="StringLit">&quot;ex&quot;</span><span class="Other">,</span> <span class="StringLit">&quot;cm&quot;</span><span class="Other">,</span> <span class="StringLit">&quot;mm&quot;</span><span class="Other">,</span> <span class="StringLit">&quot;in&quot;</span><span class="Other">,</span> <span class="StringLit">&quot;pt&quot;</span><span class="Other">,</span> <span class="StringLit">&quot;pc&quot;</span><span class="Other">]</span></pre></dt>
+  <dd>
+    
+    
+    
+  </dd>
+</div>
+
+  </dl>
+</div>
 <div class="section" id="12">
   <h1><a class="toc-backref" href="#12">Procs</a></h1>
   <dl class="item">
@@ -151,6 +205,28 @@
   <dd>
     
     
+    
+  </dd>
+</div>
+
+</div>
+<div id="normVarName-procs-all">
+  <div id="normVarName,string">
+  <dt><pre><span class="Keyword">proc</span> <a href="#normVarName%2Cstring"><span class="Identifier">normVarName</span></a><span class="Other">(</span><span class="Identifier">name</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">string</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+  <dd>
+    
+    Normalize a declared variable name: <tt class="docutils literal"><span class="pre"><span class="Keyword">var</span> <span class="Identifier">accent</span></span></tt> registers <tt class="docutils literal"><span class="pre"><span class="Operator">$</span><span class="Identifier">accent</span></span></tt>. <tt class="docutils literal"><span class="pre"><span class="Operator">$</span></span></tt> is required at use sites; already-prefixed (and <tt class="docutils literal"><span class="pre"><span class="Operator">-</span></span></tt>-prefixed, e.g. custom properties) names pass through untouched.
+    
+  </dd>
+</div>
+
+</div>
+<div id="normVarNode-procs-all">
+  <div id="normVarNode,Node">
+  <dt><pre><span class="Keyword">proc</span> <a href="#normVarNode%2CNode"><span class="Identifier">normVarNode</span></a><span class="Other">(</span><span class="Identifier">node</span><span class="Other">:</span> <span class="Identifier">Node</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Node</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+  <dd>
+    
+    Apply normVarName to a declaration target (<tt class="docutils literal"><span class="pre"><span class="Identifier">nkIdent</span></span></tt>, possibly wrapped in an export-marker <tt class="docutils literal"><span class="pre"><span class="Identifier">nkPostfix</span></span></tt>). Anything else passes through.
     
   </dd>
 </div>
@@ -179,7 +255,7 @@
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2026-08-31 19:01:42 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2026-09-03 18:28:54 UTC</small>
       </div>
     </div>
   </div>
