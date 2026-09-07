@@ -1,6 +1,13 @@
 <p align="center">
   <img src="https://github.com/openpeeps/bro/blob/main/.github/bro.png" alt="Bro" width="170px"><br>
-  Bro — Compiled CSS Preprocessor
+  Bro &bullet; A fast CSS Preprocessor<br>
+  Typed &bullet; VM & JIT Compiler &bullet; Written in Nim language 
+</p>
+
+
+
+<p align="center">
+  <code>nimble install bro</code> / <code>clue install bro --build</code>
 </p>
 
 <p align="center">
@@ -36,6 +43,11 @@ Requires Nim >= 2.0.0 (https://nim-lang.org/install.html).
 
 ```sh
 nimble install bro
+```
+
+Or use [clue](https://github.com/openpeeps/clue), an alternative package manager for Nim development:
+```sh
+clue install bro --build
 ```
 
 ### Compile
