@@ -4,7 +4,7 @@
 #          Made by Humans from OpenPeeps
 #          https://github.com/openpeeps/bro
 
-import std/options
+import std/[options, strutils]
 import pkg/openparser/colors
 import pkg/vancode/interpreter/[chunk, sym, value]
 
@@ -13,14 +13,43 @@ import ./cssvalues
 
 const tyColor* = 20
 
+const colorKeywordPassthrough = ["transparent", "currentcolor",
+  "inherit", "initial", "unset", "revert", "revert-layer"]
+
 proc toPercent(amount: float): float {.inline.} =
   if amount > 0.0 and amount < 1.0: amount * 100.0 else: amount
 
 proc toWeight(weight: float): float {.inline.} =
   if weight > 0.0 and weight < 1.0: weight * 100.0 else: weight
 
+proc canonicalColorRaw*(col: Color, raw: string): string =
+  ## Canonical display spelling for a typed color value.
+  ## Named colors (single-word `red`) become lowercase hex (`#ff0000`).
+  ## Hex literals keep their spelling (lowercased, short form preserved).
+  ## `transparent`/CSS-wide keywords, functions (`rgb(...)`), multi-word
+  ## values pass through untouched so alpha/functions are not lost.
+  if raw.len == 0: return col.toHtmlHex()
+  if raw[0] == '#': return raw.toLowerAscii()
+  let lower = raw.toLowerAscii()
+  if lower in colorKeywordPassthrough: return lower
+  # Only single ident words are named-color candidates; anything with
+  # parens, spaces, commas, slashes or hashes is a function/composite.
+  for ch in raw:
+    if ch in {'(', ')', ' ', '\t', ',', '/', '#', '"', '\''}:
+      return raw
+  try:
+    # Validates via openparser; invalid names fall through to raw so the
+    # caller (genColor) can still raise a proper error upstream.
+    # Only named colors canonicalize; bare hex fragments (efd) stay verbatim.
+    let parsed = parseColor(raw)
+    if parsed.format != cfNamed:
+      return raw
+    return col.toHex().toLowerAscii()
+  except CatchableError:
+    return raw
+
 proc newBroColor*(col: Color, raw: string = ""): Value =
-  let r = if raw.len > 0: raw else: col.toHtmlHex()
+  let r = canonicalColorRaw(col, raw)
   # Display spelling cached on the foreign tag so the VM can emit colors
   # without bro imports (vancode scope only sees Value/ForeignData).
   result = initCssPayload(tyColor, BroColor(c: col, raw: r), r)

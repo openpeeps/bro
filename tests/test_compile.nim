@@ -59,7 +59,7 @@ proc compileFile(path: string): string =
 suite "compilation tests":
   test "compile simple class selector":
     let css = compile(".foo { color: red; }")
-    check css == ".foo{color:red}"
+    check css == ".foo{color:#ff0000}"
 
   test "compile class with multiple properties":
     let css = compile("""
@@ -68,7 +68,7 @@ suite "compilation tests":
     font-size: 16px;
   }
   """)
-    check css == ".card{color:blue;font-size:16px}"
+    check css == ".card{color:#0000ff;font-size:16px}"
 
   test "compile id selector":
     let css = compile("#header { width: 100px; }")
@@ -80,11 +80,11 @@ suite "compilation tests":
 
   test "compile element selector":
     let css = compile("h1 { color: red; }")
-    check css == "h1{color:red}"
+    check css == "h1{color:#ff0000}"
 
   test "compile multiple selectors comma separated":
     let css = compile("h1, btn { color: red; }")
-    check css == "h1,btn{color:red}"
+    check css == "h1,btn{color:#ff0000}"
 
   test "compile element selector followed by rules on same line":
     let css = compile("a, btn:hover { padding-top: 10px; }.p-0 { padding: 0; }")
@@ -92,11 +92,11 @@ suite "compilation tests":
 
   test "compile attribute selector":
     let css = compile("[data-bs-theme=dark] { color: red; }")
-    check css == "[data-bs-theme=dark]{color:red}"
+    check css == "[data-bs-theme=dark]{color:#ff0000}"
 
   test "compile attribute selector with quoted value":
     let css = compile("[data-bs-theme=\"dark\"] { color: red; }")
-    check css == "[data-bs-theme=\"dark\"]{color:red}"
+    check css == "[data-bs-theme=\"dark\"]{color:#ff0000}"
 
   test "compile attribute selector on class":
     let css = compile(".dropdown[data-bs-popper] { padding: 0; }")
@@ -104,7 +104,7 @@ suite "compilation tests":
 
   test "compile attribute selector with caret operator":
     let css = compile("a[href^=\"http\"] { color: blue; }")
-    check css == "a[href^=\"http\"]{color:blue}"
+    check css == "a[href^=\"http\"]{color:#0000ff}"
 
   test "compile attribute selector with tilde operator":
     let css = compile("[data-x~=foo] { display: block; }")
@@ -120,11 +120,11 @@ suite "compilation tests":
 
   test "compile element with attribute and pseudo":
     let css = compile("input[type=\"checkbox\"]:checked { color: green; }")
-    check css == "input[type=\"checkbox\"]:checked{color:green}"
+    check css == "input[type=\"checkbox\"]:checked{color:#008000}"
 
   test "compile minified css without spaces":
     let css = compile("body{color:red}.foo{padding:0}")
-    check css == "body{color:red}.foo{padding:0}"
+    check css == "body{color:#ff0000}.foo{padding:0}"
 
   test "compile hex color starting with digit":
     let css = compile(".foo{color:#0d6efd}")
@@ -136,19 +136,19 @@ suite "compilation tests":
 
   test "compile descendant selector after attribute":
     let css = compile("[data-bs-theme=\"dark\"] .dropdown-menu { color: red; }")
-    check css == "[data-bs-theme=\"dark\"] .dropdown-menu{color:red}"
+    check css == "[data-bs-theme=\"dark\"] .dropdown-menu{color:#ff0000}"
 
   test "compile attribute with comma-separated selectors":
     let css = compile("a[href^=\"http\"], [data-x^=\"y\"] { color: blue; }")
-    check css == "a[href^=\"http\"],[data-x^=\"y\"]{color:blue}"
+    check css == "a[href^=\"http\"],[data-x^=\"y\"]{color:#0000ff}"
 
   test "compile adjacent sibling combinator":
     let css = compile(".btn-check:checked+.btn { color: red; }")
-    check css == ".btn-check:checked+.btn{color:red}"
+    check css == ".btn-check:checked+.btn{color:#ff0000}"
 
   test "compile child combinator":
     let css = compile(".parent>.child { color: red; }")
-    check css == ".parent>.child{color:red}"
+    check css == ".parent>.child{color:#ff0000}"
 
   test "compile var() css function":
     let css = compile(".btn { color: var(--bs-btn-hover-color); }")
@@ -164,7 +164,7 @@ suite "compilation tests":
 
   test "compile important modifier":
     let css = compile(".foo { color: red !important; }")
-    check css == ".foo{color:red !important}"
+    check css == ".foo{color:#ff0000 !important}"
 
   test "compile descendant element selectors":
     let css = compile("""
@@ -179,7 +179,7 @@ suite "compilation tests":
 
   test "compile nested element selector in at-rule":
     let css = compile("@media (min-width: 768px) { ol li { color: blue; } }")
-    check css == "@media (min-width: 768px){ol li{color:blue}}"
+    check css == "@media (min-width: 768px){ol li{color:#0000ff}}"
 
   test "compile is() functional pseudo":
     let css = compile(".table :is(thead,tbody,tfoot)>tr>th,td { padding: .5rem; }")
@@ -191,11 +191,11 @@ suite "compilation tests":
 
   test "compile nth-child functional pseudo":
     let css = compile(".x:nth-child(2n+1) { color: red; }")
-    check css == ".x:nth-child(2n+1){color:red}"
+    check css == ".x:nth-child(2n+1){color:#ff0000}"
 
   test "compile compound class selector":
     let css = compile(".offcanvas.offcanvas-start { color: red; }")
-    check css == ".offcanvas.offcanvas-start{color:red}"
+    check css == ".offcanvas.offcanvas-start{color:#ff0000}"
 
   test "compile duplicate property keys (vendor fallback)":
     let css = compile("th { text-align: inherit; text-align: -webkit-match-parent; }")
@@ -215,7 +215,7 @@ suite "compilation tests":
     color: red
     font-size: 14px
   """)
-    check css == ".foo{color:red;font-size:14px}"
+    check css == ".foo{color:#ff0000;font-size:14px}"
 
   test "compile nested selector":
     let css = compile("""
@@ -223,14 +223,14 @@ suite "compilation tests":
     .child
       color: blue
   """)
-    check css == ".parent .child{color:blue}"
+    check css == ".parent .child{color:#0000ff}"
 
   test "compile class with pseudo selector":
     let css = compile("""
   .btn:hover
     color: blue
   """)
-    check css == ".btn:hover{color:blue}"
+    check css == ".btn:hover{color:#0000ff}"
 
   test "compile unit values":
     let css = compile(".box { width: 100px; }")
@@ -256,7 +256,7 @@ suite "compilation tests":
     .c
       color: blue
   """)
-    check css == ".a .b{color:red}.a .c{color:blue}"
+    check css == ".a .b{color:#ff0000}.a .c{color:#0000ff}"
 
   test "compile deeply nested selectors":
     let css = compile("""
@@ -265,7 +265,7 @@ suite "compilation tests":
       .z
         color: red
   """)
-    check css == ".x .y .z{color:red}"
+    check css == ".x .y .z{color:#ff0000}"
 
   test "compile css custom property":
     let css = compile("""
@@ -288,7 +288,7 @@ suite "compilation tests":
   .a { color: red; }
   .b { color: blue; }
   """)
-    check css == ".a{color:red}.b{color:blue}"
+    check css == ".a{color:#ff0000}.b{color:#0000ff}"
 
   test "compile indent based with braces":
     let css = compile("""
@@ -296,14 +296,14 @@ suite "compilation tests":
     color: red
   }
   """)
-    check css == ".foo{color:red}"
+    check css == ".foo{color:#ff0000}"
 
   test "compile variable declaration and usage":
     let css = compile("""
   var $primary = red
   .foo { color: $primary; }
   """)
-    check css == ".foo{color:#FF0000}"
+    check css == ".foo{color:#ff0000}"
 
   test "compile let declaration":
     let css = compile("""
@@ -333,14 +333,14 @@ suite "compilation tests":
   let accent = red
   .foo { color: $accent; }
   """)
-    check css == ".foo{color:#FF0000}"
+    check css == ".foo{color:#ff0000}"
 
   test "bare exported declaration":
     let css = compile("""
   let accent* = blue
   .foo { color: $accent; }
   """)
-    check css == ".foo{color:#0000FF}"
+    check css == ".foo{color:#0000ff}"
 
   test "compile variable reference in selector block":
     let css = compile("""
@@ -349,7 +349,7 @@ suite "compilation tests":
     color: $col
     background: $col
   """)
-    check css == ".foo{color:#0000FF;background:#0000FF}"
+    check css == ".foo{color:#0000ff;background:#0000ff}"
 
   test "compile arithmetic in value":
     let css = compile("""
@@ -371,14 +371,14 @@ suite "compilation tests":
     .foo
       color: red
   """)
-    check css == "@media (max-width: 768px){.foo{color:red}}"
+    check css == "@media (max-width: 768px){.foo{color:#ff0000}}"
 
   test "compile @supports":
     let css = compile("""
   @supports (display: grid)
     .foo { color: red; }
   """)
-    check css == "@supports (display: grid){.foo{color:red}}"
+    check css == "@supports (display: grid){.foo{color:#ff0000}}"
 
   test "compile @font-face":
     let css = compile("""
@@ -409,7 +409,7 @@ suite "compilation tests":
     .foo, .bar
       color: blue
   """)
-    check css == "@media (min-width: 480px){.foo,.bar{color:blue}}"
+    check css == "@media (min-width: 480px){.foo,.bar{color:#0000ff}}"
 
   test "compile nested @media inside selector":
     let css = compile("""
@@ -418,19 +418,19 @@ suite "compilation tests":
       .child
         color: blue
   """)
-    check css == ".parent{@media (max-width: 768px){.child{color:blue}}}"
+    check css == ".parent{@media (max-width: 768px){.child{color:#0000ff}}}"
 
   test "compile @media brace-delimited":
     let css = compile("@media (max-width: 768px) { .foo { color: red; } }")
-    check css == "@media (max-width: 768px){.foo{color:red}}"
+    check css == "@media (max-width: 768px){.foo{color:#ff0000}}"
 
   test "compile @supports simple":
     let css = compile("@supports (display: grid) { .foo { color: red; } }")
-    check css == "@supports (display: grid){.foo{color:red}}"
+    check css == "@supports (display: grid){.foo{color:#ff0000}}"
 
   test "compile @supports with not":
     let css = compile("@supports not (display: grid) { .foo { color: red; } }")
-    check css == "@supports not (display: grid){.foo{color:red}}"
+    check css == "@supports not (display: grid){.foo{color:#ff0000}}"
 
   test "compile @layer unnamed":
     let css = compile("""
@@ -438,7 +438,7 @@ suite "compilation tests":
     .foo
       color: red
   """)
-    check css == "@layer{.foo{color:red}}"
+    check css == "@layer{.foo{color:#ff0000}}"
 
   test "compile @layer multiple named":
     let css = compile("@layer base, theme;")
@@ -478,7 +478,7 @@ suite "compilation tests":
   .bar
     color: blue
   """)
-    check css == "@media (max-width: 768px){.foo{color:red}}.bar{color:blue}"
+    check css == "@media (max-width: 768px){.foo{color:#ff0000}}.bar{color:#0000ff}"
 
 suite "Phase 1: universal selector":
   test "compile universal selector (brace)":
@@ -523,15 +523,15 @@ suite "Phase 1: opaque call-arg parsing":
 
   test "compile linear-gradient spaces preserved":
     check compile(".a { background: linear-gradient(to right, red, blue); }") ==
-      ".a{background:linear-gradient(to right, red, blue)}"
+      ".a{background:linear-gradient(to right, #ff0000, #0000ff)}"
 
   test "compile linear-gradient with angle":
     check compile(".a { background: linear-gradient(45deg, red, blue); }") ==
-      ".a{background:linear-gradient(45deg, red, blue)}"
+      ".a{background:linear-gradient(45deg, #ff0000, #0000ff)}"
 
   test "compile radial-gradient":
     check compile(".a { background: radial-gradient(circle at center, red, blue); }") ==
-      ".a{background:radial-gradient(circle at center, red, blue)}"
+      ".a{background:radial-gradient(circle at center, #ff0000, #0000ff)}"
 
   test "compile url unquoted":
     check compile(".a { background: url(img.png); }") == ".a{background:url(img.png)}"
@@ -570,10 +570,10 @@ suite "Phase 1: opaque call-arg parsing":
 
   test "compile box-shadow multi-value":
     check compile(".a { box-shadow: 0 1px 2px rgba(0,0,0,.3), inset 0 0 0 1px red; }") ==
-      ".a{box-shadow:0 1px 2px rgba(0,0,0,.3), inset 0 0 0 1px red}"
+      ".a{box-shadow:0 1px 2px rgba(0,0,0,.3), inset 0 0 0 1px #ff0000}"
 
   test "compile var() with fallback":
-    check compile(".a { color: var(--x, red); }") == ".a{color:var(--x, red)}"
+    check compile(".a { color: var(--x, red); }") == ".a{color:var(--x, #ff0000)}"
 
   test "compile nested function calls":
     check compile(".a { background: linear-gradient(to right, rgb(255, 0, 0), rgb(0, 0, 255)); }") ==
@@ -628,7 +628,7 @@ suite "Phase 1: attribute selector flags":
 
   test "compile attribute with case-insensitive flag on class":
     check compile(".a[data-x=bar s] { color: red; }") ==
-      ".a[data-x=bar s]{color:red}"
+      ".a[data-x=bar s]{color:#ff0000}"
 
   test "compile attribute flag preserves spacing":
     check compile("[type=\"text\" i] { border: 1px; }") ==
@@ -669,31 +669,31 @@ suite "Phase 1: validator warn-only (no crash)":
 
 suite "Phase 1: mixed brace/indent syntax":
   test "compile brace rule with indent-nested rule":
-    check compile(".foo {\n  .bar\n    color: red\n}") == ".foo .bar{color:red}"
+    check compile(".foo {\n  .bar\n    color: red\n}") == ".foo .bar{color:#ff0000}"
 
   test "compile indent rule with brace-nested rule":
-    check compile(".foo\n  .bar {\n    color: red\n  }") == ".foo .bar{color:red}"
+    check compile(".foo\n  .bar {\n    color: red\n  }") == ".foo .bar{color:#ff0000}"
 
   test "compile brace @media with indent selectors":
     check compile("@media (max-width: 768px) {\n  .foo\n    color: red\n}") ==
-      "@media (max-width: 768px){.foo{color:red}}"
+      "@media (max-width: 768px){.foo{color:#ff0000}}"
 
   test "compile indent @media with brace selectors":
     check compile("@media (max-width: 768px)\n  .foo { color: red; }") ==
-      "@media (max-width: 768px){.foo{color:red}}"
+      "@media (max-width: 768px){.foo{color:#ff0000}}"
 
 suite "Phase 2: Sass-style nesting":
   test "simple descendant nesting (indent)":
-    check compile(".parent\n  .child\n    color: blue") == ".parent .child{color:blue}"
+    check compile(".parent\n  .child\n    color: blue") == ".parent .child{color:#0000ff}"
 
   test "simple descendant nesting (brace)":
-    check compile(".parent { .child { color: blue } }") == ".parent .child{color:blue}"
+    check compile(".parent { .child { color: blue } }") == ".parent .child{color:#0000ff}"
 
   test "& hover pseudo-class":
-    check compile(".card\n  &:hover\n    color: red") == ".card:hover{color:red}"
+    check compile(".card\n  &:hover\n    color: red") == ".card:hover{color:#ff0000}"
 
   test "& compound class":
-    check compile(".card\n  &.active\n    color: red") == ".card.active{color:red}"
+    check compile(".card\n  &.active\n    color: red") == ".card.active{color:#ff0000}"
 
   test "& child combinator":
     check compile(".parent\n  & > .item\n    margin: 0") == ".parent > .item{margin:0}"
@@ -705,19 +705,19 @@ suite "Phase 2: Sass-style nesting":
     check compile(".parent\n  & ~ .item\n    margin: 0") == ".parent ~ .item{margin:0}"
 
   test "deep descendant nesting":
-    check compile(".x\n  .y\n    .z\n      color: red") == ".x .y .z{color:red}"
+    check compile(".x\n  .y\n    .z\n      color: red") == ".x .y .z{color:#ff0000}"
 
   test "parent with properties + nested child":
     check compile(".card\n  color: red\n  .child\n    color: blue") ==
-      ".card{color:red}.card .child{color:blue}"
+      ".card{color:#ff0000}.card .child{color:#0000ff}"
 
   test "multiple nested children":
     check compile(".parent\n  .a\n    color: red\n  .b\n    color: blue") ==
-      ".parent .a{color:red}.parent .b{color:blue}"
+      ".parent .a{color:#ff0000}.parent .b{color:#0000ff}"
 
   test "nested child with multiple properties":
     check compile(".parent\n  .child\n    color: red\n    font-size: 14px") ==
-      ".parent .child{color:red;font-size:14px}"
+      ".parent .child{color:#ff0000;font-size:14px}"
 
   test "mixed properties and nesting":
     check compile(".card\n  padding: 1rem\n  .title\n    font-weight: bold\n  .body\n    line-height: 1.5") ==
@@ -725,41 +725,41 @@ suite "Phase 2: Sass-style nesting":
 
   test "at-rule inside nested selector":
     check compile(".parent\n  @media (max-width: 768px)\n    .child\n      color: blue") ==
-      ".parent{@media (max-width: 768px){.child{color:blue}}}"
+      ".parent{@media (max-width: 768px){.child{color:#0000ff}}}"
 
   test "nesting with var() reference":
     check compile("let $col = blue\n.parent\n  .child\n    color: $col") ==
-      ".parent .child{color:#0000FF}"
+      ".parent .child{color:#0000ff}"
 
   test "nesting preserves selector type (id)":
-    check compile("#app\n  .child\n    color: red") == "#app .child{color:red}"
+    check compile("#app\n  .child\n    color: red") == "#app .child{color:#ff0000}"
 
   test "nesting preserves selector type (pseudo)":
-    check compile(":root\n  .child\n    color: red") == ":root .child{color:red}"
+    check compile(":root\n  .child\n    color: red") == ":root .child{color:#ff0000}"
 
   test "& multiple comma-separated":
     check compile(".card\n  &:hover, &.active\n    color: red") ==
-      ".card:hover, .card.active{color:red}"
+      ".card:hover, .card.active{color:#ff0000}"
 
   test "nesting with !important":
     check compile(".parent\n  .child\n    color: red !important") ==
-      ".parent .child{color:red !important}"
+      ".parent .child{color:#ff0000 !important}"
 
   test "comma-separated parent selectors (indent)":
     check compile(".a, .b\n  .child\n    color: red") ==
-      ".a .child, .b .child{color:red}"
+      ".a .child, .b .child{color:#ff0000}"
 
   test "comma-separated parent selectors (brace)":
     check compile(".a, .b {\n  .child {\n    color: red\n  }\n}") ==
-      ".a .child, .b .child{color:red}"
+      ".a .child, .b .child{color:#ff0000}"
 
   test "comma-separated parent with properties":
     check compile(".a, .b\n  color: red") ==
-      ".a,.b{color:red}"
+      ".a,.b{color:#ff0000}"
 
   test "comma-separated parent multiple nested children":
     check compile(".a, .b\n  .x\n    color: red\n  .y\n    color: blue") ==
-      ".a .x, .b .x{color:red}.a .y, .b .y{color:blue}"
+      ".a .x, .b .x{color:#ff0000}.a .y, .b .y{color:#0000ff}"
 
   test "nesting with pseudo-element":
     check compile(".card\n  &::before\n    content: \"\"") ==
@@ -767,7 +767,7 @@ suite "Phase 2: Sass-style nesting":
 
   test "nesting with attribute selector":
     check compile("[data-theme] {\n  .child {\n    color: red\n  }\n}") ==
-      "[data-theme] .child{color:red}"
+      "[data-theme] .child{color:#ff0000}"
 
   test "nesting with float value":
     check compile(".a\n  .b\n    opacity: .5") ==
@@ -775,23 +775,23 @@ suite "Phase 2: Sass-style nesting":
 
   test "deep nesting with & at each level":
     check compile(".a\n  &:hover\n    .b\n      &.active\n        color: red") ==
-      ".a:hover .b.active{color:red}"
+      ".a:hover .b.active{color:#ff0000}"
 
   test "nesting with !important on child":
     check compile(".parent\n  .child\n    color: red !important\n    font-size: 14px") ==
-      ".parent .child{color:red !important;font-size:14px}"
+      ".parent .child{color:#ff0000 !important;font-size:14px}"
 
   test "nesting with var() on child":
     check compile("let $c = red\n.parent\n  .child\n    color: $c") ==
-      ".parent .child{color:#FF0000}"
+      ".parent .child{color:#ff0000}"
 
   test "nesting + at-rule interleave":
     check compile(".a\n  color: red\n  @media (max-width: 768px)\n    .b\n      color: blue\n  .c\n    color: green") ==
-      ".a{color:red}@media (max-width: 768px){.a .b{color:blue}}.a .c{color:green}"
+      ".a{color:#ff0000}@media (max-width: 768px){.a .b{color:#0000ff}}.a .c{color:#008000}"
 
   test "nesting with selector on same line as parent":
     check compile(".a { .b { color: red } .c { color: blue } }") ==
-      ".a .b{color:red}.a .c{color:blue}"
+      ".a .b{color:#ff0000}.a .c{color:#0000ff}"
 
   test "nesting preserves hex colors":
     check compile(".parent\n  .child\n    color: #ff0000") ==
@@ -811,7 +811,7 @@ suite "Phase 2: Sass-style nesting":
 
   test "nesting pseudo-class selector":
     check compile(":root\n  .child\n    color: red") ==
-      ":root .child{color:red}"
+      ":root .child{color:#ff0000}"
 
   test "comma-separated children with &":
     check compile(".card\n  &:hover, &:focus\n    outline: 2px") ==
@@ -819,7 +819,7 @@ suite "Phase 2: Sass-style nesting":
 
   test "multiple comma parents with &":
     check compile(".a, .b\n  &:hover\n    color: red") ==
-      ".a:hover, .b:hover{color:red}"
+      ".a:hover, .b:hover{color:#ff0000}"
 
 suite "Phase 4: numeric edge cases":
   test "scientific notation integer":
@@ -872,12 +872,12 @@ suite "Phase 4: numeric edge cases":
 
   test "compile mixed brace/indent at-rule in selector":
     check compile(".parent {\n  @media (max-width: 768px)\n    .child\n      color: blue\n}") ==
-      ".parent{@media (max-width: 768px){.child{color:blue}}}"
+      ".parent{@media (max-width: 768px){.child{color:#0000ff}}}"
 
 suite "Phase 5: mixins":
   test "basic mixin with typed parameter":
     check compile("mixin btn(color: color)\n  color: $color\n  border-radius: 4px\n.a\n  @btn(red)") ==
-      ".a{color:red;border-radius:4px}"
+      ".a{color:#ff0000;border-radius:4px}"
 
   test "mixin without parameters":
     check compile("mixin reset()\n  margin: 0\n  padding: 0\n.a\n  @reset()") ==
@@ -889,7 +889,7 @@ suite "Phase 5: mixins":
 
   test "mixin with brace body":
     check compile("mixin btn(color: color) {\n  color: $color\n}\n.a {\n  @btn(red)\n}") ==
-      ".a{color:red}"
+      ".a{color:#ff0000}"
 
   test "mixin with multiple parameters":
     check compile("mixin box(w: length, h: length)\n  width: $w\n  height: $h\n.a\n  @box(10px, 20px)") ==
@@ -897,7 +897,7 @@ suite "Phase 5: mixins":
 
   test "mixin with variable argument":
     check compile("mixin btn(color: color)\n  color: $color\nlet $c = blue\n.a\n  @btn($c)") ==
-      ".a{color:#0000FF}"
+      ".a{color:#0000ff}"
 
   test "mixin named arguments (dollar form)":
     check compile("mixin box(w: length, h: length)\n  width: $w\n  height: $h\n.a\n  @box($h = 5px, $w = 10px)") ==
@@ -913,11 +913,11 @@ suite "Phase 5: mixins":
 
   test "mixin preserves parent property order":
     check compile("mixin m(c: color)\n  color: $c\n.a\n  color: red\n  @m(green)\n  background: blue") ==
-      ".a{color:red;color:green;background:blue}"
+      ".a{color:#ff0000;color:#008000;background:#0000ff}"
 
   test "nested selector inside mixin (full splice)":
     check compile("mixin card\n  .title\n    font-weight: bold\n.a\n  color: red\n  @card()") ==
-      ".a{color:red}.a .title{font-weight:bold}"
+      ".a{color:#ff0000}.a .title{font-weight:bold}"
 
   test "mixin definition emits no CSS":
     check compile("mixin unused(color: color)\n  background: $color") == ""
@@ -928,16 +928,16 @@ suite "Phase 5: mixins":
 
 suite "Phase 5: control flow inside rule bodies":
   test "if true emits contained property":
-    check compile(".a\n  if true:\n    color: red") == ".a{color:red}"
+    check compile(".a\n  if true:\n    color: red") == ".a{color:#ff0000}"
 
   test "if false skips contained property":
-    check compile(".a\n  if false:\n    color: red\n  color: blue") == ".a{color:blue}"
+    check compile(".a\n  if false:\n    color: red\n  color: blue") == ".a{color:#0000ff}"
 
   test "if with variable condition":
     check compile("let $debug = true\n.a\n  if $debug:\n    outline: 1px") == ".a{outline:1px}"
 
   test "if else branches":
-    check compile("let $m = false\n.a\n  if $m:\n    color: red\n  else:\n    color: blue") == ".a{color:blue}"
+    check compile("let $m = false\n.a\n  if $m:\n    color: red\n  else:\n    color: blue") == ".a{color:#0000ff}"
 
   test "for range loop emits repeated properties":
     check compile(".a\n  for $i in range(1, 3):\n    z-index: $i") == ".a{z-index:1;z-index:2;z-index:3}"
@@ -949,17 +949,17 @@ suite "Phase 5: control flow inside rule bodies":
     check compile("for $s in [{k: 0, v: 0}, {k: 1, v: 1rem}]:\n  .m-${$s.k}\n    margin: $s.v") == ".m-0{margin:0}.m-1{margin:1rem}"
 
   test "control flow with surrounding properties":
-    check compile("let $on = true\n.a\n  color: red\n  if $on:\n    top: 1px\n  background: blue") == ".a{color:red;top:1px;background:blue}"
+    check compile("let $on = true\n.a\n  color: red\n  if $on:\n    top: 1px\n  background: blue") == ".a{color:#ff0000;top:1px;background:#0000ff}"
 
   test "while loop with counter":
     check compile("var $i = 0\n.a\n  while $i < 2\n    z-index: $i\n    $i = $i + 1") == ".a{z-index:0;z-index:1}"
 
   test "control flow inside mixin":
-    check compile("let $v = true\nmixin m\n  if $v:\n    color: green\n.a\n  @m()") == ".a{color:green}"
+    check compile("let $v = true\nmixin m\n  if $v:\n    color: green\n.a\n  @m()") == ".a{color:#008000}"
 
   test "at-rule still parses after @ in rule bodies":
     check compile(".a\n  @media (max-width: 768px)\n    color: red") ==
-      ".a{@media (max-width: 768px){color:red}}"
+      ".a{@media (max-width: 768px){color:#ff0000}}"
 
 suite "Phase 5: fn / func aliases":
   test "fn keyword evaluates in expression position":
@@ -975,7 +975,7 @@ suite "Phase 6: modules (.bass imports)":
 
   test "import resolves and splices rules + exported vars":
     let css = compileFile(fixturesDir / "import_main.bass")
-    check css == ".base{color:gray}.a{color:#0d6efd;border-radius:4px}"
+    check css == ".base{color:#808080}.a{color:#0d6efd;border-radius:4px}"
 
   test "sourcemap segments attribute imported file correctly":
     proc compileFileVm(path: string): tuple[css: string, vm: Vm] =
@@ -1027,26 +1027,26 @@ proc compilePretty(code: string): string =
 
 suite "Phase 6: pretty output":
   test "single rule with one property":
-    check compilePretty(".a { color: red; }") == ".a{\n  color:red\n}\n"
+    check compilePretty(".a { color: red; }") == ".a{\n  color:#ff0000\n}\n"
 
   test "multiple properties on separate lines":
     check compilePretty(".a { color: red; padding: 0; }") ==
-      ".a{\n  color:red;\n  padding:0\n}\n"
+      ".a{\n  color:#ff0000;\n  padding:0\n}\n"
 
   test "sibling rules separated by newline":
     check compilePretty(".a { color: red; }\n.b { color: blue; }") ==
-      ".a{\n  color:red\n}\n.b{\n  color:blue\n}\n"
+      ".a{\n  color:#ff0000\n}\n.b{\n  color:#0000ff\n}\n"
 
   test "empty rule collapses to brace pair lines":
     check compilePretty(".a {}") == ".a{\n}\n"
 
   test "nested rules indent via raw path":
     check compilePretty(".parent\n  color: red\n  .child\n    color: blue") ==
-      ".parent{\n  color:red\n}\n.parent .child{\n  color:blue\n}\n"
+      ".parent{\n  color:#ff0000\n}\n.parent .child{\n  color:#0000ff\n}\n"
 
   test "at-rule nesting indents inner rule":
     check compilePretty("@media (max-width: 768px) {\n  .a { color: red; }\n}") ==
-      "@media (max-width: 768px){\n  .a{\n    color:red\n  }\n}\n"
+      "@media (max-width: 768px){\n  .a{\n    color:#ff0000\n  }\n}\n"
 
   test "duplicate properties stay on separate lines (raw path)":
     check compilePretty("th { text-align: inherit; text-align: -webkit-match-parent; }") ==
@@ -1061,16 +1061,16 @@ suite "Phase 6: pretty output":
 
 suite "Phase 6: doc-block preservation":
   test "bang banner preserved before rule (minified)":
-    check compile("/*! bro v1 */\n.a { color: red }") == "/*! bro v1 */\n.a{color:red}"
+    check compile("/*! bro v1 */\n.a { color: red }") == "/*! bro v1 */\n.a{color:#ff0000}"
 
   test "double-star docblock preserved with original flavor":
-    check compile("/** section note */\n.b { color: blue }") == "/** section note */\n.b{color:blue}"
+    check compile("/** section note */\n.b { color: blue }") == "/** section note */\n.b{color:#0000ff}"
 
   test "plain block comment still stripped":
-    check compile("/* gone */\n.c { color: green }") == ".c{color:green}"
+    check compile("/* gone */\n.c { color: green }") == ".c{color:#008000}"
 
   test "banner inside rule body precedes the rule":
-    check compile(".a\n  /*! inner */\n  color: red") == "/*! inner */\n.a{color:red}"
+    check compile(".a\n  /*! inner */\n  color: red") == "/*! inner */\n.a{color:#ff0000}"
 
   test "multiple banners keep source order":
     check compile("/*! first */\n/** second */\n.d { margin: 0 }") ==
@@ -1078,11 +1078,11 @@ suite "Phase 6: doc-block preservation":
 
   test "banner between rules":
     check compile(".e { color: red }\n/*! mid */\n.f { color: blue }") ==
-      ".e{color:red}/*! mid */\n.f{color:blue}"
+      ".e{color:#ff0000}/*! mid */\n.f{color:#0000ff}"
 
   test "pretty mode keeps banner on its own line":
-    check compilePretty("/*! b */\n.a { color: red }") == "/*! b */\n.a{\n  color:red\n}\n"
+    check compilePretty("/*! b */\n.a { color: red }") == "/*! b */\n.a{\n  color:#ff0000\n}\n"
 
   test "pretty mode banner inside nested rule body":
     check compilePretty(".p\n  color: red\n  .c\n    color: blue") ==
-      ".p{\n  color:red\n}\n.p .c{\n  color:blue\n}\n"
+      ".p{\n  color:#ff0000\n}\n.p .c{\n  color:#0000ff\n}\n"

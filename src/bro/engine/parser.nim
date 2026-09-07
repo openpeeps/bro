@@ -255,10 +255,10 @@ prefixHandle parseIdent:
   result = ast.newIdent(p.curr.value)
   walk p # tkIdentifier
 
-const hexDigits = "0123456789ABCDEF"
+const hexDigits = "0123456789abcdef"
 
 proc hexByte(v: int): string {.inline.} =
-  ## Uppercase 2-digit hex, const-evaluable (no stdlib dependency).
+  ## Lowercase 2-digit hex, const-evaluable (no stdlib dependency).
   result = newString(2)
   result[0] = hexDigits[(v shr 4) and 15]
   result[1] = hexDigits[v and 15]
