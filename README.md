@@ -12,7 +12,8 @@
 
 <p align="center">
   <a href="https://openpeeps.github.io/bro/theindex.html">API Reference</a> |
-  <a href="https://bro.openpeeps.dev/">Documentation</a><br>
+  <a href="https://bro.openpeeps.dev/">Documentation</a> | 
+  <a href="https://github.com/openpeeps/bro/releases/latest">Download binaries</a><br>
   <img src="https://github.com/openpeeps/bro/workflows/test/badge.svg" alt="Github Actions"> <img src="https://github.com/openpeeps/bro/workflows/docs/badge.svg" alt="Github Actions">
 </p>
 
