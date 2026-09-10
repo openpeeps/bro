@@ -296,7 +296,7 @@ proc findNamedColorHex(name: string): string =
 proc convertNamedColor(p: var Parser, val: Node, hexify: bool): Node =
   ## Type a bare named color / transparent identifier as nkColor.
   ## hexify=true (variable initializers) resolves names to their hex spelling,
-  ## preserving the legacy `var $primary = red` -> #FF0000 conversion.
+  ## preserving the legacy `var $primary = red` -> #ff0000 conversion.
   ## hexify=false keeps the raw spelling (property values, call args).
   ## `$vars`, calls and non-identifiers pass through untouched.
   result = val

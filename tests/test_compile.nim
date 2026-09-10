@@ -729,7 +729,7 @@ suite "Phase 2: Sass-style nesting":
 
   test "nesting with var() reference":
     check compile("var $col = blue\n.parent\n  .child\n    color: $col") ==
-      ".parent .child{color:#0000FF}"
+      ".parent .child{color:#0000ff}"
 
   test "nesting preserves selector type (id)":
     check compile("#app\n  .child\n    color: red") == "#app .child{color:#ff0000}"
@@ -783,7 +783,7 @@ suite "Phase 2: Sass-style nesting":
 
   test "nesting with var() on child":
     check compile("var $c = red\n.parent\n  .child\n    color: $c") ==
-      ".parent .child{color:#FF0000}"
+      ".parent .child{color:#ff0000}"
 
   test "nesting + at-rule interleave":
     check compile(".a\n  color: red\n  @media (max-width: 768px)\n    .b\n      color: blue\n  .c\n    color: green") ==
@@ -877,7 +877,7 @@ suite "Phase 4: numeric edge cases":
 suite "Phase 5: mixins":
   test "basic mixin with typed parameter":
     check compile("mixin btn(color: color) =\n  color: $color\n  border-radius: 4px\n.a\n  @btn(red)") ==
-      ".a{color:red;border-radius:4px}"
+      ".a{color:#ff0000;border-radius:4px}"
 
   test "mixin without parameters":
     check compile("mixin reset() =\n  margin: 0\n  padding: 0\n.a\n  @reset()") ==
@@ -897,7 +897,7 @@ suite "Phase 5: mixins":
 
   test "mixin with variable argument":
     check compile("mixin btn(color: color) =\n  color: $color\nvar $c = blue\n.a\n  @btn($c)") ==
-      ".a{color:#0000FF}"
+      ".a{color:#0000ff}"
 
   test "mixin named arguments (dollar form)":
     check compile("mixin box(w: length, h: length) =\n  width: $w\n  height: $h\n.a\n  @box($h = 5px, $w = 10px)") ==
@@ -913,11 +913,11 @@ suite "Phase 5: mixins":
 
   test "mixin preserves parent property order":
     check compile("mixin m(c: color) =\n  color: $c\n.a\n  color: red\n  @m(green)\n  background: blue") ==
-      ".a{color:red;color:green;background:blue}"
+      ".a{color:#ff0000;color:#008000;background:#0000ff}"
 
   test "nested selector inside mixin (full splice)":
     check compile("mixin card =\n  .title\n    font-weight: bold\n.a\n  color: red\n  @card()") ==
-      ".a{color:red}.a .title{font-weight:bold}"
+      ".a{color:#ff0000}.a .title{font-weight:bold}"
 
   test "mixin definition emits no CSS":
     check compile("mixin unused(color: color) =\n  background: $color") == ""
@@ -928,11 +928,11 @@ suite "Phase 5: mixins":
 
   test "mixin with equals before indented body":
     check compile("mixin btn(color: color) =\n  color: $color\n  border-radius: 4px\n.a\n  @btn(red)") ==
-      ".a{color:red;border-radius:4px}"
+      ".a{color:#ff0000;border-radius:4px}"
 
   test "mixin with equals before brace body":
     check compile("mixin btn(color: color) = {\n  color: $color;\n}\n.a {\n  @btn(blue)\n}") ==
-      ".a{color:blue}"
+      ".a{color:#0000ff}"
 
   test "mixin without equals raises error":
     expect CatchableError:
@@ -949,7 +949,7 @@ suite "Phase 5: control flow inside rule bodies":
     check compile("var $debug = true\n.a\n  if $debug:\n    outline: 1px") == ".a{outline:1px}"
 
   test "if else branches":
-    check compile("var $m = false\n.a\n  if $m:\n    color: red\n  else:\n    color: blue") == ".a{color:blue}"
+    check compile("var $m = false\n.a\n  if $m:\n    color: red\n  else:\n    color: blue") == ".a{color:#0000ff}"
 
   test "for range loop emits repeated properties":
     check compile(".a\n  for $i in range(1, 3):\n    z-index: $i") == ".a{z-index:1;z-index:2;z-index:3}"
@@ -961,13 +961,13 @@ suite "Phase 5: control flow inside rule bodies":
     check compile("for $s in [{k: 0, v: 0}, {k: 1, v: 1rem}]:\n  .m-${$s.k}\n    margin: $s.v") == ".m-0{margin:0}.m-1{margin:1rem}"
 
   test "control flow with surrounding properties":
-    check compile("var $on = true\n.a\n  color: red\n  if $on:\n    top: 1px\n  background: blue") == ".a{color:red;top:1px;background:blue}"
+    check compile("var $on = true\n.a\n  color: red\n  if $on:\n    top: 1px\n  background: blue") == ".a{color:#ff0000;top:1px;background:#0000ff}"
 
   test "while loop with counter":
     check compile("var $i = 0\n.a\n  while $i < 2\n    z-index: $i\n    $i = $i + 1") == ".a{z-index:0;z-index:1}"
 
   test "control flow inside mixin":
-    check compile("var $v = true\nmixin m =\n  if $v:\n    color: green\n.a\n  @m()") == ".a{color:green}"
+    check compile("var $v = true\nmixin m =\n  if $v:\n    color: green\n.a\n  @m()") == ".a{color:#008000}"
 
   test "at-rule still parses after @ in rule bodies":
     check compile(".a\n  @media (max-width: 768px)\n    color: red") ==
