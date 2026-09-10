@@ -1,11 +1,19 @@
 <p align="center">
   <img src="https://github.com/openpeeps/bro/blob/main/.github/bro.png" alt="Bro" width="170px"><br>
-  Bro — Compiled CSS Preprocessor
+  Bro &bullet; A fast CSS Preprocessor<br>
+  Typed &bullet; VM & JIT Compiler &bullet; Written in Nim language 
+</p>
+
+
+
+<p align="center">
+  <code>nimble install bro</code> / <code>clue install bro --build</code>
 </p>
 
 <p align="center">
   <a href="https://openpeeps.github.io/bro/theindex.html">API Reference</a> |
-  <a href="https://bro.openpeeps.dev/">Documentation</a><br>
+  <a href="https://bro.openpeeps.dev/">Documentation</a> | 
+  <a href="https://github.com/openpeeps/bro/releases/latest">Download binaries</a><br>
   <img src="https://github.com/openpeeps/bro/workflows/test/badge.svg" alt="Github Actions"> <img src="https://github.com/openpeeps/bro/workflows/docs/badge.svg" alt="Github Actions">
 </p>
 
@@ -17,7 +25,7 @@ BASS files use the `.bass` extension and compile to `.css`.
 
 ## Features
 
-- Compiled to native code with a fast VM and ahead-of-time code generation
+- Fast stack-based VM & JIT Compiler
 - Typed system for CSS values (`color`, `length`, `number`, etc.) with compile-time checks
 - Familiar CSS syntax with indentation or brace blocks
 - Variables (`let`, `var`, `const`) with optional type annotations and export (`*`)
@@ -38,6 +46,11 @@ Requires Nim >= 2.0.0 (https://nim-lang.org/install.html).
 nimble install bro
 ```
 
+Or use [clue](https://github.com/openpeeps/clue), an alternative package manager for Nim development:
+```sh
+clue install bro --build
+```
+
 ### Compile
 
 ```sh
@@ -56,8 +69,13 @@ All examples are minified by default. Add `--pretty` for formatted output.
 ### 1. Variables
 
 ```bass
+<<<<<<< HEAD
 var $primary = #0d6efd
 var $radius = 4px
+=======
+var primary = #0d6efd
+var radius = 4px
+>>>>>>> cdab2eb2de0d6fab90a6d93d26849356dc615b61
 
 .card
   color: $primary
@@ -86,9 +104,14 @@ Supports `&` for pseudo-classes, combinators (`& > .item`, `& + .item`), and com
 ### 3. Mixins
 
 ```bass
+<<<<<<< HEAD
 mixin btn(color: color) =
+=======
+mixin btn(color: color) {
+>>>>>>> cdab2eb2de0d6fab90a6d93d26849356dc615b61
   color: $color
   border-radius: 4px
+}
 
 .a
   @btn(red)
@@ -111,7 +134,11 @@ for $i in range(1, 3):
 Other constructs:
 
 ```bass
+<<<<<<< HEAD
 var $debug = true
+=======
+var debug = true
+>>>>>>> cdab2eb2de0d6fab90a6d93d26849356dc615b61
 .a
   if $debug:
     outline: 1px
@@ -125,8 +152,13 @@ var $debug = true
 
 ```bass
 // _vars.bass
+<<<<<<< HEAD
 var $accent* = #0d6efd
 var $radius* = 4px
+=======
+var accent* = #0d6efd
+var radius* = 4px
+>>>>>>> cdab2eb2de0d6fab90a6d93d26849356dc615b61
 
 // main.bass
 import "./_vars.bass"
@@ -145,7 +177,11 @@ Export with `*`, import relative files or packages.
 fn dbl($n: int): int
   return $n * 2
 
+<<<<<<< HEAD
 var $p = dbl(21)
+=======
+var p = dbl(21)
+>>>>>>> cdab2eb2de0d6fab90a6d93d26849356dc615b61
 .a { z-index: $p }
 ```
 ```css

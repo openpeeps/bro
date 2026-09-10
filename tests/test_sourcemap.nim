@@ -83,7 +83,7 @@ suite "source map":
 
     let virtualMachine = newVirtualMachine(VMPreferences())
     let css = virtualMachine.interpret(script, mainChunk).stringVal[]
-    check css == ".btn{color:red;padding:10px 20px}.card{border:1px solid #ccc;font-size:16px}"
+    check css == ".btn{color:#ff0000;padding:10px 20px}.card{border:1px solid #ccc;font-size:16px}"
 
     # Rebuild the source info from the VM's accumulated segments
     var info = initSourceInfo()

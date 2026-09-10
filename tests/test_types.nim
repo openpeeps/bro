@@ -38,7 +38,7 @@ proc compileExpectError(code: string): string =
 suite "CSS type system — valid values":
   test "color: named color":
     let css = compileExpectSuccess(".a { color: red; }")
-    check css == ".a{color:red}"
+    check css == ".a{color:#ff0000}"
 
   test "color: hex value":
     let css = compileExpectSuccess(".a { color: #ff0000; }")
@@ -110,7 +110,7 @@ suite "CSS type system — valid values":
 
   test "background-color: named":
     let css = compileExpectSuccess(".a { background-color: blue; }")
-    check css == ".a{background-color:blue}"
+    check css == ".a{background-color:#0000ff}"
 
   test "background-color: transparent":
     let css = compileExpectSuccess(".a { background-color: transparent; }")
@@ -318,6 +318,31 @@ suite "CSS type system — invalid values":
     let err = compileExpectError(".a { flex-direction: diagonal; }")
     check err.len > 0
     check "flex-direction" in err
+
+  test "color: unknown ident is invalid":
+    let err = compileExpectError(".a { color: canBeAnything; }")
+    check err.len > 0
+    check "color" in err
+
+  test "color: invalid hex is invalid":
+    let err = compileExpectError(".a { color: #zzzzzz; }")
+    check err.len > 0
+    check "color" in err
+
+suite "CSS named colors to hex":
+  test "color: black converts to hex":
+    check compileExpectSuccess(".a { color: black; }") == ".a{color:#000000}"
+
+  test "color: named converts to lowercase hex":
+    check compileExpectSuccess(".a { color: red; }") == ".a{color:#ff0000}"
+
+  test "named colors convert inside gradients":
+    check compileExpectSuccess(".a { background: linear-gradient(to right, red, blue); }") ==
+      ".a{background:linear-gradient(to right, #ff0000, #0000ff)}"
+
+  test "transparent and currentcolor stay keywords":
+    check compileExpectSuccess(".a { color: transparent; }") == ".a{color:transparent}"
+    check compileExpectSuccess(".a { color: currentcolor; }") == ".a{color:currentcolor}"
 
 suite "CSS type system — variable type checking":
   test "var color used in width property (type error)":

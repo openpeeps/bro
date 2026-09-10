@@ -39,6 +39,7 @@ block extendSym:
     ttyFlex
 block extendCodeGen:
   extendModule "vancode" / "interpreter" / "codegen.nim":
+    import std/strutils
     import pkg/openparser/css as cssmod
     import pkg/openparser/colors as colormod
 
@@ -96,6 +97,81 @@ block extendCodeGen:
 
     proc cssGetPropertySyntax(propName: string): cssmod.SyntaxNode =
       cssmod.getPropertySyntax(cssData, propName)
+
+    const colorPassthroughWords = ["transparent", "currentcolor",
+      "inherit", "initial", "unset", "revert", "revert-layer"]
+
+    proc isColorPassthroughWord(s: string): bool {.inline.} =
+      s.toLowerAscii() in colorPassthroughWords
+
+    proc tryNamedToHex(name: string): string =
+      ## Lowercase hex (`#ff0000`) for a named color, "" when not a named
+      ## color or when the word must stay verbatim (passthrough keywords,
+      ## CSS vars, hex literals, functions are handled by callers).
+      if name.len == 0: return ""
+      if name[0] in {'#', '$', '-', '"', '\''}: return ""
+      let lower = name.toLowerAscii()
+      if lower in colorPassthroughWords: return ""
+      for ch in name:
+        if ch in {'(', ')', ',', '/', ' ', '\t', '"', '\''}:
+          return ""
+      try:
+        let c = colormod.parseColor(name)
+        # Only named colors convert; bare hex fragments (efd), functions
+        # and other parseable forms must stay verbatim.
+        if c.format != colormod.cfNamed:
+          return ""
+        result = c.toHex().toLowerAscii()
+      except CatchableError:
+        result = ""
+
+    proc normalizeRawCssColors(raw: string): string =
+      ## Replace whole-word named colors with lowercase hex in a rendered
+      ## property value. Skips quoted strings ("red"), hex literals, var()/
+      ## custom-prop names and passthrough keywords. Converts inside raw
+      ## CSS functions too (linear-gradient(red, blue)).
+      if raw.len == 0: return raw
+      result = newStringOfCap(raw.len + 16)
+      var i = 0
+      while i < raw.len:
+        let ch = raw[i]
+        if ch == '#':
+          # Hex literal: copy verbatim so inner fragments (efd in #0d6efd)
+          # are never treated as named-color words.
+          result.add(ch)
+          inc i
+          while i < raw.len and raw[i] in {'0'..'9', 'a'..'f', 'A'..'F'}:
+            result.add(raw[i])
+            inc i
+          continue
+        if ch == '"' or ch == '\'':
+          let q = ch
+          result.add(q)
+          inc i
+          while i < raw.len:
+            result.add(raw[i])
+            if raw[i] == q:
+              inc i
+              break
+            inc i
+          continue
+        elif ch in {'A'..'Z', 'a'..'z'}:
+          var j = i
+          while j < raw.len and raw[j] in {'A'..'Z', 'a'..'z'}:
+            inc j
+          let word = raw[i ..< j]
+          let hex = tryNamedToHex(word)
+          # Avoid converting function names (followed by '(') — e.g. `red`
+          # is never a function name, but guard for future color functions.
+          if hex.len > 0 and not (j < raw.len and raw[j] == '('):
+            result.add(hex)
+          else:
+            result.add(word)
+          i = j
+          continue
+        else:
+          result.add(ch)
+          inc i
 
     proc cssTypeToKind(cssType: string): TypeKind =
       case cssType
@@ -210,6 +286,69 @@ block extendCodeGen:
         if not numericOk:
           errNode.error(key & ": expected " & names & ", got number")
       else: discard # strings and the rest stay legacy-lenient
+
+    proc propAcceptsColor(propName: string): bool =
+      ## True when the property syntax accepts a color value (used to scope
+      ## strict invalid-color checks without false positives on shorthands).
+      if propName.len > 2 and propName[0] == '-' and propName[1] == '-':
+        return false # custom properties accept anything
+      var kinds: seq[TypeKind]
+      var unknown = false
+      collectAcceptedKinds(cssGetPropertySyntax(propName), kinds, unknown)
+      result = ttyColor in kinds
+
+    proc isSingleColorProp(propName: string): bool =
+      ## True only when the property syntax is exactly a single <color>
+      ## (color, background-color, ...). Shorthands like border/background
+      ## also accept colors but a lone word there may be width/style/keyword
+      ## (border: 1px), so strict bare-word checks must not apply to them.
+      let syn = cssGetPropertySyntax(propName)
+      if syn == nil: return false
+      if syn.kind != skType: return false
+      result = syn.cssType in ["color", "color-base", "hex-color",
+        "named-color", "system-color", "deprecated-system-color"]
+
+    proc strictValidateColorValue(propName, rawValue: string, errNode: Node) =
+      ## Raise on invalid colors. Called after normalization, so remaining
+      ## single-word idents in single-color positions must parse.
+      if propName.len > 2 and propName[0] == '-' and propName[1] == '-':
+        return
+      var i = 0
+      while i < rawValue.len:
+        if rawValue[i] == '#':
+          var j = i + 1
+          while j < rawValue.len and rawValue[j] in {'0'..'9', 'a'..'z', 'A'..'Z'}:
+            inc j
+          let token = rawValue[i ..< j]
+          if token.len > 1 and token.len <= 9:
+            try:
+              discard colormod.parseColor(token)
+            except CatchableError as e:
+              errNode.error(propName & ": invalid color '" & token & "': " & e.msg)
+          i = j
+          continue
+        inc i
+      let stripped = rawValue.strip()
+      if stripped.len == 0 or stripped.contains({' ', '\t', ',', '(', ')', '/', '"', '\''}):
+        return
+      if stripped.len > 0 and stripped[0] in {'#', '$', '"', '\''}: return
+      if stripped.startsWith("--"): return
+      if stripped.startsWith("var(") or stripped.startsWith("env("): return
+      if isColorPassthroughWord(stripped): return
+      if not isSingleColorProp(propName): return
+      try:
+        discard colormod.parseColor(stripped)
+      except CatchableError as e:
+        errNode.error(propName & ": invalid color '" & stripped & "': " & e.msg)
+
+    proc resolvePropValue(propName: string, rawCss: string, valNode, errNode: Node): string =
+      ## Normalize named colors to lowercase hex + strictly validate.
+      if propName.len > 2 and propName[0] == '-' and propName[1] == '-':
+        return rawCss
+      result = normalizeRawCssColors(rawCss)
+      if result.len > 1 and result[0] == '#' and not result.contains({' ', '\t', ',', '(', ')'}):
+        result = result.toLowerAscii()
+      strictValidateColorValue(propName, result, errNode)
 
     proc cssFloatStr(f: float): string =
       ## Render a float for CSS output — strips a trailing ".0" so integral
@@ -569,11 +708,12 @@ block extendCodeGen:
           for ci, child in bodyChildren:
             if child.kind == nkColon:
               let key = child[0].ident
-              let val = nodeToCssString(child[1])
+              var val = nodeToCssString(child[1])
+              val = resolvePropValue(key, val, child[1], child)
               if val.len > 0:
                 let isVarRef = child[1].kind == nkIdent and child[1].ident.len > 0 and child[1].ident[0] == '$'
                 if not isVarRef and child[1].kind in {nkIdent, nkInt, nkFloat, nkString, nkUnit, nkColor, nkExprList, nkCommaList, nkCall, nkPostfix}:
-                  var validateCss = if child[1].kind == nkPostfix: nodeToCssString(child[1][1]) else: val
+                  var validateCss = if child[1].kind == nkPostfix: resolvePropValue(key, nodeToCssString(child[1][1]), child[1][1], child) else: val
                   try:
                     discard cssValidateProp(key, validateCss)
                   except CatchableError as e:
@@ -626,11 +766,12 @@ block extendCodeGen:
           case child.kind
           of nkColon:
             let key = child[0].ident
-            let val = nodeToCssString(child[1])
+            var val = nodeToCssString(child[1])
+            val = resolvePropValue(key, val, child[1], child)
             if val.len > 0:
               let isVarRef = child[1].kind == nkIdent and child[1].ident.len > 0 and child[1].ident[0] == '$'
               if not isVarRef and child[1].kind in {nkIdent, nkInt, nkFloat, nkString, nkUnit, nkColor, nkExprList, nkCommaList, nkCall, nkPostfix}:
-                var validateCss = if child[1].kind == nkPostfix: nodeToCssString(child[1][1]) else: val
+                var validateCss = if child[1].kind == nkPostfix: resolvePropValue(key, nodeToCssString(child[1][1]), child[1][1], child) else: val
                 try:
                   discard cssValidateProp(key, validateCss)
                 except CatchableError as e:
@@ -697,9 +838,10 @@ block extendCodeGen:
         # to typed values at runtime, so they take the dynamic path instead.
         if not isVarRef and not gen.isBroCall(prop[1]) and prop[1].kind in {nkIdent, nkInt, nkFloat, nkString, nkUnit, nkColor, nkExprList, nkCommaList, nkCall, nkPostfix}:
           var rawCss = nodeToCssString(prop[1])
+          rawCss = resolvePropValue(key, rawCss, prop[1], prop)
           if rawCss.len > 0:
             var validateCss =
-              if prop[1].kind == nkPostfix: nodeToCssString(prop[1][1])
+              if prop[1].kind == nkPostfix: resolvePropValue(key, nodeToCssString(prop[1][1]), prop[1][1], prop)
               else: rawCss
             try:
               discard cssValidateProp(key, validateCss)
@@ -753,7 +895,7 @@ block extendCodeGen:
             of nkCommaList, nkExprList:
               # multi-segment CSS values (`a, b, c`) render as verbatim text
               gen.chunk.emit(opcPushS)
-              gen.chunk.emit(gen.chunk.getString(nodeToCssString(prop[1])))
+              gen.chunk.emit(gen.chunk.getString(resolvePropValue(key, nodeToCssString(prop[1]), prop[1], prop)))
               newType(ttyString, name = prop[1])
             else:
               # Bro calls (lighten, parseLength, ...), infix and other dynamic
@@ -816,11 +958,14 @@ block extendCodeGen:
           gen.chunk.emit(uint16(0xFFFF))
           gen.chunk.emit(uint16(0))
         else:
-          let val = nodeToCssString(v)
+          var val = nodeToCssString(v)
+          val = resolvePropValue(key, val, v, node)
           if key in ["box-shadow", "grid-template-columns", "content"]:
+            # Warn-only props still get strict color validation via resolve
+            # (invalid colors are hard errors); skip the generic validator.
             discard
           else:
-            var validateCss = if v.kind == nkPostfix: nodeToCssString(v[1]) else: val
+            var validateCss = if v.kind == nkPostfix: resolvePropValue(key, nodeToCssString(v[1]), v[1], node) else: val
             try:
               discard cssValidateProp(key, validateCss)
             except CatchableError as e:
@@ -902,9 +1047,9 @@ block extendCodeGen:
         node.error("Invalid color '" & raw & "': " & e.msg)
       if gen.lookup(ast.newIdent("parseColor"), quiet = true) == nil:
         # Constructor not in scope (file imports only inherit system):
-        # legacy plain-string push, output-identical.
+        # legacy plain-string push, still normalized to hex for named colors.
         gen.chunk.emit(opcPushS)
-        gen.chunk.emit(gen.chunk.getString(raw))
+        gen.chunk.emit(gen.chunk.getString(normalizeRawCssColors(raw)))
         result = gen.typeLookup("string")
         return
       let callNode = ast.newCall(ast.newIdent("parseColor"), ast.newStringLit(raw))
@@ -917,14 +1062,18 @@ block extendCodeGen:
       var parts: seq[string]
       for child in node.children:
         case child.kind
-        of nkIdent: parts.add(child.ident)
+        of nkIdent:
+          let hx = tryNamedToHex(child.ident)
+          parts.add(if hx.len > 0: hx else: child.ident)
         of nkInt: parts.add($child.intVal)
         of nkFloat: parts.add(cssFloatStr(child.floatVal))
         of nkString: parts.add(child.stringVal)
         of nkUnit:
           var v = if child[0].kind == nkInt: $child[0].intVal else: cssFloatStr(child[0].floatVal)
           parts.add(v & child[1].ident)
-        of nkColor: parts.add(child[0].stringVal)
+        of nkColor:
+          let hx = tryNamedToHex(child[0].stringVal)
+          parts.add(if hx.len > 0: hx else: child[0].stringVal.toLowerAscii())
         else: parts.add("<value>")
       let combined = parts.join(" ")
       gen.chunk.emit(opcPushS)
@@ -950,10 +1099,11 @@ block extendCodeGen:
         for ci, child in node[2].children:
           if child.kind == nkColon:
             let key = child[0].ident
-            let val = nodeToCssString(child[1])
+            var val = nodeToCssString(child[1])
+            val = resolvePropValue(key, val, child[1], child)
             let isVarRef = child[1].kind == nkIdent and child[1].ident.len > 0 and child[1].ident[0] == '$'
             if not isVarRef and child[1].kind in {nkIdent, nkInt, nkFloat, nkString, nkUnit, nkColor, nkExprList, nkCommaList, nkCall, nkPostfix}:
-              var validateCss = if child[1].kind == nkPostfix: nodeToCssString(child[1][1]) else: val
+              var validateCss = if child[1].kind == nkPostfix: resolvePropValue(key, nodeToCssString(child[1][1]), child[1][1], child) else: val
               try:
                 discard cssValidateProp(key, validateCss)
               except CatchableError as e:
