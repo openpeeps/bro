@@ -69,13 +69,8 @@ All examples are minified by default. Add `--pretty` for formatted output.
 ### 1. Variables
 
 ```bass
-<<<<<<< HEAD
 var $primary = #0d6efd
 var $radius = 4px
-=======
-var primary = #0d6efd
-var radius = 4px
->>>>>>> cdab2eb2de0d6fab90a6d93d26849356dc615b61
 
 .card
   color: $primary
@@ -104,11 +99,7 @@ Supports `&` for pseudo-classes, combinators (`& > .item`, `& + .item`), and com
 ### 3. Mixins
 
 ```bass
-<<<<<<< HEAD
-mixin btn(color: color) =
-=======
 mixin btn(color: color) {
->>>>>>> cdab2eb2de0d6fab90a6d93d26849356dc615b61
   color: $color
   border-radius: 4px
 }
@@ -134,11 +125,7 @@ for $i in range(1, 3):
 Other constructs:
 
 ```bass
-<<<<<<< HEAD
-var $debug = true
-=======
 var debug = true
->>>>>>> cdab2eb2de0d6fab90a6d93d26849356dc615b61
 .a
   if $debug:
     outline: 1px
@@ -152,13 +139,8 @@ var debug = true
 
 ```bass
 // _vars.bass
-<<<<<<< HEAD
 var $accent* = #0d6efd
 var $radius* = 4px
-=======
-var accent* = #0d6efd
-var radius* = 4px
->>>>>>> cdab2eb2de0d6fab90a6d93d26849356dc615b61
 
 // main.bass
 import "./_vars.bass"
@@ -177,11 +159,7 @@ Export with `*`, import relative files or packages.
 fn dbl($n: int): int
   return $n * 2
 
-<<<<<<< HEAD
 var $p = dbl(21)
-=======
-var p = dbl(21)
->>>>>>> cdab2eb2de0d6fab90a6d93d26849356dc615b61
 .a { z-index: $p }
 ```
 ```css
