@@ -62,7 +62,6 @@ type
     tkPipeAssign = "|="
     tkDollarAssign = "$="
     tkKeywordVar = "var"
-    tkKeywordLet = "let"
     tkKeywordConst = "const"
     tkKeywordFunction = "function"
     tkKeywordReturn = "return"
@@ -503,7 +502,6 @@ proc nextToken(lex: var Lexer): TokenTuple =
         of "fn", "func", "function":
           # `fn` / `func` are canonical aliases for `function`
           initToken(lex, move(lex.strbuf), tkKeywordFunction, startLine, startCol, startPos, wsno)
-        of "let": initToken(lex, move(lex.strbuf), tkKeywordLet, startLine, startCol, startPos, wsno)
         of "const": initToken(lex, move(lex.strbuf), tkKeywordConst, startLine, startCol, startPos, wsno)
         of "return": initToken(lex, move(lex.strbuf), tkKeywordReturn, startLine, startCol, startPos, wsno)
         of "if": initToken(lex, move(lex.strbuf), tkKeywordIf, startLine, startCol, startPos, wsno)

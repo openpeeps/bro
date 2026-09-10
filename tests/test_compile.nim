@@ -305,9 +305,9 @@ suite "compilation tests":
   """)
     check css == ".foo{color:#FF0000}"
 
-  test "compile let declaration":
+  test "compile var declaration":
     let css = compile("""
-  let $size = 16px
+  var $size = 16px
   .foo { font-size: $size; }
   """)
     check css == ".foo{font-size:16px}"
@@ -330,21 +330,21 @@ suite "compilation tests":
 
   test "bare declaration of named color keeps hex conversion":
     let css = compile("""
-  let accent = red
+  var accent = red
   .foo { color: $accent; }
   """)
     check css == ".foo{color:#FF0000}"
 
   test "bare exported declaration":
     let css = compile("""
-  let accent* = blue
+  var accent* = blue
   .foo { color: $accent; }
   """)
     check css == ".foo{color:#0000FF}"
 
   test "compile variable reference in selector block":
     let css = compile("""
-  let $col = blue
+  var $col = blue
   .foo
     color: $col
     background: $col
@@ -353,14 +353,14 @@ suite "compilation tests":
 
   test "compile arithmetic in value":
     let css = compile("""
-  let $base = 10
+  var $base = 10
   .foo { width: $base + 5; }
   """)
     check css == ".foo{width:15}"
 
   test "compile string variable":
     let css = compile("""
-  let $name = "hello"
+  var $name = "hello"
   .foo { content: $name; }
   """)
     check css == ".foo{content:hello}"
@@ -728,7 +728,7 @@ suite "Phase 2: Sass-style nesting":
       ".parent{@media (max-width: 768px){.child{color:blue}}}"
 
   test "nesting with var() reference":
-    check compile("let $col = blue\n.parent\n  .child\n    color: $col") ==
+    check compile("var $col = blue\n.parent\n  .child\n    color: $col") ==
       ".parent .child{color:#0000FF}"
 
   test "nesting preserves selector type (id)":
@@ -782,7 +782,7 @@ suite "Phase 2: Sass-style nesting":
       ".parent .child{color:red !important;font-size:14px}"
 
   test "nesting with var() on child":
-    check compile("let $c = red\n.parent\n  .child\n    color: $c") ==
+    check compile("var $c = red\n.parent\n  .child\n    color: $c") ==
       ".parent .child{color:#FF0000}"
 
   test "nesting + at-rule interleave":
@@ -865,7 +865,7 @@ suite "Phase 4: numeric edge cases":
     check compile(".a { width: 12em; }") == ".a{width:12em}"
 
   test "arithmetic still uses infix plus":
-    check compile("let $base = 10\n.a { width: $base + 5; }") == ".a{width:15}"
+    check compile("var $base = 10\n.a { width: $base + 5; }") == ".a{width:15}"
 
   test "integral float renders without .0":
     check compile(".a { opacity: 1.0; }") == ".a{opacity:1}"
@@ -876,11 +876,11 @@ suite "Phase 4: numeric edge cases":
 
 suite "Phase 5: mixins":
   test "basic mixin with typed parameter":
-    check compile("mixin btn(color: color)\n  color: $color\n  border-radius: 4px\n.a\n  @btn(red)") ==
+    check compile("mixin btn(color: color) =\n  color: $color\n  border-radius: 4px\n.a\n  @btn(red)") ==
       ".a{color:red;border-radius:4px}"
 
   test "mixin without parameters":
-    check compile("mixin reset()\n  margin: 0\n  padding: 0\n.a\n  @reset()") ==
+    check compile("mixin reset() =\n  margin: 0\n  padding: 0\n.a\n  @reset()") ==
       ".a{margin:0;padding:0}"
 
   test "mixin with eq-form body":
@@ -892,39 +892,51 @@ suite "Phase 5: mixins":
       ".a{color:red}"
 
   test "mixin with multiple parameters":
-    check compile("mixin box(w: length, h: length)\n  width: $w\n  height: $h\n.a\n  @box(10px, 20px)") ==
+    check compile("mixin box(w: length, h: length) =\n  width: $w\n  height: $h\n.a\n  @box(10px, 20px)") ==
       ".a{width:10px;height:20px}"
 
   test "mixin with variable argument":
-    check compile("mixin btn(color: color)\n  color: $color\nlet $c = blue\n.a\n  @btn($c)") ==
+    check compile("mixin btn(color: color) =\n  color: $color\nvar $c = blue\n.a\n  @btn($c)") ==
       ".a{color:#0000FF}"
 
   test "mixin named arguments (dollar form)":
-    check compile("mixin box(w: length, h: length)\n  width: $w\n  height: $h\n.a\n  @box($h = 5px, $w = 10px)") ==
+    check compile("mixin box(w: length, h: length) =\n  width: $w\n  height: $h\n.a\n  @box($h = 5px, $w = 10px)") ==
       ".a{width:10px;height:5px}"
 
   test "mixin named arguments (bare form)":
-    check compile("mixin box(w: length, h: length)\n  width: $w\n  height: $h\n.a\n  @box(h = 5px, w = 10px)") ==
+    check compile("mixin box(w: length, h: length) =\n  width: $w\n  height: $h\n.a\n  @box(h = 5px, w = 10px)") ==
       ".a{width:10px;height:5px}"
 
   test "mixin called multiple times":
-    check compile("mixin pad(n: number)\n  padding: $n\n.a\n  @pad(1px)\n.b\n  @pad(2px)") ==
+    check compile("mixin pad(n: number) =\n  padding: $n\n.a\n  @pad(1px)\n.b\n  @pad(2px)") ==
       ".a{padding:1px}.b{padding:2px}"
 
   test "mixin preserves parent property order":
-    check compile("mixin m(c: color)\n  color: $c\n.a\n  color: red\n  @m(green)\n  background: blue") ==
+    check compile("mixin m(c: color) =\n  color: $c\n.a\n  color: red\n  @m(green)\n  background: blue") ==
       ".a{color:red;color:green;background:blue}"
 
   test "nested selector inside mixin (full splice)":
-    check compile("mixin card\n  .title\n    font-weight: bold\n.a\n  color: red\n  @card()") ==
+    check compile("mixin card =\n  .title\n    font-weight: bold\n.a\n  color: red\n  @card()") ==
       ".a{color:red}.a .title{font-weight:bold}"
 
   test "mixin definition emits no CSS":
-    check compile("mixin unused(color: color)\n  background: $color") == ""
+    check compile("mixin unused(color: color) =\n  background: $color") == ""
 
   test "missing argument raises error":
     expect CatchableError:
-      discard compile("mixin btn(color: color)\n  color: $color\n.a\n  @btn()")
+      discard compile("mixin btn(color: color) =\n  color: $color\n.a\n  @btn()")
+
+  test "mixin with equals before indented body":
+    check compile("mixin btn(color: color) =\n  color: $color\n  border-radius: 4px\n.a\n  @btn(red)") ==
+      ".a{color:red;border-radius:4px}"
+
+  test "mixin with equals before brace body":
+    check compile("mixin btn(color: color) = {\n  color: $color;\n}\n.a {\n  @btn(blue)\n}") ==
+      ".a{color:blue}"
+
+  test "mixin without equals raises error":
+    expect CatchableError:
+      discard compile("mixin btn(color: color)\n  color: $color\n.a\n  @btn(red)")
 
 suite "Phase 5: control flow inside rule bodies":
   test "if true emits contained property":
@@ -934,10 +946,10 @@ suite "Phase 5: control flow inside rule bodies":
     check compile(".a\n  if false:\n    color: red\n  color: blue") == ".a{color:blue}"
 
   test "if with variable condition":
-    check compile("let $debug = true\n.a\n  if $debug:\n    outline: 1px") == ".a{outline:1px}"
+    check compile("var $debug = true\n.a\n  if $debug:\n    outline: 1px") == ".a{outline:1px}"
 
   test "if else branches":
-    check compile("let $m = false\n.a\n  if $m:\n    color: red\n  else:\n    color: blue") == ".a{color:blue}"
+    check compile("var $m = false\n.a\n  if $m:\n    color: red\n  else:\n    color: blue") == ".a{color:blue}"
 
   test "for range loop emits repeated properties":
     check compile(".a\n  for $i in range(1, 3):\n    z-index: $i") == ".a{z-index:1;z-index:2;z-index:3}"
@@ -949,13 +961,13 @@ suite "Phase 5: control flow inside rule bodies":
     check compile("for $s in [{k: 0, v: 0}, {k: 1, v: 1rem}]:\n  .m-${$s.k}\n    margin: $s.v") == ".m-0{margin:0}.m-1{margin:1rem}"
 
   test "control flow with surrounding properties":
-    check compile("let $on = true\n.a\n  color: red\n  if $on:\n    top: 1px\n  background: blue") == ".a{color:red;top:1px;background:blue}"
+    check compile("var $on = true\n.a\n  color: red\n  if $on:\n    top: 1px\n  background: blue") == ".a{color:red;top:1px;background:blue}"
 
   test "while loop with counter":
     check compile("var $i = 0\n.a\n  while $i < 2\n    z-index: $i\n    $i = $i + 1") == ".a{z-index:0;z-index:1}"
 
   test "control flow inside mixin":
-    check compile("let $v = true\nmixin m\n  if $v:\n    color: green\n.a\n  @m()") == ".a{color:green}"
+    check compile("var $v = true\nmixin m =\n  if $v:\n    color: green\n.a\n  @m()") == ".a{color:green}"
 
   test "at-rule still parses after @ in rule bodies":
     check compile(".a\n  @media (max-width: 768px)\n    color: red") ==
@@ -963,11 +975,19 @@ suite "Phase 5: control flow inside rule bodies":
 
 suite "Phase 5: fn / func aliases":
   test "fn keyword evaluates in expression position":
-    check compile("fn dbl($n: int): int\n  return $n * 2\nlet $p = dbl(21)\n.a { z-index: $p }") ==
+    check compile("fn dbl($n: int): int\n  return $n * 2\nvar $p = dbl(21)\n.a { z-index: $p }") ==
       ".a{z-index:42}"
 
   test "func alias works identically":
-    check compile("func dbl($n: int): int\n  return $n * 2\nlet $p = dbl(21)\n.a { z-index: $p }") ==
+    check compile("func dbl($n: int): int\n  return $n * 2\nvar $p = dbl(21)\n.a { z-index: $p }") ==
+      ".a{z-index:42}"
+
+  test "fn with equals before indented body":
+    check compile("fn dbl($n: int): int =\n  return $n * 2\nvar $p = dbl(21)\n.a { z-index: $p }") ==
+      ".a{z-index:42}"
+
+  test "fn with equals before brace body":
+    check compile("fn dbl($n: int): int = {\n  return $n * 2\n}\nvar $p = dbl(21)\n.a { z-index: $p }") ==
       ".a{z-index:42}"
 
 suite "Phase 6: modules (.bass imports)":

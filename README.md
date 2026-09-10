@@ -56,8 +56,8 @@ All examples are minified by default. Add `--pretty` for formatted output.
 ### 1. Variables
 
 ```bass
-let $primary = #0d6efd
-let $radius = 4px
+var $primary = #0d6efd
+var $radius = 4px
 
 .card
   color: $primary
@@ -86,7 +86,7 @@ Supports `&` for pseudo-classes, combinators (`& > .item`, `& + .item`), and com
 ### 3. Mixins
 
 ```bass
-mixin btn(color: color)
+mixin btn(color: color) =
   color: $color
   border-radius: 4px
 
@@ -111,7 +111,7 @@ for $i in range(1, 3):
 Other constructs:
 
 ```bass
-let $debug = true
+var $debug = true
 .a
   if $debug:
     outline: 1px
@@ -125,8 +125,8 @@ let $debug = true
 
 ```bass
 // _vars.bass
-let $accent* = #0d6efd
-let $radius* = 4px
+var $accent* = #0d6efd
+var $radius* = 4px
 
 // main.bass
 import "./_vars.bass"
@@ -145,7 +145,7 @@ Export with `*`, import relative files or packages.
 fn dbl($n: int): int
   return $n * 2
 
-let $p = dbl(21)
+var $p = dbl(21)
 .a { z-index: $p }
 ```
 ```css

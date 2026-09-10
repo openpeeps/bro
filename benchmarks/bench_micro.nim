@@ -154,7 +154,7 @@ mixin card
   BenchCase(name: "control-if",
     hint: "if/else inside rule (rawPropMode)",
     code: """
-let $debug = true
+var $debug = true
 .a
   color: red
   if $debug:
@@ -197,7 +197,7 @@ var $i = 0
   BenchCase(name: "control-case-of",
     hint: "case/of desugar → if chain",
     code: """
-let $v = 2
+var $v = 2
 .a
   case $v:
     of 1: color: red

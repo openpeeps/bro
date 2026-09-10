@@ -41,13 +41,13 @@ suite "lexer tests":
     assert tokens[1].value == "header"
 
   test "tokenize variable declaration":
-    var lex = newLexer("let x = 10")
+    var lex = newLexer("var x = 10")
     var tokens: seq[TokenTuple]
     var tok = lex.getToken()
     while tok.kind != tkEOF:
       tokens.add(tok)
       tok = lex.getToken()
-    assert tokens[0].kind == tkKeywordLet
+    assert tokens[0].kind == tkKeywordVar
     assert tokens[1].kind == tkIdentifier
     assert tokens[1].value == "x"
     assert tokens[2].kind == tkAssign
@@ -386,14 +386,14 @@ suite "parser tests":
   test "parse variable declarations":
     let sample = """
   var x = 10
-  let name = "hello"
+  var name = "hello"
   const PI = 3.14
   """
     var ast: Ast
     parser.parseScript(ast, sample, "test_vars.css")
     assert ast.nodes.len == 3
     assert ast.nodes[0].kind == nkVar
-    assert ast.nodes[1].kind == nkLet
+    assert ast.nodes[1].kind == nkVar
     assert ast.nodes[2].kind == nkConst
 
   test "parse typed variable":
@@ -547,12 +547,12 @@ suite "parser tests":
 
   test "parse string assignment":
     let sample = """
-  let greeting = "hello world"
+  var greeting = "hello world"
   """
     var ast: Ast
     parser.parseScript(ast, sample, "test_str.css")
     assert ast.nodes.len == 1
-    assert ast.nodes[0].kind == nkLet
+    assert ast.nodes[0].kind == nkVar
 
   test "parse arithmetic expression":
     let sample = """
@@ -722,12 +722,12 @@ suite "parser tests":
 
   test "parse string escape sequences":
     let sample = """
-  let s = "tab\there"
+  var s = "tab\there"
   """
     var ast: Ast
     parser.parseScript(ast, sample, "test_esc.css")
     assert ast.nodes.len == 1
-    assert ast.nodes[0].kind == nkLet
+    assert ast.nodes[0].kind == nkVar
 
   test "parse number as float":
     let sample = """
@@ -789,7 +789,7 @@ suite "parser tests":
   test "parse multiple statements mixed":
     let sample = """
   var x = 1
-  let y = 2
+  var y = 2
   const z = 3
   if x > 0:
     color: red

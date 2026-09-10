@@ -593,8 +593,6 @@ prefixHandle parseVar:
   case p.curr.kind
   of tkKeywordVar:
     result = ast.newNode(nkVar)
-  of tkKeywordLet:
-    result = ast.newNode(nkLet)
   of tkKeywordConst:
     result = ast.newNode(nkConst)
   else:
@@ -708,7 +706,12 @@ proc parseBlock(p: var Parser, indentPos = 0,
   elif p.curr is (
       when parseFnBlock == true: tkAssign
                             else: tkColon
-      ): walk p
+      ):
+    walk p # `=` (fn/mixin) or `:` separates the body
+    if p.curr is tkLBrace:
+      # `= { ... }` brace body after the separator
+      closingBlock = true
+      walk p # tkLBrace
   let savedInBlockBody = p.inBlockBody
   p.inBlockBody = true
   defer: p.inBlockBody = savedInBlockBody
@@ -1181,6 +1184,15 @@ prefixHandle parseMixin:
     var params: seq[Node]
     if p.parseCommaIdentList(tkLParen, tkRParen, params):
       formalParams.add(params)
+  if p.curr is tkLBrace:
+    # Brace body needs no separator: `mixin btn(color: color) { ... }`.
+    discard
+  else:
+    # Indent body requires `=`: `mixin btn(color: color) =`.
+    if p.curr isnot tkAssign:
+      p.curr.error("expected '=' after mixin signature", fatal = true)
+      return
+    walk p # tkAssign separates the indented body
   let body: Node = p.parseBlock(mixpos, parseFnBlock = true)
   caseNotNil body:
     result = ast.newTree(nkMixinDef, name, formalParams, body)
@@ -2340,7 +2352,7 @@ proc getPrefixFn(p: var Parser, minPrec: int): PrefixFunction =
         collectRawCall
       else:
         parseVar
-    of tkKeywordLet, tkKeywordConst: parseVar
+    of tkKeywordConst: parseVar
     of tkCssVar: parseIdent
     of tkString: parseString
     of tkInt, tkFloat: parseNumber
@@ -2506,7 +2518,7 @@ prefixHandle parseStmt:
     of tkAsterisk: parseUniversalSelector
     of tkColon: parsePseudoSelector
     of tkLBracket: parseSelector
-    of tkKeywordVar, tkKeywordLet, tkKeywordConst: parseVar
+    of tkKeywordVar, tkKeywordConst: parseVar
     of tkKeywordFunction: parseFunction
     of tkKeywordIterator: parseIterator
     of tkKeywordMixin: parseMixin
